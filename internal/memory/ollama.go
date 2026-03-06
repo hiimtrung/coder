@@ -20,17 +20,15 @@ func (p *OllamaEmbeddingProvider) GenerateEmbedding(ctx context.Context, text st
 		url = "http://localhost:11434"
 	}
 
-	// Đảm bảo URL kết thúc đúng API endpoint của Ollama
-	if !strings.HasSuffix(url, "/api/embeddings") {
-		url = strings.TrimSuffix(url, "/") + "/api/embeddings"
-	}
+	// Sử dụng endpoint /api/embed mới nhất
+	apiURL := strings.TrimSuffix(url, "/") + "/api/embed"
 
 	reqBody, _ := json.Marshal(map[string]interface{}{
-		"model":  p.Model,
-		"prompt": text,
+		"model": p.Model,
+		"input": text,
 	})
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err
 	}
@@ -43,21 +41,42 @@ func (p *OllamaEmbeddingProvider) GenerateEmbedding(ctx context.Context, text st
 	}
 	defer resp.Body.Close()
 
+	// Nếu /api/embed trả về 404, thử fallback sang /api/embeddings cũ
+	if resp.StatusCode == http.StatusNotFound {
+		legacyURL := strings.TrimSuffix(url, "/") + "/api/embeddings"
+		legacyBody, _ := json.Marshal(map[string]interface{}{
+			"model":  p.Model,
+			"prompt": text,
+		})
+
+		req, _ = http.NewRequestWithContext(ctx, "POST", legacyURL, bytes.NewBuffer(legacyBody))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ollama embedding API returned error: %s", resp.Status)
 	}
 
 	var result struct {
-		Embedding []float32 `json:"embedding"`
+		Embedding  []float32   `json:"embedding"`  // legacy
+		Embeddings [][]float32 `json:"embeddings"` // new
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
 
-	if len(result.Embedding) == 0 {
-		return nil, fmt.Errorf("no embedding returned from ollama")
+	if len(result.Embeddings) > 0 {
+		return result.Embeddings[0], nil
+	}
+	if len(result.Embedding) > 0 {
+		return result.Embedding, nil
 	}
 
-	return result.Embedding, nil
+	return nil, fmt.Errorf("no embedding returned from ollama (check if model is pulled)")
 }

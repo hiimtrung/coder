@@ -22,8 +22,8 @@ services:
       - ollama_data:/root/.ollama
     entrypoint: ["/bin/sh","-c"]
     command: >
-      "ollama serve & sleep 5 &&
-       ollama pull nomic-embed-text &&
+      sh -c "ollama serve & sleep 5 &&
+       ollama pull mxbai-embed-base &&
        tail -f /dev/null"
 
 volumes:

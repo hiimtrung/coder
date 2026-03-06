@@ -110,7 +110,7 @@ jobs:
 
             ### macOS / Linux
             ```sh
-            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)"
             ```
 
             ### Windows (PowerShell)
