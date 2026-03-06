@@ -39,7 +39,7 @@ The **coder CLI** distributes a **centralized engineering knowledge system** to 
 
 ### Requirements
 - **PostgreSQL** with `pgvector` extension (for external semantic memory)
-- **Ollama** (remote server or local container) running `mxbai-embed-base`
+- **Ollama** (remote server or local container) running `mxbai-embed-large`
 
 ### Quick Start (macOS / Linux)
 The installer is now **interactive** and will verify your connections:
@@ -226,7 +226,7 @@ make install-user  # or 'make install' for /usr/local/bin (requires sudo)
 ### Prerequisites
 - Go 1.26.0+
 - **PostgreSQL** with `pgvector` extension
-- **Ollama** server running `mxbai-embed-base`
+- **Ollama** server running `mxbai-embed-large`
 - Make (optional)
 
 ### Build for current platform

@@ -390,7 +390,7 @@ func getMemoryManager() *memory.Manager {
 			model = os.Getenv("OLLAMA_EMBEDDING_MODEL")
 		}
 		if model == "" {
-			model = "mxbai-embed-base" // dimension 1024
+			model = "mxbai-embed-large" // dimension 1024
 		}
 		provider = &memory.OllamaEmbeddingProvider{
 			BaseURL: baseURL,

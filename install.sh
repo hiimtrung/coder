@@ -145,7 +145,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     "provider": "ollama",
     "database_type": "postgres",
     "base_url": "$OLLAMA_URL",
-    "model": "mxbai-embed-base",
+    "model": "mxbai-embed-large",
     "postgres_dsn": "$POSTGRES_DSN"
   }
 }

@@ -109,7 +109,7 @@ if (-not (Test-Path $ConfigFile)) {
                 provider = "ollama"
                 database_type = "postgres"
                 base_url = $OllamaUrl
-                model = "mxbai-embed-base"
+                model = "mxbai-embed-large"
                 postgres_dsn = $PostgresDsn
             }
         }

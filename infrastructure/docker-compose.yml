@@ -20,8 +20,13 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    entrypoint: /bin/sh
-    command: -c "ollama serve & sleep 10 && ollama pull mxbai-embed-base && wait"
+    entrypoint: ["/usr/bin/sh", "-c"]
+    command: 
+      - |
+        ollama serve &
+        sleep 20
+        ollama pull mxbai-embed-large
+        tail -f /dev/null
 
 volumes:
   pg_data:
