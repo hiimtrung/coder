@@ -59,6 +59,13 @@ func (p *OllamaEmbeddingProvider) GenerateEmbedding(ctx context.Context, text st
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		json.NewDecoder(resp.Body).Decode(&errResp)
+		if errResp.Error != "" {
+			return nil, fmt.Errorf("ollama embedding API error: %s", errResp.Error)
+		}
 		return nil, fmt.Errorf("ollama embedding API returned error: %s", resp.Status)
 	}
 
