@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: pgvector_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coder
+      POSTGRES_PASSWORD: [PASSWORD]
+      POSTGRES_DB: coder
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_embed
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh","-c"]
+    command: >
+      "ollama serve & sleep 5 &&
+       ollama pull nomic-embed-text &&
+       tail -f /dev/null"
+
+volumes:
+  pg_data:
+  ollama_data:
