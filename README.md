@@ -6,7 +6,7 @@ Built in Go, cross-platform, zero dependencies. Single binary (~7MB) with embedd
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh | sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)"
 # or (Windows PowerShell)
 irm https://raw.githubusercontent.com/hiimtrung/coder/main/install.ps1 | iex
 
@@ -44,7 +44,7 @@ The **coder CLI** distributes a **centralized engineering knowledge system** to 
 ### Quick Start (macOS / Linux)
 The installer is now **interactive** and will verify your connections:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh | sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)"
 ```
 
 ### Windows (PowerShell)
@@ -302,7 +302,7 @@ When you push a tag `v*.*.*`:
 
 Users can then install the new version:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh | sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)"
 coder check-update  # detects new version
 coder self-update   # auto-upgrade
 ```

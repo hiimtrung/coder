@@ -2,9 +2,8 @@
 # install.sh — Install coder CLI
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh | sh -s -- --version v0.1.0
-#   curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh | sh -s -- --dir ~/.local/bin
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)"
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)" -- --version v0.1.0
 
 set -e
 
@@ -111,7 +110,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
   # Prompt for Ollama URL
   while true; do
     printf "Enter Ollama Base URL [http://127.0.0.1:11434]: "
-    read -r OLLAMA_URL </dev/tty
+    read -r OLLAMA_URL < /dev/tty || break
     OLLAMA_URL=${OLLAMA_URL:-http://127.0.0.1:11434}
     
     echo "Verifying Ollama connection at $OLLAMA_URL..."
@@ -121,7 +120,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     else
       echo "⚠ Could not connect to Ollama at $OLLAMA_URL."
       printf "Do you want to use this URL anyway? [y/N]: "
-      read -r choice </dev/tty
+      read -r choice < /dev/tty || break
       case "$choice" in 
         y|Y ) break;;
         * ) ;;
@@ -132,7 +131,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
   # Prompt for Postgres DSN
   while true; do
     printf "Enter PostgreSQL DSN (e.g., postgres://user:pass@host:5432/dbname?sslmode=disable): "
-    read -r POSTGRES_DSN </dev/tty
+    read -r POSTGRES_DSN < /dev/tty || break
     if [ -z "$POSTGRES_DSN" ]; then
       echo "PostgreSQL DSN cannot be empty."
       continue
@@ -162,7 +161,7 @@ EOF
       cat "$CONFIG_DIR/dbcheck.err"
       rm -f "$CONFIG_DIR/dbcheck.err"
       printf "Do you want to re-enter the DSN? [Y/n]: "
-      read -r choice </dev/tty
+      read -r choice < /dev/tty || break
       case "$choice" in 
         n|N ) break;;
         * ) ;;
