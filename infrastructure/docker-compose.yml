@@ -25,7 +25,7 @@ services:
         tail -f /dev/null
 
   coder-node:
-    image: ghcr.io/trungtran/coder-node:latest
+    image: ghcr.io/hiimtrung/coder-node:latest
     container_name: coder_node
     restart: unless-stopped
     environment:

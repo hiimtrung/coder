@@ -23,14 +23,13 @@ echo "Setting up coder-node at $INSTALL_DIR..."
 
 mkdir -p "$INSTALL_DIR"
 
-# Download the docker-compose file (in a real scenario, this would be downloaded from github)
-# For now, if we are in the repo, we just copy it. If not, curl it.
+# Download the docker-compose file
 if [ -f "infrastructure/docker-compose.yml" ]; then
     cp infrastructure/docker-compose.yml "$INSTALL_DIR/docker-compose.yml"
 else
     # Fallback url when run remotely
     echo "Downloading docker-compose.yml..."
-    curl -fsSL https://raw.githubusercontent.com/trungtran/coder/main/infrastructure/docker-compose.yml -o "$INSTALL_DIR/docker-compose.yml"
+    curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/infrastructure/docker-compose.yml -o "$INSTALL_DIR/docker-compose.yml"
 fi
 
 cd "$INSTALL_DIR"
