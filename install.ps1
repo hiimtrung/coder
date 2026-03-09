@@ -74,60 +74,36 @@ if (-not (Test-Path $ConfigDir)) {
 if (-not (Test-Path $ConfigFile)) {
     Write-Host "Initializing configuration..."
     
-    # Prompt for Ollama URL
+    # Prompt for coder-node URL
     while ($true) {
-        $OllamaUrl = Read-Host "Enter Ollama Base URL [http://127.0.0.1:11434]"
-        if ([string]::IsNullOrWhiteSpace($OllamaUrl)) {
-            $OllamaUrl = "http://127.0.0.1:11434"
+        $NodeUrl = Read-Host "Enter coder-node gRPC URL [localhost:50051]"
+        if ([string]::IsNullOrWhiteSpace($NodeUrl)) {
+            $NodeUrl = "localhost:50051"
         }
         
-        Write-Host "Verifying Ollama connection at $OllamaUrl..."
-        try {
-            $response = Invoke-WebRequest -Uri $OllamaUrl -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
-            Write-Host "✓ Ollama connection successful."
-            break
-        } catch {
-            Write-Host "⚠ Could not connect to Ollama at $OllamaUrl."
-            $Choice = Read-Host "Do you want to use this URL anyway? [y/N]"
-            if ($Choice -match "^[yY]") {
-                break
-            }
-        }
-    }
-    
-    # Prompt for Postgres DSN
-    while ($true) {
-        $PostgresDsn = Read-Host "Enter PostgreSQL DSN (e.g., postgres://user:pass@host:5432/dbname?sslmode=disable)"
-        if ([string]::IsNullOrWhiteSpace($PostgresDsn)) {
-            Write-Host "PostgreSQL DSN cannot be empty."
-            continue
-        }
+        Write-Host "Verifying connection to coder-node at $NodeUrl..."
         
-        Write-Host "Verifying PostgreSQL connection..."
         $Config = @{
             memory = @{
-                provider = "ollama"
-                database_type = "postgres"
-                base_url = $OllamaUrl
-                model = "mxbai-embed-large"
-                postgres_dsn = $PostgresDsn
+                provider = "grpc"
+                base_url = $NodeUrl
             }
         }
         $Config | ConvertTo-Json -Depth 10 | Out-File -FilePath $ConfigFile -Encoding UTF8
         
         # Test connection using the installed binary
-        $ErrFile = Join-Path $ConfigDir "dbcheck.err"
+        $ErrFile = Join-Path $ConfigDir "nodecheck.err"
         $process = Start-Process -FilePath $Dest -ArgumentList "memory list --limit 1" -NoNewWindow -Wait -PassThru -RedirectStandardError $ErrFile -RedirectStandardOutput $null
         
         if ($process.ExitCode -eq 0) {
-            Write-Host "✓ PostgreSQL connection successful."
+            Write-Host "✓ connection to coder-node successful."
             Remove-Item -Path $ErrFile -ErrorAction SilentlyContinue
             break
         } else {
-            Write-Host "⚠ Failed to connect to PostgreSQL. Error details:"
+            Write-Host "⚠ Failed to connect to coder-node. Error details:"
             Get-Content $ErrFile | Write-Host
             Remove-Item -Path $ErrFile -ErrorAction SilentlyContinue
-            $Choice = Read-Host "Do you want to re-enter the DSN? [Y/n]"
+            $Choice = Read-Host "Do you want to re-enter the URL? [Y/n]"
             if ($Choice -match "^[nN]") {
                 break
             }

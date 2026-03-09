@@ -107,60 +107,34 @@ fi
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "Initializing configuration..."
   
-  # Prompt for Ollama URL
+  # Prompt for coder-node URL
   while true; do
-    printf "Enter Ollama Base URL [http://127.0.0.1:11434]: "
-    read -r OLLAMA_URL < /dev/tty || break
-    OLLAMA_URL=${OLLAMA_URL:-http://127.0.0.1:11434}
+    printf "Enter coder-node gRPC URL [localhost:50051]: "
+    read -r NODE_URL < /dev/tty || break
+    NODE_URL=${NODE_URL:-localhost:50051}
     
-    echo "Verifying Ollama connection at $OLLAMA_URL..."
-    if curl -s --connect-timeout 5 "$OLLAMA_URL" >/dev/null 2>&1; then
-      echo "✓ Ollama connection successful."
-      break
-    else
-      echo "⚠ Could not connect to Ollama at $OLLAMA_URL."
-      printf "Do you want to use this URL anyway? [y/N]: "
-      read -r choice < /dev/tty || break
-      case "$choice" in 
-        y|Y ) break;;
-        * ) ;;
-      esac
-    fi
-  done
-  
-  # Prompt for Postgres DSN
-  while true; do
-    printf "Enter PostgreSQL DSN (e.g., postgres://user:pass@host:5432/dbname?sslmode=disable): "
-    read -r POSTGRES_DSN < /dev/tty || break
-    if [ -z "$POSTGRES_DSN" ]; then
-      echo "PostgreSQL DSN cannot be empty."
-      continue
-    fi
+    echo "Verifying connection to coder-node at $NODE_URL..."
     
-    echo "Verifying PostgreSQL connection..."
-    # Create actual config file so the coder binary can use it
+    # Create temporary config to test connection
     cat <<EOF > "$CONFIG_FILE"
 {
   "memory": {
-    "provider": "ollama",
-    "database_type": "postgres",
-    "base_url": "$OLLAMA_URL",
-    "model": "mxbai-embed-large",
-    "postgres_dsn": "$POSTGRES_DSN"
+    "provider": "grpc",
+    "base_url": "$NODE_URL"
   }
 }
 EOF
 
     # Test connection using the installed binary
-    if "$DEST" memory list --limit 1 >/dev/null 2> "$CONFIG_DIR/dbcheck.err"; then
-      echo "✓ PostgreSQL connection successful."
-      rm -f "$CONFIG_DIR/dbcheck.err"
+    if "$DEST" memory list --limit 1 >/dev/null 2> "$CONFIG_DIR/nodecheck.err"; then
+      echo "✓ connection to coder-node successful."
+      rm -f "$CONFIG_DIR/nodecheck.err"
       break
     else
-      echo "⚠ Failed to connect to PostgreSQL. Error details:"
-      cat "$CONFIG_DIR/dbcheck.err"
-      rm -f "$CONFIG_DIR/dbcheck.err"
-      printf "Do you want to re-enter the DSN? [Y/n]: "
+      echo "⚠ Failed to connect to coder-node. Error details:"
+      cat "$CONFIG_DIR/nodecheck.err"
+      rm -f "$CONFIG_DIR/nodecheck.err"
+      printf "Do you want to re-enter the URL? [Y/n]: "
       read -r choice < /dev/tty || break
       case "$choice" in 
         n|N ) break;;
