@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package memory;
+
+option go_package = "github.com/trungtran/coder/api/grpc/memorypb";
+
+import "google/protobuf/timestamp.proto";
+
+service MemoryService {
+  rpc Store(StoreRequest) returns (StoreResponse);
+  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc List(ListRequest) returns (ListResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc Compact(CompactRequest) returns (CompactResponse);
+}
+
+message StoreRequest {
+  string title = 1;
+  string content = 2;
+  string type = 3;
+  string metadata_json = 4;
+  string scope = 5;
+  repeated string tags = 6;
+}
+
+message StoreResponse {
+  string id = 1;
+}
+
+message SearchRequest {
+  string query = 1;
+  string scope = 2;
+  repeated string tags = 3;
+  string type = 4;
+  string meta_filters_json = 5;
+  int32 limit = 6;
+}
+
+message SearchResponse {
+  repeated SearchResult results = 1;
+}
+
+message SearchResult {
+  Knowledge knowledge = 1;
+  float score = 2;
+}
+
+message Knowledge {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  string type = 4;
+  string metadata_json = 5;
+  repeated string tags = 6;
+  string scope = 7;
+  string parent_id = 8;
+  int32 chunk_index = 9;
+  string normalized_title = 10;
+  string content_hash = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message ListRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListResponse {
+  repeated Knowledge items = 1;
+}
+
+message DeleteRequest {
+  string id = 1;
+}
+
+message DeleteResponse {
+  bool success = 1;
+}
+
+message CompactRequest {
+  float threshold = 1;
+  bool revector = 2;
+}
+
+message CompactResponse {
+  int32 removed_count = 1;
+}
