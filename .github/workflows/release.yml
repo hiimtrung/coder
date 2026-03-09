@@ -98,8 +98,10 @@ jobs:
         run: |
           cp uninstall.sh dist/
           cp uninstall.ps1 dist/
+          cp install-node.sh dist/
+          cp uninstall-node.sh dist/
           cd dist
-          sha256sum coder-* uninstall.* > checksums.txt
+          sha256sum coder-* uninstall* > checksums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -118,11 +120,26 @@ jobs:
             irm https://raw.githubusercontent.com/${{ github.repository }}/main/install.ps1 | iex
             ```
 
+            ### Coder Node (Self-hosted)
+            ```sh
+            # Install & Start (Requires Docker)
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install-node.sh | sh
+            ```
+
             ## Uninstall
 
             ### macOS / Linux
             ```sh
             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/uninstall.sh | sh -s -- --clear-data
+            ```
+
+            ### Coder Node
+            ```sh
+            # Remove service but keep database/volumes
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/uninstall-node.sh | sh
+            
+            # OR completely wipe everything
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/uninstall-node.sh | sh -s -- --clear-data
             ```
 
             ### Windows (PowerShell)
@@ -137,7 +154,8 @@ jobs:
             **Checksums**: See `checksums.txt` attached below.
           files: |
             dist/coder-*
-            dist/uninstall.*
+            dist/uninstall*
+            dist/install*
             dist/checksums.txt
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
