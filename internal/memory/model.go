@@ -48,3 +48,13 @@ type MemoryService interface {
 	Delete(ctx context.Context, id string) error
 	Close() error
 }
+
+type MemoryManager interface {
+	Store(ctx context.Context, title, content string, memType MemoryType, metadata map[string]interface{}, scope string, tags []string) (string, error)
+	Search(ctx context.Context, query string, scope string, tags []string, memType MemoryType, metaFilters map[string]interface{}, limit int) ([]SearchResult, error)
+	List(ctx context.Context, limit, offset int) ([]Knowledge, error)
+	Delete(ctx context.Context, id string) error
+	Compact(ctx context.Context, threshold float32) (int, error)
+	Revector(ctx context.Context) error
+	Close() error
+}

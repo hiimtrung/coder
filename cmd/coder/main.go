@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	tasagent "github.com/trungtran/coder"
+	"github.com/trungtran/coder/internal/grpcclient"
 	"github.com/trungtran/coder/internal/installer"
 	"github.com/trungtran/coder/internal/memory"
 	"github.com/trungtran/coder/internal/profiles"
@@ -335,11 +336,33 @@ func loadConfig() (*Config, error) {
 	return &cfg, nil
 }
 
-func getMemoryManager() *memory.Manager {
+func getMemoryManager() memory.MemoryManager {
 	cfg, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
 		cfg = &Config{}
+	}
+
+	providerType := cfg.Memory.Provider
+	if providerType == "" {
+		providerType = "openai"
+	}
+
+	if providerType == "grpc" {
+		baseURL := cfg.Memory.BaseURL
+		if baseURL == "" {
+			baseURL = os.Getenv("CODER_NODE_URL")
+		}
+		if baseURL == "" {
+			fmt.Fprintf(os.Stderr, "Error: base_url is required for grpc provider (or set CODER_NODE_URL)\n")
+			os.Exit(1)
+		}
+		client, err := grpcclient.NewClient(baseURL)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node: %v\n", err)
+			os.Exit(1)
+		}
+		return client
 	}
 
 	var db memory.MemoryService
@@ -367,11 +390,6 @@ func getMemoryManager() *memory.Manager {
 	} else {
 		fmt.Fprintf(os.Stderr, "Error: unsupported database type. Only postgres is supported.\n")
 		os.Exit(1)
-	}
-
-	providerType := cfg.Memory.Provider
-	if providerType == "" {
-		providerType = "openai"
 	}
 
 	var provider memory.EmbeddingProvider

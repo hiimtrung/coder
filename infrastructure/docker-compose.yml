@@ -5,10 +5,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: coder
-      POSTGRES_PASSWORD: [PASSWORD]
+      POSTGRES_PASSWORD: coder_password
       POSTGRES_DB: coder
-    ports:
-      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
 
@@ -16,8 +14,6 @@ services:
     image: ollama/ollama:latest
     container_name: ollama_embed
     restart: unless-stopped
-    ports:
-      - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     entrypoint: ["/usr/bin/sh", "-c"]
@@ -27,6 +23,21 @@ services:
         sleep 20
         ollama pull mxbai-embed-large
         tail -f /dev/null
+
+  coder-node:
+    image: ghcr.io/trungtran/coder-node:latest
+    container_name: coder_node
+    restart: unless-stopped
+    environment:
+      POSTGRES_DSN: postgres://coder:coder_password@postgres:5432/coder?sslmode=disable
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_EMBEDDING_MODEL: mxbai-embed-large
+      GRPC_PORT: 50051
+    ports:
+      - "50051:50051"
+    depends_on:
+      - postgres
+      - ollama
 
 volumes:
   pg_data:
