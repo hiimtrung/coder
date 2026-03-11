@@ -4,19 +4,26 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 
 	"github.com/trungtran/coder/api/grpc/memorypb"
 	"github.com/trungtran/coder/internal/grpcserver"
+	"github.com/trungtran/coder/internal/httpserver"
 	"github.com/trungtran/coder/internal/memory"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
 func main() {
-	port := os.Getenv("GRPC_PORT")
-	if port == "" {
-		port = "50051"
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50051"
+	}
+
+	httpPort := os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		httpPort = "8080"
 	}
 
 	dsn := os.Getenv("POSTGRES_DSN")
@@ -50,10 +57,10 @@ func main() {
 	mgr := memory.NewManager(db, provider)
 	defer mgr.Close()
 
-	// Setup gRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	// 1. Setup gRPC server
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		log.Fatalf("failed to listen on gRPC port: %v", err)
 	}
 
 	grpcServer := grpc.NewServer()
@@ -61,8 +68,20 @@ func main() {
 	memorypb.RegisterMemoryServiceServer(grpcServer, memoryServer)
 	reflection.Register(grpcServer)
 
-	log.Printf("coder-node grpc server listening at %v", lis.Addr())
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+	go func() {
+		log.Printf("coder-node gRPC server listening at %v", lis.Addr())
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("gRPC server failed: %v", err)
+		}
+	}()
+
+	// 2. Setup HTTP server
+	httpMux := http.NewServeMux()
+	httpMemoryServer := httpserver.NewMemoryServer(mgr)
+	httpMemoryServer.RegisterHandlers(httpMux)
+
+	log.Printf("coder-node HTTP server listening at :%s", httpPort)
+	if err := http.ListenAndServe(fmt.Sprintf(":%s", httpPort), httpMux); err != nil {
+		log.Fatalf("HTTP server failed: %v", err)
 	}
 }
