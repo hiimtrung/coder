@@ -11,6 +11,7 @@ import (
 
 	tasagent "github.com/trungtran/coder"
 	"github.com/trungtran/coder/internal/grpcclient"
+	"github.com/trungtran/coder/internal/httpclient"
 	"github.com/trungtran/coder/internal/installer"
 	"github.com/trungtran/coder/internal/memory"
 	"github.com/trungtran/coder/internal/profiles"
@@ -32,6 +33,7 @@ CORE COMMANDS:
 MAINTENANCE:
   check-update        Search for newer versions on GitHub
   self-update         Upgrade coder to the latest version automatically
+  login               Configure coder-node connection (protocol and URL)
   memory              Manage semantic memory (Vector DB)
 
 GLOBAL FLAGS:
@@ -67,6 +69,8 @@ func main() {
 		runCheckUpdate()
 	case "self-update":
 		runSelfUpdate()
+	case "login":
+		runLogin(os.Args[2:])
 	case "memory":
 		runMemory(os.Args[2:])
 	case "help", "--help", "-h":
@@ -309,6 +313,7 @@ func runMemory(args []string) {
 type Config struct {
 	Memory struct {
 		Provider     string `json:"provider"`
+		Protocol     string `json:"protocol"` // grpc or http
 		DatabaseType string `json:"database_type"`
 		APIKey       string `json:"api_key"`
 		BaseURL      string `json:"base_url"`
@@ -348,21 +353,40 @@ func getMemoryManager() memory.MemoryManager {
 		providerType = "openai"
 	}
 
-	if providerType == "grpc" {
+	if providerType == "grpc" || providerType == "remote" {
 		baseURL := cfg.Memory.BaseURL
 		if baseURL == "" {
 			baseURL = os.Getenv("CODER_NODE_URL")
 		}
 		if baseURL == "" {
-			fmt.Fprintf(os.Stderr, "Error: base_url is required for grpc provider (or set CODER_NODE_URL)\n")
+			fmt.Fprintf(os.Stderr, "Error: base_url is required for %s provider (or set CODER_NODE_URL)\n", providerType)
 			os.Exit(1)
 		}
-		client, err := grpcclient.NewClient(baseURL)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node: %v\n", err)
-			os.Exit(1)
+
+		protocol := cfg.Memory.Protocol
+		if protocol == "" {
+			if providerType == "grpc" {
+				protocol = "grpc"
+			} else {
+				protocol = "http"
+			}
 		}
-		return client
+
+		if protocol == "grpc" {
+			client, err := grpcclient.NewClient(baseURL)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node (gRPC): %v\n", err)
+				os.Exit(1)
+			}
+			return client
+		} else {
+			client, err := httpclient.NewClient(baseURL)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node (HTTP): %v\n", err)
+				os.Exit(1)
+			}
+			return client
+		}
 	}
 
 	var db memory.MemoryService
@@ -441,6 +465,70 @@ func getMemoryManager() memory.MemoryManager {
 	}
 
 	return memory.NewManager(db, provider)
+}
+
+func runLogin(args []string) {
+	fmt.Println("=== coder-node Configuration ===")
+	fmt.Println("Choose protocol:")
+	fmt.Println("  1) gRPC (recommended)")
+	fmt.Println("  2) HTTP")
+	fmt.Print("Selection [1]: ")
+
+	var choice string
+	fmt.Scanln(&choice)
+
+	protocol := "grpc"
+	defaultURL := "localhost:50051"
+	if choice == "2" {
+		protocol = "http"
+		defaultURL = "localhost:8080"
+	}
+
+	fmt.Printf("Enter coder-node %s URL [%s]: ", protocol, defaultURL)
+	var baseURL string
+	fmt.Scanln(&baseURL)
+	if baseURL == "" {
+		baseURL = defaultURL
+	}
+
+	home, _ := os.UserHomeDir()
+	configDir := filepath.Join(home, ".coder")
+	configPath := filepath.Join(configDir, "config.json")
+
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating config directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		cfg = &Config{}
+	}
+
+	cfg.Memory.Provider = "remote"
+	cfg.Memory.Protocol = protocol
+	cfg.Memory.BaseURL = baseURL
+
+	data, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing config file: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\n✓ Configuration saved to %s\n", configPath)
+	fmt.Printf("  Protocol: %s\n", protocol)
+	fmt.Printf("  URL     : %s\n\n", baseURL)
+
+	fmt.Println("Verifying connection...")
+	mgr := getMemoryManager()
+	defer mgr.Close()
+
+	if _, err := mgr.List(context.Background(), 1, 0); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠ Warning: Verification failed: %v\n", err)
+		fmt.Println("  Check if your coder-node is running and accessible.")
+	} else {
+		fmt.Println("✓ Verification successful.")
+	}
 }
 
 func runMemoryStore(args []string) {

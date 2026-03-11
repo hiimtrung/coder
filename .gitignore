@@ -3,3 +3,5 @@ dist/
 ref
 .DS_Store
 tmp_bin
+coder-node
+coder

@@ -107,19 +107,34 @@ fi
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "Initializing configuration..."
   
-  # Prompt for coder-node URL
+  # Prompt for coder-node protocol and URL
   while true; do
-    printf "Enter coder-node gRPC URL [localhost:50051]: "
-    read -r NODE_URL < /dev/tty || break
-    NODE_URL=${NODE_URL:-localhost:50051}
+    echo ""
+    echo "Choose coder-node protocol:"
+    echo "  1) gRPC (recommended for performance)"
+    echo "  2) HTTP (easier for some firewalls/proxies)"
+    printf "Selection [1]: "
+    read -r PROTO_CHOICE < /dev/tty || break
     
-    echo "Verifying connection to coder-node at $NODE_URL..."
+    PROTOCOL="grpc"
+    DEFAULT_URL="localhost:50051"
+    if [ "$PROTO_CHOICE" = "2" ]; then
+      PROTOCOL="http"
+      DEFAULT_URL="localhost:8080"
+    fi
+
+    printf "Enter coder-node $PROTOCOL URL [$DEFAULT_URL]: "
+    read -r NODE_URL < /dev/tty || break
+    NODE_URL=${NODE_URL:-$DEFAULT_URL}
+    
+    echo "Verifying connection to coder-node ($PROTOCOL) at $NODE_URL..."
     
     # Create temporary config to test connection
     cat <<EOF > "$CONFIG_FILE"
 {
   "memory": {
-    "provider": "grpc",
+    "provider": "remote",
+    "protocol": "$PROTOCOL",
     "base_url": "$NODE_URL"
   }
 }
@@ -131,10 +146,10 @@ EOF
       rm -f "$CONFIG_DIR/nodecheck.err"
       break
     else
-      echo "⚠ Failed to connect to coder-node. Error details:"
+      echo "⚠ Failed to connect to coder-node ($PROTOCOL). Error details:"
       cat "$CONFIG_DIR/nodecheck.err"
       rm -f "$CONFIG_DIR/nodecheck.err"
-      printf "Do you want to re-enter the URL? [Y/n]: "
+      printf "Do you want to re-enter the configuration? [Y/n]: "
       read -r choice < /dev/tty || break
       case "$choice" in 
         n|N ) break;;

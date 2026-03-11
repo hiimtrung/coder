@@ -74,18 +74,32 @@ if (-not (Test-Path $ConfigDir)) {
 if (-not (Test-Path $ConfigFile)) {
     Write-Host "Initializing configuration..."
     
-    # Prompt for coder-node URL
+    # Prompt for coder-node protocol and URL
     while ($true) {
-        $NodeUrl = Read-Host "Enter coder-node gRPC URL [localhost:50051]"
+        Write-Host ""
+        Write-Host "Choose coder-node protocol:"
+        Write-Host "  1) gRPC (recommended for performance)"
+        Write-Host "  2) HTTP (easier for some firewalls/proxies)"
+        $ProtoChoice = Read-Host "Selection [1]"
+        
+        $Protocol = "grpc"
+        $DefaultUrl = "localhost:50051"
+        if ($ProtoChoice -eq "2") {
+            $Protocol = "http"
+            $DefaultUrl = "localhost:8080"
+        }
+
+        $NodeUrl = Read-Host "Enter coder-node $Protocol URL [$DefaultUrl]"
         if ([string]::IsNullOrWhiteSpace($NodeUrl)) {
-            $NodeUrl = "localhost:50051"
+            $NodeUrl = $DefaultUrl
         }
         
-        Write-Host "Verifying connection to coder-node at $NodeUrl..."
+        Write-Host "Verifying connection to coder-node ($Protocol) at $NodeUrl..."
         
         $Config = @{
             memory = @{
-                provider = "grpc"
+                provider = "remote"
+                protocol = $Protocol
                 base_url = $NodeUrl
             }
         }
@@ -100,10 +114,10 @@ if (-not (Test-Path $ConfigFile)) {
             Remove-Item -Path $ErrFile -ErrorAction SilentlyContinue
             break
         } else {
-            Write-Host "⚠ Failed to connect to coder-node. Error details:"
+            Write-Host "⚠ Failed to connect to coder-node ($Protocol). Error details:"
             Get-Content $ErrFile | Write-Host
             Remove-Item -Path $ErrFile -ErrorAction SilentlyContinue
-            $Choice = Read-Host "Do you want to re-enter the URL? [Y/n]"
+            $Choice = Read-Host "Do you want to re-enter the configuration? [Y/n]"
             if ($Choice -match "^[nN]") {
                 break
             }
