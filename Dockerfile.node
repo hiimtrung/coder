@@ -18,6 +18,6 @@ RUN apk --no-cache add ca-certificates curl
 WORKDIR /app
 COPY --from=builder /app/coder-node /app/coder-node
 
-EXPOSE 50051
+EXPOSE 50051 8080
 
 ENTRYPOINT ["/app/coder-node"]

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/trungtran/coder/internal/memory"
 )
@@ -18,16 +19,17 @@ type Client struct {
 
 func NewClient(baseURL string) (*Client, error) {
 	// Ensure baseURL has protocol
+	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		baseURL = "http://" + baseURL
+	}
+
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
-	if u.Scheme == "" {
-		baseURL = "http://" + baseURL
-	}
 
 	return &Client{
-		baseURL: baseURL,
+		baseURL: u.String(),
 		client:  &http.Client{},
 	}, nil
 }
