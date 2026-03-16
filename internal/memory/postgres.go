@@ -30,6 +30,23 @@ func NewPostgresMemory(dsn string) (MemoryService, error) {
 	return p, nil
 }
 
+// NewPostgresMemoryWithDB creates a new PostgresMemory and also returns the raw *sql.DB
+// for shared use by other services (e.g., skill store).
+func NewPostgresMemoryWithDB(dsn string) (MemoryService, *sql.DB, error) {
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	p := &postgresMemory{db: db}
+	if err := p.init(); err != nil {
+		db.Close()
+		return nil, nil, err
+	}
+
+	return p, db, nil
+}
+
 func (p *postgresMemory) init() error {
 	_, err := p.db.Exec(`CREATE EXTENSION IF NOT EXISTS vector;`)
 	if err != nil {

@@ -30,7 +30,8 @@ The **coder CLI** distributes a **centralized engineering knowledge system** to 
 - **Architecture Guidance**: Clean Architecture, event-driven design, multi-tenancy patterns
 - **Professional Standards**: Error codes, testing, documentation, UI/UX design systems
 - **AI Agent Workflows**: BA analysis, development, QA, full lifecycle delivery
-- **Semantic Memory Integration**: Built-in RAG with PostgreSQL (`pgvector`) and Ollama for intelligent context retrieval
+- **Skill RAG System**: Skills are chunked, embedded, and stored in a Vector DB for highly accurate semantic retrieval.
+- **Semantic Memory Integration**: Built-in Memory management using PostgreSQL (`pgvector`) and Ollama/OpenAI.
 - **One-command setup**: `coder install be` → project gets `.agents/` + `.github/copilot-instructions.md`
 
 ---
@@ -93,6 +94,17 @@ coder update [profile] [flags]
 coder list              # all profiles + skills
 coder list be           # details for 'be' profile
 
+# Manage Skill Vector DB
+coder skill ingest --source local       # Ingest local skills into Vector DB
+coder skill ingest --source github --repo sickn33/antigravity-awesome-skills
+coder skill search "react testing"      # Semantic search across ingested skills
+coder skill list                        # View all ingested skills
+coder skill info architecture           # View specific skill details
+
+# Manage Context Semantic Memory
+coder memory store "rule" "data..."
+coder memory search "routing"
+
 # Version & updates
 coder version           # show version + commit + build date
 coder check-update      # check for new CLI version on GitHub
@@ -127,20 +139,41 @@ coder check-update
 
 ---
 
+## 🧠 Semantic Memory & Skill RAG System
 
+`coder` includes a professional-grade **Cognitive Memory Framework** (RAG) that allows AI agents to "remember" cross-project patterns, decisions, and utilize highly-detailed skills dynamically.
 
----
+> 📚 **Deep Dive**: For a detailed technical breakdown of how the embedding and retrieval system works (including integrations with external repositories), read the [Skill RAG Architecture Documentation](docs/skill_architecture.md).
 
-## 🧠 Semantic Memory System
+### Configuration
+During installation (or via `coder login`), you will be prompted for:
+- **Protocol**: Choose between `gRPC` (default) or `HTTP` for communicating with `coder-node`.
+- **Node URL**: The endpoint for your `coder-node` instance (e.g. `localhost:50051`).
+- **Database**: The node uses PostgreSQL with `pgvector` for embeddings.
+- **Embeddings**: Handled automatically by the node using local models (Ollama) or OpenAI.
 
-`coder` includes a professional-grade **Cognitive Memory Framework** (RAG) that allows AI agents to "remember" cross-project patterns, decisions, and rules.
+### Managing AI Skills (RAG)
+Skills are normally installed as flat markdown files, but with `coder skill`, you can ingest them into the vector database. This allows agents to semantically search massive rule sets instead of reading every file.
 
-### Memory Configuration
-During installation, you will be prompted for:
-- **Ollama Base URL**: The endpoint for your embeddings provider (Remote/Local).
-- **PostgreSQL DSN**: Connection string to your database (host, user, pass, dbname).
+```bash
+# 1. Ingest your local skills (automatically runs during 'coder update')
+coder skill ingest --source local
 
-### Core Commands
+# 2. Ingest remote skills directly from GitHub repositories!
+coder skill ingest --source github --repo sickn33/antigravity-awesome-skills
+coder skill ingest --source github --repo nextlevelbuilder/ui-ux-pro-max-skill
+
+# 3. Perform semantic searches against the knowledge base
+coder skill search "how to handle panics in golang" --limit 3
+
+# 4. Explore ingested skills
+coder skill list --category core
+coder skill info nestjs
+```
+
+### Managing Project Memory
+Store specific facts, rules, or decisions made during the project lifecycle:
+
 ```bash
 # Store new knowledge
 coder memory store "Project Pattern" "Context here..." --type "rule" --meta '{"entity_id": "core"}'

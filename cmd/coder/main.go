@@ -15,6 +15,7 @@ import (
 	"github.com/trungtran/coder/internal/installer"
 	"github.com/trungtran/coder/internal/memory"
 	"github.com/trungtran/coder/internal/profiles"
+	"github.com/trungtran/coder/internal/skill"
 	"github.com/trungtran/coder/internal/updater"
 	"github.com/trungtran/coder/internal/version"
 )
@@ -34,6 +35,7 @@ MAINTENANCE:
   check-update        Search for newer versions on GitHub
   self-update         Upgrade coder to the latest version automatically
   login               Configure coder-node connection (protocol and URL)
+  skill               Manage skills in vector DB (search, ingest, list)
   memory              Manage semantic memory (Vector DB)
 
 GLOBAL FLAGS:
@@ -44,6 +46,8 @@ EXAMPLES:
   coder install be                # Setup backend patterns
   coder update                    # Refresh current project skills
   coder memory search "auth"      # Search semantic memory
+  coder skill search "error"      # Search ingested skills
+  coder skill ingest --source local # Ingest local skills into vector DB
   coder --version                 # Check version
 
 Run 'coder <command> --help' for specific command details.
@@ -71,6 +75,8 @@ func main() {
 		runSelfUpdate()
 	case "login":
 		runLogin(os.Args[2:])
+	case "skill":
+		runSkill(os.Args[2:])
 	case "memory":
 		runMemory(os.Args[2:])
 	case "help", "--help", "-h":
@@ -238,6 +244,18 @@ func runUpdate(args []string) {
 	if err := installer.Install(tasagent.AgentFS, profile, targetDir, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+
+	if !*dryRun {
+		// Hook: Automatically ingest local skills into the vector DB
+		fmt.Println("Syncing skills to vector database...")
+		
+		// Run ingestion asynchronously so we don't block the user unnecessarily,
+		// or synchronously to ensure it finishes. We'll do it synchronously here since
+		// local ingestion is fast.
+		client := getSkillClient()
+		defer client.Close()
+		runIngestLocal(context.Background(), client)
 	}
 }
 
@@ -465,6 +483,44 @@ func getMemoryManager() memory.MemoryManager {
 	}
 
 	return memory.NewManager(db, provider)
+}
+
+func getSkillClient() skill.Client {
+	cfg, err := loadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+		cfg = &Config{}
+	}
+
+	baseURL := cfg.Memory.BaseURL
+	if baseURL == "" {
+		baseURL = os.Getenv("CODER_NODE_URL")
+	}
+	if baseURL == "" {
+		fmt.Fprintf(os.Stderr, "Error: base_url is required to use skills. Run 'coder login' or set CODER_NODE_URL.\n")
+		os.Exit(1)
+	}
+
+	protocol := cfg.Memory.Protocol
+	if protocol == "" {
+		protocol = "grpc"
+	}
+
+	if protocol == "grpc" {
+		client, err := grpcclient.NewSkillClient(baseURL)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node skill service (gRPC): %v\n", err)
+			os.Exit(1)
+		}
+		return client
+	} else {
+		client, err := httpclient.NewSkillClient(baseURL)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node skill service (HTTP): %v\n", err)
+			os.Exit(1)
+		}
+		return client
+	}
 }
 
 func runLogin(args []string) {

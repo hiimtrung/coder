@@ -8,9 +8,11 @@ import (
 	"os"
 
 	"github.com/trungtran/coder/api/grpc/memorypb"
+	"github.com/trungtran/coder/api/grpc/skillpb"
 	"github.com/trungtran/coder/internal/grpcserver"
 	"github.com/trungtran/coder/internal/httpserver"
 	"github.com/trungtran/coder/internal/memory"
+	"github.com/trungtran/coder/internal/skill"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -41,8 +43,8 @@ func main() {
 		ollamaModel = "mxbai-embed-large"
 	}
 
-	// Initialize Postgres memory db
-	db, err := memory.NewPostgresMemory(dsn)
+	// Initialize Postgres with shared DB handle
+	memDB, rawDB, err := memory.NewPostgresMemoryWithDB(dsn)
 	if err != nil {
 		log.Fatalf("Failed to initialize postgres: %v", err)
 	}
@@ -54,8 +56,17 @@ func main() {
 	}
 
 	// Initialize memory manager
-	mgr := memory.NewManager(db, provider)
+	mgr := memory.NewManager(memDB, provider)
 	defer mgr.Close()
+
+	// Initialize skill store (shares same DB connection)
+	skillStore, err := skill.NewPostgresSkillStore(rawDB)
+	if err != nil {
+		log.Fatalf("Failed to initialize skill store: %v", err)
+	}
+
+	// Initialize skill ingestor
+	skillIngestor := skill.NewIngestor(skillStore, provider)
 
 	// 1. Setup gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
@@ -66,6 +77,10 @@ func main() {
 	grpcServer := grpc.NewServer()
 	memoryServer := grpcserver.NewMemoryServer(mgr)
 	memorypb.RegisterMemoryServiceServer(grpcServer, memoryServer)
+
+	skillServer := grpcserver.NewSkillServer(skillIngestor, skillStore)
+	skillpb.RegisterSkillServiceServer(grpcServer, skillServer)
+
 	reflection.Register(grpcServer)
 
 	go func() {
@@ -79,6 +94,9 @@ func main() {
 	httpMux := http.NewServeMux()
 	httpMemoryServer := httpserver.NewMemoryServer(mgr)
 	httpMemoryServer.RegisterHandlers(httpMux)
+
+	httpSkillServer := httpserver.NewSkillServer(skillIngestor, skillStore)
+	httpSkillServer.RegisterHandlers(httpMux)
 
 	log.Printf("coder-node HTTP server listening at :%s", httpPort)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", httpPort), httpMux); err != nil {

@@ -1,0 +1,161 @@
+package skill
+
+import (
+	"strings"
+)
+
+// ParsedSkill holds the parsed result from a SKILL.md file.
+type ParsedSkill struct {
+	Name        string
+	Description string
+	Category    string
+	Tags        []string
+	Sections    []ParsedSection
+}
+
+// ParsedSection represents a chunk extracted from SKILL.md body.
+type ParsedSection struct {
+	Title   string
+	Content string
+	Type    string // "description", "rule", "example", "workflow"
+}
+
+// ParseSkillMD parses a SKILL.md file content and extracts metadata + sections.
+func ParseSkillMD(name string, content string) ParsedSkill {
+	ps := ParsedSkill{Name: name}
+
+	// Strip YAML frontmatter if present
+	body := content
+	if strings.HasPrefix(content, "---") {
+		rest := content[3:]
+		idx := strings.Index(rest, "\n---")
+		if idx >= 0 {
+			frontmatter := rest[:idx]
+			body = strings.TrimSpace(rest[idx+4:])
+
+			// Parse simple frontmatter fields
+			for _, line := range strings.Split(frontmatter, "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "name:") {
+					ps.Name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
+					ps.Name = strings.Trim(ps.Name, "\"'")
+				}
+				if strings.HasPrefix(line, "description:") {
+					ps.Description = strings.TrimSpace(strings.TrimPrefix(line, "description:"))
+					ps.Description = strings.Trim(ps.Description, "\"'")
+				}
+				if strings.HasPrefix(line, "category:") {
+					ps.Category = strings.TrimSpace(strings.TrimPrefix(line, "category:"))
+					ps.Category = strings.Trim(ps.Category, "\"'")
+				}
+			}
+		}
+	}
+
+	// Split body by ## headers into sections
+	sections := splitBySections(body)
+
+	// First section (before any ##) is always description
+	if len(sections) > 0 && sections[0].Title == "" {
+		if ps.Description == "" {
+			// Use first ~200 chars as description
+			desc := sections[0].Content
+			if len(desc) > 200 {
+				desc = desc[:200] + "..."
+			}
+			ps.Description = strings.TrimSpace(desc)
+		}
+		sections[0].Type = "description"
+		if sections[0].Title == "" {
+			sections[0].Title = "Overview"
+		}
+	}
+
+	ps.Sections = sections
+	return ps
+}
+
+// splitBySections splits markdown content by ## headers.
+func splitBySections(body string) []ParsedSection {
+	lines := strings.Split(body, "\n")
+	var sections []ParsedSection
+	var current *ParsedSection
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "## ") {
+			// Save current section
+			if current != nil {
+				current.Content = strings.TrimSpace(current.Content)
+				sections = append(sections, *current)
+			}
+			title := strings.TrimPrefix(line, "## ")
+			title = strings.TrimSpace(title)
+			stype := classifySection(title)
+			current = &ParsedSection{
+				Title: title,
+				Type:  stype,
+			}
+		} else if strings.HasPrefix(line, "# ") && current == nil {
+			// Top-level header, start description section
+			current = &ParsedSection{
+				Title: strings.TrimSpace(strings.TrimPrefix(line, "# ")),
+				Type:  "description",
+			}
+		} else {
+			if current == nil {
+				current = &ParsedSection{Type: "description"}
+			}
+			current.Content += line + "\n"
+		}
+	}
+
+	// Don't forget the last section
+	if current != nil {
+		current.Content = strings.TrimSpace(current.Content)
+		sections = append(sections, *current)
+	}
+
+	return sections
+}
+
+// classifySection tries to classify a section based on its title.
+func classifySection(title string) string {
+	lower := strings.ToLower(title)
+
+	if strings.Contains(lower, "rule") || strings.Contains(lower, "principle") || strings.Contains(lower, "guideline") || strings.Contains(lower, "constraint") {
+		return "rule"
+	}
+	if strings.Contains(lower, "example") || strings.Contains(lower, "usage") || strings.Contains(lower, "demo") {
+		return "example"
+	}
+	if strings.Contains(lower, "workflow") || strings.Contains(lower, "process") || strings.Contains(lower, "step") {
+		return "workflow"
+	}
+	return "rule" // Default to rule for skill sections
+}
+
+// ParseRuleFile parses a single rule markdown file.
+func ParseRuleFile(path, content string) ParsedSection {
+	// Extract filename without extension as title
+	parts := strings.Split(path, "/")
+	filename := parts[len(parts)-1]
+	title := strings.TrimSuffix(filename, ".md")
+	title = strings.ReplaceAll(title, "-", " ")
+	title = strings.ReplaceAll(title, "_", " ")
+
+	// Strip frontmatter
+	body := content
+	if strings.HasPrefix(content, "---") {
+		rest := content[3:]
+		idx := strings.Index(rest, "\n---")
+		if idx >= 0 {
+			body = strings.TrimSpace(rest[idx+4:])
+		}
+	}
+
+	return ParsedSection{
+		Title:   title,
+		Content: body,
+		Type:    "rule",
+	}
+}
