@@ -96,9 +96,14 @@ func (f *GitHubFetcher) FetchSingleFile(repo, branch, path string) (string, erro
 	return string(data), nil
 }
 
-// ListDirectory lists filenames in a GitHub repo directory using the Contents API.
-// Returns a list of filenames (not full paths) found in the specified directory.
-func (f *GitHubFetcher) ListDirectory(repo, branch, dirPath string) ([]string, error) {
+// GitHubDirEntry represents an item in a GitHub directory listing.
+type GitHubDirEntry struct {
+	Name string `json:"name"`
+	Type string `json:"type"` // "file" or "dir"
+}
+
+// ListEntries lists name and type for items in a GitHub repo directory.
+func (f *GitHubFetcher) ListEntries(repo, branch, dirPath string) ([]GitHubDirEntry, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/contents/%s?ref=%s", repo, dirPath, branch)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -120,12 +125,19 @@ func (f *GitHubFetcher) ListDirectory(repo, branch, dirPath string) ([]string, e
 		return nil, fmt.Errorf("GitHub API error: HTTP %d for %s", resp.StatusCode, dirPath)
 	}
 
-	var entries []struct {
-		Name string `json:"name"`
-		Type string `json:"type"` // "file" or "dir"
-	}
+	var entries []GitHubDirEntry
 	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
 		return nil, fmt.Errorf("failed to parse directory listing: %w", err)
+	}
+
+	return entries, nil
+}
+
+// ListDirectory lists filenames in a GitHub repo directory.
+func (f *GitHubFetcher) ListDirectory(repo, branch, dirPath string) ([]string, error) {
+	entries, err := f.ListEntries(repo, branch, dirPath)
+	if err != nil {
+		return nil, err
 	}
 
 	var filenames []string

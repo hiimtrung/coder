@@ -68,7 +68,7 @@ For each document, provide:
 
 ## Workflow Steps
 
-0. **Gate In (MANDATORY)** — Run `coder memory search "<topic of documentation>"` to retrieve historical writing patterns and terminology.
+0. **Gate In (MANDATORY)** — Run `coder skill search "<topic of documentation>"` to retrieve technical writing best practices and documentation standards, then run `coder memory search "<topic of documentation>"` to retrieve historical writing patterns and terminology.
 1. **Read the document** from start to finish as a novice would
 2. **Rate each aspect** using the criteria above
 3. **Identify specific issues** with line references

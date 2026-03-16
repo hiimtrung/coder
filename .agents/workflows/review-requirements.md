@@ -2,8 +2,8 @@
 description: Review feature requirements for completeness.
 ---
 
-1. **Gate In (MANDATORY)** — Run `coder memory search "<requirement context>"` to retrieve related business rules and previous requirement reviews.
-2. **Review Requirements** — Review `docs/ai/requirements/feature-{name}.md` and the project-level template `docs/ai/requirements/README.md` to ensure structure and content alignment. Summarize:
+1. **Gate In (MANDATORY)** — Run `coder skill search "<requirement context>"` to retrieve requirement analysis patterns and BA best practices, then run `coder memory search "<requirement context>"` to retrieve related business rules and previous requirement reviews.
+2. **Review Requirements** — Review `docs/ai/requirements/feature-{name}.md` and the project-level template `docs/ai/requirements/README.md` to ensure structure and content alignment. Apply skill guidelines from Gate In. Summarize:
 
 - Core problem statement and affected users
 - Goals, non-goals, and success criteria

@@ -3,8 +3,7 @@ dist/
 ref
 .DS_Store
 tmp_bin
-coder-node
-coder
-
 coder.exe
 coder-node.exe
+/coder
+/coder-node

@@ -16,21 +16,34 @@ tools:
 
 ---
 
-## 🔐 MEMORY GATES — MANDATORY, NON-NEGOTIABLE
+## 🔐 INTELLIGENCE GATES — MANDATORY, NON-NEGOTIABLE
 
-These two steps are **blocking prerequisites**. Do NOT proceed past the gate until the command is run.
+These gates are **blocking prerequisites** that form the agent's "thinking loop". NO work proceeds until BOTH gates are passed. Skipping any gate is a **workflow violation**.
 
-### GATE 1 — Before ANY coding work begins
+### GATE 1 — Skill Retrieval (Before ANY coding or analysis)
+
+```bash
+coder skill search "<topic of the task>"
+```
+
+- Run this as the **very first action** of any workflow.
+- This queries the vector database of best practices, patterns, and rules.
+- **Apply retrieved skills**: If relevant skills are returned, follow their guidelines during the task.
+- If no results, proceed with general best practices.
+- ❌ Skipping this gate means working without institutional knowledge.
+
+### GATE 2 — Memory Retrieval (After skill, before code)
 
 ```bash
 coder memory search "<topic of the task>"
 ```
 
-- Run this as the **very first action**, before reading files or writing code.
+- Run this **immediately after Gate 1**, before reading files or writing code.
+- This queries the semantic memory for past decisions, patterns, and lessons learned.
 - If results are relevant, incorporate them. If empty, proceed.
-- ❌ Skipping this gate is a workflow violation.
+- ❌ Skipping this gate means ignoring project-specific history.
 
-### GATE 2 — After completing any significant task
+### GATE 3 — Knowledge Capture (After completing any significant task)
 
 ```bash
 coder memory store "<Title>" "<Content>" --tags "<tag1,tag2>"
@@ -39,6 +52,25 @@ coder memory store "<Title>" "<Content>" --tags "<tag1,tag2>"
 - Run this for: new patterns, architectural decisions, non-obvious fixes, refactors.
 - Skip only for trivial 1-line changes.
 - ❌ Finishing a task without storing a reusable pattern is a workflow violation.
+
+### Gate Execution Order (Always)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  GATE 1: coder skill search "<topic>"                   │
+│  → Retrieve best practices, rules, patterns from DB     │
+├─────────────────────────────────────────────────────────┤
+│  GATE 2: coder memory search "<topic>"                  │
+│  → Retrieve project-specific history and decisions      │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ... ACTUAL WORK (informed by Gate 1 + Gate 2) ...      │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│  GATE 3: coder memory store "<title>" "<content>"       │
+│  → Save new knowledge for future retrieval              │
+└─────────────────────────────────────────────────────────┘
+```
 
 ### When to Store (checklist)
 
@@ -56,15 +88,17 @@ coder memory store "<Title>" "<Content>" --tags "<tag1,tag2>"
 Every todo list for a non-trivial task **MUST** follow this structure:
 
 ```
-☑ 1. [GATE 1] Memory search: "<topic>"
+☑ 1. [GATE 1] Skill search: "<topic>"
+☑ 2. [GATE 2] Memory search: "<topic>"
    ... actual work tasks ...
-☑ N. [GATE 2] Memory store: "<title>"
+☑ N. [GATE 3] Memory store: "<title>"
 ```
 
-- Task #1 is **always** `coder memory search`
+- Task #1 is **always** `coder skill search`
+- Task #2 is **always** `coder memory search`
 - Task #N (last) is **always** `coder memory store`
-- Both are marked done before the session ends
-- ❌ A todo list without these two bookend tasks is invalid
+- All gates are marked done before the session ends
+- ❌ A todo list without these three bookend tasks is invalid
 
 ---
 
@@ -160,7 +194,33 @@ You should use this agent when you need to:
 - ✅ Monitoring alerts for infrastructure issues
 - ❌ Generic "something went wrong" messages
 
-## Integration with Rules & Skills
+## Integration with Skills & Memory
+
+### Skill System (Vector DB — RAG)
+
+The agent uses `coder skill search` to dynamically retrieve best practices from a curated set of skills stored as embeddings in PostgreSQL + pgvector:
+
+```bash
+# Automatically run at the start of every workflow (GATE 1)
+coder skill search "<topic>"
+
+# Available skill commands
+coder skill list                    # See all ingested skills
+coder skill info <name>             # Detailed skill info
+coder skill ingest --source local   # Ingest embedded skills
+```
+
+### Memory System (Semantic Memory)
+
+The agent uses `coder memory search` and `coder memory store` to maintain project-specific knowledge:
+
+```bash
+# When starting a new task, search for existing context (GATE 2):
+coder memory search "query"
+
+# When you discover or implement a reusable pattern (GATE 3):
+coder memory store "Title" "Content" --tags "tag1,tag2"
+```
 
 ### Always-On Rules
 
@@ -180,7 +240,7 @@ Selected based on primary task:
 
 ### Workflow-Driven Execution
 
-You MUST use these workflows (slash commands) as your primary execution steps:
+You MUST use these workflows (slash commands) as your primary execution steps. **Every workflow enforces the 3-gate system** (Skill → Memory → Work → Store):
 
 - `/full-lifecycle-delivery` - Master orchestrator for end-to-end delivery
 - `/new-requirement` - Requirement analysis and document scaffolding
@@ -193,7 +253,7 @@ You MUST use these workflows (slash commands) as your primary execution steps:
 
 ### Reusable Skills
 
-Leverage established patterns:
+Leverage established patterns (retrieved dynamically via `coder skill search`):
 
 - `docs-analysis` - Prioritize existing documentation and maintain sync
 - `architecture` - Dual-ID system, module design
@@ -201,25 +261,8 @@ Leverage established patterns:
 - `testing` - Unit/integration/E2E test strategies
 - `database` - Migrations, multi-database orchestration
 - `backend/{language}` - Language-specific best practices
-
-### Memory & Knowledge Capture
-
-- **Pattern Capture**: Automatically use `coder memory store` to save reusable architectural patterns or complex logic
-- **Decision Logging**: Record significant technical decisions and their rationale for future context
-- **Cross-Project Memory**: Leverage and contribute to the global semantic memory using `coder memory search` and `store`
-
-## How to Invoke This Agent
-
-...
-**Memory Management**: You MUST actively use the CLI for semantic search and storage during development:
-
-```bash
-# When you discover or implement a reusable pattern:
-coder memory store "Title" "Content" --tags "tag1,tag2"
-
-# When starting a new task, search for existing context:
-coder memory search "query"
-```
+- `frontend` - React/Next.js/Vue patterns
+- `ui-ux-pro-max` - Complete design intelligence
 
 ## Error Codes Reference
 
@@ -276,6 +319,8 @@ See `@error-codes.instructions.md` for complete reference.
 
 This agent automatically loads and applies:
 
+- **Skill RAG System**: Dynamically retrieves best practices from vector DB via `coder skill search`
+- **Semantic Memory**: Stores and retrieves project knowledge via `coder memory search/store`
 - **Error Codes & Exception Patterns**: Standardized `AUTH_*`, `VAL_*`, `BIZ_*`, `INF_*`, `SYS_*` error codes
 - **Architecture Patterns**: Clean Architecture, DDD, event-driven design, module structure
 - **Business Logic Patterns**: Use cases, domain events, validation, error handling

@@ -1,7 +1,6 @@
 package installer
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -15,6 +14,13 @@ import (
 )
 
 const ManifestPath = ".agents/.coder.json"
+
+// FileSystem is a minimal interface required for installation.
+// embed.FS and fs.FS (with ReadDirFS) implement this.
+type FileSystem interface {
+	fs.ReadDirFS
+	fs.ReadFileFS
+}
 
 // Manifest records what was installed, enabling update without specifying a profile.
 type Manifest struct {
@@ -50,9 +56,9 @@ type Result struct {
 	Skipped []string
 }
 
-// Install copies skills, rules, workflows, and agents from the embedded FS
+// Install copies rules, workflows, and agents from the provider FS
 // into targetDir according to the given profile.
-func Install(agentFS embed.FS, profile profiles.Profile, targetDir string, opts Options) error {
+func Install(srcFS FileSystem, profile profiles.Profile, targetDir string, opts Options) error {
 	if opts.DryRun {
 		fmt.Printf("DRY RUN — no files will be modified\n\n")
 	}
@@ -60,29 +66,29 @@ func Install(agentFS embed.FS, profile profiles.Profile, targetDir string, opts 
 
 	result := &Result{}
 
-	if err := installSkills(agentFS, profile, targetDir, opts, result); err != nil {
-		return err
-	}
+	// Note: We no longer install skills locally in .agents/skills/
+	// because they are now managed in the centralized Skill RAG (Vector DB).
+	// This keeps the project cleaner and ensures agents use 'coder skill search'.
 	if profile.IncludeRules {
 		fmt.Println("  Installing rules...")
-		if err := installDir(agentFS, ".agents/rules", filepath.Join(targetDir, ".agents", "rules"), opts, result, targetDir); err != nil {
+		if err := installDir(srcFS, ".agents/rules", filepath.Join(targetDir, ".agents", "rules"), opts, result, targetDir); err != nil {
 			return err
 		}
 	}
 	if profile.IncludeWorkflows {
 		fmt.Println("  Installing workflows...")
-		if err := installDir(agentFS, ".agents/workflows", filepath.Join(targetDir, ".agents", "workflows"), opts, result, targetDir); err != nil {
+		if err := installDir(srcFS, ".agents/workflows", filepath.Join(targetDir, ".agents", "workflows"), opts, result, targetDir); err != nil {
 			return err
 		}
 	}
 	if profile.IncludeAgents {
 		fmt.Println("  Installing agents...")
-		if err := installDir(agentFS, ".github/agents", filepath.Join(targetDir, ".github", "agents"), opts, result, targetDir); err != nil {
+		if err := installDir(srcFS, ".github/agents", filepath.Join(targetDir, ".github", "agents"), opts, result, targetDir); err != nil {
 			return err
 		}
 	}
 
-	if err := generateCopilotInstructions(agentFS, targetDir, opts, result); err != nil {
+	if err := generateCopilotInstructions(srcFS, targetDir, opts, result); err != nil {
 		return err
 	}
 
@@ -96,36 +102,10 @@ func Install(agentFS embed.FS, profile profiles.Profile, targetDir string, opts 
 	return nil
 }
 
-func installSkills(agentFS embed.FS, profile profiles.Profile, targetDir string, opts Options, result *Result) error {
-	fmt.Println("  Installing skills...")
 
-	skillNames := profile.Skills
-	if len(skillNames) == 1 && skillNames[0] == "all" {
-		entries, err := agentFS.ReadDir(".agents/skills")
-		if err != nil {
-			return fmt.Errorf("failed to read embedded skills: %w", err)
-		}
-		skillNames = nil
-		for _, e := range entries {
-			if e.IsDir() {
-				skillNames = append(skillNames, e.Name())
-			}
-		}
-	}
-
-	for _, skill := range skillNames {
-		srcPath := ".agents/skills/" + skill
-		dstPath := filepath.Join(targetDir, ".agents", "skills", skill)
-		if err := installDir(agentFS, srcPath, dstPath, opts, result, targetDir); err != nil {
-			return fmt.Errorf("failed to install skill %q: %w", skill, err)
-		}
-	}
-	return nil
-}
-
-// installDir copies all files from srcDir (in agentFS) to dstDir on the local filesystem.
-func installDir(agentFS embed.FS, srcDir, dstDir string, opts Options, result *Result, targetDir string) error {
-	return fs.WalkDir(agentFS, srcDir, func(fsPath string, d fs.DirEntry, err error) error {
+// installDir copies all files from srcDir (in srcFS) to dstDir on the local filesystem.
+func installDir(srcFS FileSystem, srcDir, dstDir string, opts Options, result *Result, targetDir string) error {
+	return fs.WalkDir(srcFS, srcDir, func(fsPath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -142,11 +122,11 @@ func installDir(agentFS embed.FS, srcDir, dstDir string, opts Options, result *R
 		rel = strings.TrimPrefix(rel, "/")
 		dstPath := filepath.Join(dstDir, filepath.FromSlash(rel))
 
-		return writeFile(agentFS, fsPath, dstPath, opts, result, targetDir)
+		return writeFile(srcFS, fsPath, dstPath, opts, result, targetDir)
 	})
 }
 
-func writeFile(agentFS embed.FS, srcPath, dstPath string, opts Options, result *Result, targetDir string) error {
+func writeFile(srcFS FileSystem, srcPath, dstPath string, opts Options, result *Result, targetDir string) error {
 	_, statErr := os.Stat(dstPath)
 	fileExists := statErr == nil
 
@@ -160,9 +140,9 @@ func writeFile(agentFS embed.FS, srcPath, dstPath string, opts Options, result *
 		return nil
 	}
 
-	data, err := agentFS.ReadFile(srcPath)
+	data, err := srcFS.ReadFile(srcPath)
 	if err != nil {
-		return fmt.Errorf("failed to read embedded file %s: %w", srcPath, err)
+		return fmt.Errorf("failed to read file %s: %w", srcPath, err)
 	}
 
 	if opts.DryRun {
@@ -193,11 +173,11 @@ func writeFile(agentFS embed.FS, srcPath, dstPath string, opts Options, result *
 	return nil
 }
 
-// generateCopilotInstructions reads general.instructions.md from embedded files
+// generateCopilotInstructions reads general.instructions.md from source
 // and merges it with the destination's copilot-instructions.md file.
 // If destination doesn't exist, creates it. If it does, appends new content.
-func generateCopilotInstructions(agentFS embed.FS, targetDir string, opts Options, result *Result) error {
-	data, err := agentFS.ReadFile(".agents/rules/general.instructions.md")
+func generateCopilotInstructions(srcFS FileSystem, targetDir string, opts Options, result *Result) error {
+	data, err := srcFS.ReadFile(".agents/rules/general.instructions.md")
 	if err != nil {
 		return nil // skip if not found
 	}

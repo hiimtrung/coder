@@ -16,9 +16,9 @@ This master workflow coordinates specialized sub-workflows. You can switch betwe
 
 ### Phase 1: Planning & Analysis (Business Analysis)
 *Objective: Discover context, map user stories, and define architectural boundaries.*
-0. **Gate In (MANDATORY)** — Run `coder memory search "<overall project/feature goal>"` at the very start of the lifecycle.
+0. **Gate In (MANDATORY)** — Run `coder skill search "<overall project/feature goal>"` to load relevant best practices and patterns, then run `coder memory search "<overall project/feature goal>"` to retrieve project-specific context.
 1. **Task Visibility** — Create/update `task.md` in `@brain/`. Mark tasks as `[ ]`, `[/]`, or `[x]`.
-2. **Context Discovery** — Run `coder memory search "<topic>"` to find existing patterns. Run `/new-requirement` to scaffold documentation.
+2. **Context Discovery** — Apply patterns from Gate In results. Run `/new-requirement` to scaffold documentation.
 3. **Requirement Mapping** — Decompose requirements into actionable stories. Run `/capture-knowledge` for complex components.
 4. **Implementation Plan** — Create an `implementation_plan.md`. Success is an approved plan and populated `task.md`.
 
