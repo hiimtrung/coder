@@ -248,3 +248,23 @@ func (s *postgresSkillStore) DeleteChunksBySkillID(ctx context.Context, skillID 
 func (s *postgresSkillStore) Close() error {
 	return nil // DB connection is shared, don't close here
 }
+
+func (s *postgresSkillStore) GetChunkHashes(ctx context.Context, skillID string) (map[string]bool, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT content_hash FROM skill_chunks WHERE skill_id = $1`, skillID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	hashes := make(map[string]bool)
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return nil, err
+		}
+		hashes[hash] = true
+	}
+	return hashes, nil
+}

@@ -10,8 +10,8 @@ var (
 )
 
 const (
-	RepoOwner  = "takayatomose"
-	RepoName   = "coder-skills"
+	RepoOwner  = "hiimtrung"
+	RepoName   = "coder"
 	BinaryName = "coder"
 )
 

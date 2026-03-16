@@ -5,3 +5,6 @@ ref
 tmp_bin
 coder-node
 coder
+
+coder.exe
+coder-node.exe

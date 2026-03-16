@@ -12,12 +12,14 @@ BINARY="coder"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 VERSION=""
 
-# ── Detect platform ───────────────────────────────────────────────────────────
+# ── Parse arguments ───────────────────────────────────────────────────────────
 
-OS="$(uname -s)"
-ARCH="$(uname -m)"
-
-
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --version) VERSION="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
 
 # ── Detect platform ───────────────────────────────────────────────────────────
 
@@ -174,4 +176,5 @@ echo "Get started:"
 echo "  ${BINARY} install be        # backend project"
 echo "  ${BINARY} install fe        # frontend project"
 echo "  ${BINARY} install fullstack # full-stack project"
+echo "  ${BINARY} skill ingest --source local  # ingest skills into vector DB"
 echo "  ${BINARY} list              # see all options"

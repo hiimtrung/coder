@@ -96,6 +96,47 @@ func (f *GitHubFetcher) FetchSingleFile(repo, branch, path string) (string, erro
 	return string(data), nil
 }
 
+// ListDirectory lists filenames in a GitHub repo directory using the Contents API.
+// Returns a list of filenames (not full paths) found in the specified directory.
+func (f *GitHubFetcher) ListDirectory(repo, branch, dirPath string) ([]string, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/contents/%s?ref=%s", repo, dirPath, branch)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list directory %s: %w", dirPath, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("directory not found: %s", dirPath)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API error: HTTP %d for %s", resp.StatusCode, dirPath)
+	}
+
+	var entries []struct {
+		Name string `json:"name"`
+		Type string `json:"type"` // "file" or "dir"
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+		return nil, fmt.Errorf("failed to parse directory listing: %w", err)
+	}
+
+	var filenames []string
+	for _, e := range entries {
+		if e.Type == "file" {
+			filenames = append(filenames, e.Name)
+		}
+	}
+	return filenames, nil
+}
+
 // FilterSkills filters skills by name list. If names is empty, returns all.
 func FilterSkills(entries []GitHubSkillEntry, names []string) []GitHubSkillEntry {
 	if len(names) == 0 {

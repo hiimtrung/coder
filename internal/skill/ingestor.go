@@ -35,6 +35,7 @@ type IngestResult struct {
 }
 
 // IngestSkill ingests a single skill (SKILL.md content + rule files) into the vector DB.
+// It uses content-hash deduplication to avoid re-embedding unchanged chunks.
 func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD string, rules []RuleFile, source string, sourceRepo string, category string) (*IngestResult, error) {
 	result := &IngestResult{SkillName: name}
 
@@ -78,44 +79,96 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 		return nil, fmt.Errorf("failed to upsert skill %q: %w", name, err)
 	}
 
-	// 4. Delete existing chunks (re-ingest)
-	if err := ing.store.DeleteChunksBySkillID(ctx, skillID); err != nil {
-		return nil, fmt.Errorf("failed to delete old chunks for %q: %w", name, err)
+	// 4. Fetch existing content hashes for deduplication
+	existingHashes, err := ing.store.GetChunkHashes(ctx, skillID)
+	if err != nil {
+		// If we can't get hashes (e.g., first time), proceed with full ingest
+		existingHashes = make(map[string]bool)
 	}
 
-	// 5. Process each section → generate embedding → store chunk
+	// 5. Compute new hashes and determine which chunks need (re-)ingestion
+	newHashes := make(map[string]bool)
+	var sectionsToIngest []struct {
+		index   int
+		section ParsedSection
+		hash    string
+	}
+
 	for i, section := range allSections {
 		if section.Content == "" {
 			continue
 		}
-
 		contentHash := hashContent(section.Content)
+		newHashes[contentHash] = true
+		result.ChunksTotal++
 
+		if existingHashes[contentHash] {
+			// Content hasn't changed — skip re-embedding
+			result.ChunksSkip++
+		} else {
+			sectionsToIngest = append(sectionsToIngest, struct {
+				index   int
+				section ParsedSection
+				hash    string
+			}{index: i, section: section, hash: contentHash})
+		}
+	}
+
+	// 6. If all chunks are unchanged, skip entirely
+	if len(sectionsToIngest) == 0 && len(existingHashes) == len(newHashes) {
+		return result, nil
+	}
+
+	// 7. Delete old chunks that no longer exist in the new version
+	if len(sectionsToIngest) > 0 || len(existingHashes) != len(newHashes) {
+		if err := ing.store.DeleteChunksBySkillID(ctx, skillID); err != nil {
+			return nil, fmt.Errorf("failed to delete old chunks for %q: %w", name, err)
+		}
+		// Reset: we need to re-ingest ALL chunks since we deleted them
+		// (PostgreSQL CASCADE or bulk delete removes everything)
+		sectionsToIngest = nil
+		result.ChunksNew = 0
+		result.ChunksSkip = 0
+
+		for i, section := range allSections {
+			if section.Content == "" {
+				continue
+			}
+			contentHash := hashContent(section.Content)
+			sectionsToIngest = append(sectionsToIngest, struct {
+				index   int
+				section ParsedSection
+				hash    string
+			}{index: i, section: section, hash: contentHash})
+		}
+	}
+
+	// 8. Process changed/new sections → generate embedding → store chunk
+	for _, item := range sectionsToIngest {
 		// Generate embedding
-		embeddingText := section.Title + "\n" + section.Content
+		embeddingText := item.section.Title + "\n" + item.section.Content
 		embedding, err := ing.provider.GenerateEmbedding(ctx, embeddingText)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate embedding for chunk %d of %q: %w", i, name, err)
+			return nil, fmt.Errorf("failed to generate embedding for chunk %d of %q: %w", item.index, name, err)
 		}
 
 		chunk := &SkillChunk{
 			ID:          uuid.New().String(),
 			SkillID:     skillID,
-			ChunkType:   section.Type,
-			Title:       section.Title,
-			Content:     section.Content,
-			ChunkIndex:  i,
-			ContentHash: contentHash,
+			ChunkType:   item.section.Type,
+			Title:       item.section.Title,
+			Content:     item.section.Content,
+			ChunkIndex:  item.index,
+			ContentHash: item.hash,
 			Vector:      embedding,
 			CreatedAt:   now,
 		}
 
 		if err := ing.store.StoreChunk(ctx, chunk); err != nil {
-			return nil, fmt.Errorf("failed to store chunk %d of %q: %w", i, name, err)
+			return nil, fmt.Errorf("failed to store chunk %d of %q: %w", item.index, name, err)
 		}
 
 		result.ChunksNew++
-		result.ChunksTotal++
 	}
 
 	return result, nil

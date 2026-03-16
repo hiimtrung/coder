@@ -66,6 +66,9 @@ type SkillService interface {
 	// RAG Search
 	SearchChunks(ctx context.Context, queryVector []float32, limit int) ([]SkillChunkResult, error)
 
+	// Deduplication
+	GetChunkHashes(ctx context.Context, skillID string) (map[string]bool, error)
+
 	// Cleanup
 	DeleteChunksBySkillID(ctx context.Context, skillID string) error
 	Close() error
