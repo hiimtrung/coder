@@ -170,6 +170,22 @@ func runUpdate(args []string) {
 
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: coder update [profile] [flags]")
+		fmt.Fprintln(os.Stderr, "       coder update global [flags]")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Project update (no 'global'): re-installs rules, workflows, VS Code agents,")
+		fmt.Fprintln(os.Stderr, "  and Claude CLI agents (.claude/agents/) into the target directory.")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Global update ('global'): re-installs all configs to user-level directories:")
+		fmt.Fprintln(os.Stderr, "  ~/.copilot/instructions/                 VS Code Copilot custom instructions")
+		fmt.Fprintln(os.Stderr, "  ~/.copilot/agents/                       VS Code Copilot custom agents")
+		fmt.Fprintln(os.Stderr, "  ~/.copilot/chatmodes/                    VS Code Copilot custom chat modes")
+		fmt.Fprintln(os.Stderr, "  ~/.claude/rules/                         Claude Code global rules")
+		fmt.Fprintln(os.Stderr, "  ~/.claude/commands/                      Claude Code slash commands (workflows)")
+		fmt.Fprintln(os.Stderr, "  ~/.claude/agents/                        Claude Code global sub-agents")
+		fmt.Fprintln(os.Stderr, "  ~/.claude/CLAUDE.md                      Claude Code global instructions")
+		fmt.Fprintln(os.Stderr, "  ~/.gemini/antigravity/global_workflows/  Gemini CLI global workflows")
+		fmt.Fprintln(os.Stderr, "  ~/.gemini/GEMINI.md                      Gemini CLI global rules")
+		fmt.Fprintln(os.Stderr, "")
 		fs.PrintDefaults()
 	}
 
@@ -197,6 +213,8 @@ func runUpdate(args []string) {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+		fmt.Printf("Using profile from global manifest: %s (installed %s)\n\n",
+			manifest.Profile, manifest.InstalledAt.Format("2006-01-02"))
 		opts := installer.Options{DryRun: *dryRun, Force: true}
 		fmt.Printf("Fetching latest engine components from GitHub (%s/%s)...\n", version.RepoOwner, version.RepoName)
 		remoteFS := installer.NewGitHubFS(version.RepoOwner+"/"+version.RepoName, "main")

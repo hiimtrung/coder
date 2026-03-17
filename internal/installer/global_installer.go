@@ -54,14 +54,15 @@ func globalManifestPath() (string, error) {
 }
 
 // InstallGlobal installs profile files to user-level directories:
-//   - ~/.copilot/instructions/              — VS Code Copilot custom instructions
-//   - ~/.copilot/agents/                    — VS Code Copilot custom agents
-//   - ~/.copilot/chatmodes/                 — VS Code Copilot custom chat modes (workflows)
-//   - ~/.claude/rules/                      — Claude Code global rules
-//   - ~/.claude/commands/                   — Claude Code user-level slash commands (workflows)
-//   - ~/.claude/CLAUDE.md                   — Claude Code global instructions (merged with markers)
+//   - ~/.copilot/instructions/               — VS Code Copilot custom instructions
+//   - ~/.copilot/agents/                     — VS Code Copilot custom agents
+//   - ~/.copilot/chatmodes/                  — VS Code Copilot custom chat modes (workflows)
+//   - ~/.claude/rules/                       — Claude Code global rules
+//   - ~/.claude/commands/                    — Claude Code user-level slash commands (workflows)
+//   - ~/.claude/agents/                      — Claude Code global sub-agents
+//   - ~/.claude/CLAUDE.md                    — Claude Code global instructions (merged with markers)
 //   - ~/.gemini/antigravity/global_workflows/ — Gemini CLI global workflows
-//   - ~/.gemini/GEMINI.md                   — Gemini CLI global rules (merged with markers)
+//   - ~/.gemini/GEMINI.md                    — Gemini CLI global rules (merged with markers)
 func InstallGlobal(srcFS FileSystem, profile profiles.Profile, opts Options) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
