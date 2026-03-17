@@ -129,7 +129,7 @@ func runMemorySearch(args []string) {
 	for _, res := range results {
 		fmt.Printf("[%s] %s (Score: %.4f)\n", res.ID[:8], res.Title, res.Score)
 		fmt.Printf("   Tags: %s\n", strings.Join(res.Tags, ", "))
-		fmt.Printf("   Content: %s\n\n", truncate(res.Content, 100))
+		fmt.Printf("   Content: %s\n\n", res.Content)
 	}
 }
 

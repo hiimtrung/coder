@@ -103,11 +103,7 @@ func runSkillSearch(args []string) {
 		fmt.Printf("━━━ %s (Score: %.4f) ━━━\n", sr.Skill.Name, sr.Score)
 		fmt.Printf("  Category: %s | Source: %s\n", sr.Skill.Category, sr.Skill.Source)
 		if sr.Skill.Description != "" {
-			desc := sr.Skill.Description
-			if len(desc) > 120 {
-				desc = desc[:120] + "..."
-			}
-			fmt.Printf("  %s\n", desc)
+			fmt.Printf("  %s\n", sr.Skill.Description)
 		}
 		fmt.Printf("  Matching chunks (%d):\n", len(sr.Chunks))
 		for _, ch := range sr.Chunks {
@@ -115,12 +111,8 @@ func runSkillSearch(args []string) {
 			if title == "" {
 				title = ch.ChunkType
 			}
-			content := ch.Content
-			if len(content) > 80 {
-				content = content[:80] + "..."
-			}
 			fmt.Printf("    [%s] %s\n", ch.ChunkType, title)
-			fmt.Printf("           %s\n", content)
+			fmt.Printf("           %s\n", ch.Content)
 		}
 		fmt.Println()
 	}
