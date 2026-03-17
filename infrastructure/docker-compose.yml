@@ -41,7 +41,12 @@ services:
       start_period: 30s
 
   coder-node:
-    # multi-arch image: linux/amd64 + linux/arm64
+    # Production: pulls from registry. Dev: run `docker-compose build coder-node` to build from source.
+    # When both build: and image: are set, `docker-compose build` uses the Dockerfile and tags
+    # the result with the image name so `docker-compose up` picks it up automatically.
+    build:
+      context: ..
+      dockerfile: Dockerfile.node
     image: ghcr.io/hiimtrung/coder-node:latest
     container_name: coder_node
     restart: unless-stopped

@@ -58,7 +58,6 @@ func (s *postgresSkillStore) init() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_skill_chunks_skill_id ON skill_chunks(skill_id);
 	CREATE INDEX IF NOT EXISTS idx_skill_chunks_hash ON skill_chunks(content_hash);
-	CREATE INDEX IF NOT EXISTS idx_skill_chunks_section_id ON skill_chunks(section_id);
 
 	CREATE TABLE IF NOT EXISTS skill_files (
 		id TEXT PRIMARY KEY,

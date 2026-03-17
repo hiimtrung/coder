@@ -130,18 +130,23 @@ func runSkillSearch(args []string) {
 
 func runSkillIngest(args []string) {
 	fs := flag.NewFlagSet("skill ingest", flag.ExitOnError)
-	source := fs.String("source", "local", "Ingestion source: local, github")
+	source := fs.String("source", "auto", "Ingestion source: local, github, auto")
 	repo := fs.String("repo", version.RepoOwner+"/"+version.RepoName, "GitHub repo (e.g., hiimtrung/coder)")
 	skillFilter := fs.String("skills", "", "Comma-separated skill names to ingest (default: all)")
 	includeFiles := fs.Bool("include-files", false, "Also store scripts/data files into DB for cache extraction")
 
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: coder skill ingest [flags]")
+		fmt.Fprintln(os.Stderr, "\nSOURCES:")
+		fmt.Fprintln(os.Stderr, "  auto    Try .agents/skills/ → embedded binary → GitHub (default)")
+		fmt.Fprintln(os.Stderr, "  local   Only .agents/skills/ or embedded binary. Error if not found.")
+		fmt.Fprintln(os.Stderr, "  github  Fetch from a GitHub repo (requires --repo)")
 		fmt.Fprintln(os.Stderr, "\nFLAGS:")
 		fs.PrintDefaults()
 		fmt.Fprintln(os.Stderr, "\nEXAMPLES:")
-		fmt.Fprintln(os.Stderr, "  coder skill ingest --source local --include-files")
-		fmt.Fprintln(os.Stderr, "  coder skill ingest --source github --repo sickn33/antigravity-awesome-skills")
+		fmt.Fprintln(os.Stderr, "  coder skill ingest                                              # auto (default)")
+		fmt.Fprintln(os.Stderr, "  coder skill ingest --source local --include-files               # local only")
+		fmt.Fprintln(os.Stderr, "  coder skill ingest --source github --repo owner/repo            # from GitHub")
 	}
 
 	fs.Parse(args)
@@ -162,36 +167,76 @@ func runSkillIngest(args []string) {
 		}
 		runIngestGitHub(ctx, client, *repo, *skillFilter)
 
+	case "auto":
+		runIngestAuto(ctx, client, *repo, *includeFiles)
+
 	default:
-		fmt.Fprintf(os.Stderr, "Error: unknown source %q (supported: local, github)\n", *source)
+		fmt.Fprintf(os.Stderr, "Error: unknown source %q (supported: local, github, auto)\n", *source)
 		os.Exit(1)
 	}
 }
 
-// runIngestLocal ingests skills from the local project directory.
-// Priority: 1) OS filesystem (.agents/skills/) → 2) embedded FS → 3) GitHub (own repo)
+// runIngestLocal ingests skills strictly from the local project directory or embedded binary.
+// It does NOT fall back to GitHub. If no local skills are found it exits with a clear error.
+// Use `coder skill ingest --source auto` for the try-local-then-GitHub behaviour.
 func runIngestLocal(ctx context.Context, client skill.Client, includeFiles bool) {
 	if includeFiles {
 		fmt.Println("(--include-files: scripts/data will be stored for cache extraction)")
 	}
 
-	// 1. Try OS filesystem first (running from project directory)
+	// 1. Try OS filesystem (must be run from a project directory with .agents/skills/)
 	if entries, err := os.ReadDir(".agents/skills"); err == nil && len(entries) > 0 {
 		fmt.Println("Ingesting skills from project directory (.agents/skills/)...")
 		ingestFromFS(ctx, client, entries, readFSSkillMD, readFSRules, includeFiles)
 		return
 	}
 
-	// 2. Try embedded FS (binary contains skills)
+	// 2. Try embedded FS (skills baked into the binary)
 	if entries, err := tasagent.AgentFS.ReadDir(".agents/skills"); err == nil && len(entries) > 0 {
 		fmt.Println("Ingesting embedded skills from binary...")
 		ingestFromFS(ctx, client, entries, readEmbeddedSkillMD, readEmbeddedRules, includeFiles)
 		return
 	}
 
-	// 3. Fallback: fetch from GitHub (requires skills_index.json in repo)
-	fmt.Println("No local skills found. Fetching from official repository...")
-	repo := version.RepoOwner + "/" + version.RepoName
+	// No local skills — give the user a clear, actionable message
+	fmt.Fprintln(os.Stderr, "Error: no local skills found in .agents/skills/")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "To fix this, either:")
+	fmt.Fprintln(os.Stderr, "  1. Run from a project where you installed a profile:")
+	fmt.Fprintln(os.Stderr, "       coder install <profile>          # then re-run ingest")
+	fmt.Fprintln(os.Stderr, "  2. Pull skills from GitHub:")
+	fmt.Fprintln(os.Stderr, "       coder skill ingest --source github")
+	fmt.Fprintln(os.Stderr, "  3. Try local first then fall back to GitHub automatically:")
+	fmt.Fprintln(os.Stderr, "       coder skill ingest --source auto")
+	os.Exit(1)
+}
+
+// runIngestAuto tries local → embedded → GitHub in order.
+// This is the "best effort" mode for users who want skills ingested regardless of environment.
+func runIngestAuto(ctx context.Context, client skill.Client, repo string, includeFiles bool) {
+	if includeFiles {
+		fmt.Println("(--include-files: scripts/data will be stored for cache extraction)")
+	}
+
+	// 1. OS filesystem
+	if entries, err := os.ReadDir(".agents/skills"); err == nil && len(entries) > 0 {
+		fmt.Println("Ingesting skills from project directory (.agents/skills/)...")
+		ingestFromFS(ctx, client, entries, readFSSkillMD, readFSRules, includeFiles)
+		return
+	}
+
+	// 2. Embedded FS
+	if entries, err := tasagent.AgentFS.ReadDir(".agents/skills"); err == nil && len(entries) > 0 {
+		fmt.Println("Ingesting embedded skills from binary...")
+		ingestFromFS(ctx, client, entries, readEmbeddedSkillMD, readEmbeddedRules, includeFiles)
+		return
+	}
+
+	// 3. GitHub fallback
+	fmt.Println("No local skills found. Fetching from GitHub...")
+	if repo == "" {
+		repo = version.RepoOwner + "/" + version.RepoName
+	}
 	runIngestGitHub(ctx, client, repo, "")
 }
 
