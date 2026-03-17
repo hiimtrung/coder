@@ -47,6 +47,7 @@ func (s *postgresSkillStore) init() error {
 	CREATE TABLE IF NOT EXISTS skill_chunks (
 		id TEXT PRIMARY KEY,
 		skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+		section_id TEXT,
 		chunk_type TEXT DEFAULT 'rule',
 		title TEXT,
 		content TEXT NOT NULL,
@@ -57,6 +58,7 @@ func (s *postgresSkillStore) init() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_skill_chunks_skill_id ON skill_chunks(skill_id);
 	CREATE INDEX IF NOT EXISTS idx_skill_chunks_hash ON skill_chunks(content_hash);
+	CREATE INDEX IF NOT EXISTS idx_skill_chunks_section_id ON skill_chunks(section_id);
 
 	CREATE TABLE IF NOT EXISTS skill_files (
 		id TEXT PRIMARY KEY,
@@ -71,8 +73,21 @@ func (s *postgresSkillStore) init() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_skill_files_skill_id ON skill_files(skill_id);
 	`
-	_, err := s.db.Exec(query)
-	return err
+	if _, err := s.db.Exec(query); err != nil {
+		return err
+	}
+
+	// Idempotent migration: add section_id to existing skill_chunks tables
+	migrations := []string{
+		`ALTER TABLE skill_chunks ADD COLUMN IF NOT EXISTS section_id TEXT`,
+		`CREATE INDEX IF NOT EXISTS idx_skill_chunks_section_id ON skill_chunks(section_id)`,
+	}
+	for _, m := range migrations {
+		if _, err := s.db.Exec(m); err != nil {
+			return fmt.Errorf("migration failed: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *postgresSkillStore) UpsertSkill(ctx context.Context, sk *Skill) error {
@@ -105,9 +120,10 @@ func (s *postgresSkillStore) StoreChunk(ctx context.Context, c *SkillChunk) erro
 	vec := pgvector.NewVector(c.Vector)
 
 	query := `
-	INSERT INTO skill_chunks (id, skill_id, chunk_type, title, content, chunk_index, content_hash, vector, created_at)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	INSERT INTO skill_chunks (id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, vector, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	ON CONFLICT (id) DO UPDATE SET
+		section_id = EXCLUDED.section_id,
 		content = EXCLUDED.content,
 		chunk_type = EXCLUDED.chunk_type,
 		title = EXCLUDED.title,
@@ -116,7 +132,7 @@ func (s *postgresSkillStore) StoreChunk(ctx context.Context, c *SkillChunk) erro
 		vector = EXCLUDED.vector
 	`
 	_, err := s.db.ExecContext(ctx, query,
-		c.ID, c.SkillID, c.ChunkType, c.Title, c.Content, c.ChunkIndex, c.ContentHash, vec, c.CreatedAt,
+		c.ID, c.SkillID, c.SectionID, c.ChunkType, c.Title, c.Content, c.ChunkIndex, c.ContentHash, vec, c.CreatedAt,
 	)
 	return err
 }
@@ -141,7 +157,7 @@ func (s *postgresSkillStore) GetSkill(ctx context.Context, name string) (*Skill,
 	json.Unmarshal(metaStr, &sk.Metadata)
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, skill_id, chunk_type, title, content, chunk_index, content_hash, created_at FROM skill_chunks WHERE skill_id = $1 ORDER BY chunk_index`, sk.ID,
+		`SELECT id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, created_at FROM skill_chunks WHERE skill_id = $1 ORDER BY chunk_index`, sk.ID,
 	)
 	if err != nil {
 		return &sk, nil, err
@@ -151,7 +167,7 @@ func (s *postgresSkillStore) GetSkill(ctx context.Context, name string) (*Skill,
 	var chunks []SkillChunk
 	for rows.Next() {
 		var c SkillChunk
-		if err := rows.Scan(&c.ID, &c.SkillID, &c.ChunkType, &c.Title, &c.Content, &c.ChunkIndex, &c.ContentHash, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.SkillID, &c.SectionID, &c.ChunkType, &c.Title, &c.Content, &c.ChunkIndex, &c.ContentHash, &c.CreatedAt); err != nil {
 			return &sk, nil, err
 		}
 		chunks = append(chunks, c)
@@ -228,7 +244,7 @@ func (s *postgresSkillStore) SearchChunks(ctx context.Context, queryVector []flo
 	vec := pgvector.NewVector(queryVector)
 
 	query := `
-		SELECT sc.id, sc.skill_id, sc.chunk_type, sc.title, sc.content, sc.chunk_index, sc.content_hash, sc.created_at,
+		SELECT sc.id, sc.skill_id, sc.section_id, sc.chunk_type, sc.title, sc.content, sc.chunk_index, sc.content_hash, sc.created_at,
 		       1 - (sc.vector <=> $1) AS score
 		FROM skill_chunks sc
 		ORDER BY sc.vector <=> $1
@@ -244,7 +260,7 @@ func (s *postgresSkillStore) SearchChunks(ctx context.Context, queryVector []flo
 	var results []SkillChunkResult
 	for rows.Next() {
 		var r SkillChunkResult
-		if err := rows.Scan(&r.ID, &r.SkillID, &r.ChunkType, &r.Title, &r.Content, &r.ChunkIndex, &r.ContentHash, &r.CreatedAt, &r.Score); err != nil {
+		if err := rows.Scan(&r.ID, &r.SkillID, &r.SectionID, &r.ChunkType, &r.Title, &r.Content, &r.ChunkIndex, &r.ContentHash, &r.CreatedAt, &r.Score); err != nil {
 			return nil, err
 		}
 		results = append(results, r)
@@ -256,6 +272,70 @@ func (s *postgresSkillStore) SearchChunks(ctx context.Context, queryVector []flo
 func (s *postgresSkillStore) DeleteChunksBySkillID(ctx context.Context, skillID string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM skill_chunks WHERE skill_id = $1`, skillID)
 	return err
+}
+
+// GetSkillByID fetches a single skill record by its internal ID (no chunks).
+// Used by SearchSkills to avoid the N×ListSkills anti-pattern.
+func (s *postgresSkillStore) GetSkillByID(ctx context.Context, id string) (*Skill, error) {
+	var sk Skill
+	var tagsStr, metaStr []byte
+
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, name, description, category, source, source_repo, risk, version, tags, metadata, created_at, updated_at FROM skills WHERE id = $1`, id,
+	).Scan(&sk.ID, &sk.Name, &sk.Description, &sk.Category, &sk.Source, &sk.SourceRepo,
+		&sk.Risk, &sk.Version, &tagsStr, &metaStr, &sk.CreatedAt, &sk.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(tagsStr, &sk.Tags)
+	json.Unmarshal(metaStr, &sk.Metadata)
+	return &sk, nil
+}
+
+// GetAllChunksBySkillID returns every chunk for a skill sorted by chunk_index.
+// Used for high-confidence retrieval so the agent receives complete skill content.
+func (s *postgresSkillStore) GetAllChunksBySkillID(ctx context.Context, skillID string) ([]SkillChunk, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, created_at
+		 FROM skill_chunks WHERE skill_id = $1 ORDER BY chunk_index`, skillID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chunks []SkillChunk
+	for rows.Next() {
+		var c SkillChunk
+		if err := rows.Scan(&c.ID, &c.SkillID, &c.SectionID, &c.ChunkType, &c.Title, &c.Content, &c.ChunkIndex, &c.ContentHash, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, nil
+}
+
+// GetChunksBySectionID returns all chunks that share a section_id, sorted by chunk_index.
+// Used for medium-confidence retrieval to reassemble split sections into complete context.
+func (s *postgresSkillStore) GetChunksBySectionID(ctx context.Context, sectionID string) ([]SkillChunk, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, created_at
+		 FROM skill_chunks WHERE section_id = $1 ORDER BY chunk_index`, sectionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chunks []SkillChunk
+	for rows.Next() {
+		var c SkillChunk
+		if err := rows.Scan(&c.ID, &c.SkillID, &c.SectionID, &c.ChunkType, &c.Title, &c.Content, &c.ChunkIndex, &c.ContentHash, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, nil
 }
 
 func (s *postgresSkillStore) Close() error {

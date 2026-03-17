@@ -5,11 +5,18 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/trungtran/coder/internal/memory"
+)
+
+// Confidence thresholds for context-expansion strategy in SearchSkills.
+const (
+	scoreHighConfidence   float32 = 0.80 // return ALL chunks of the skill
+	scoreMediumConfidence float32 = 0.55 // return matched chunks + full section siblings
 )
 
 // maxEmbedChars is the safe character limit for the combined embedding text sent to the model.
@@ -46,9 +53,10 @@ func splitSectionIfNeeded(s ParsedSection) []ParsedSection {
 				title = fmt.Sprintf("%s (part %d)", s.Title, partNum+1)
 			}
 			result = append(result, ParsedSection{
-				Title:   title,
-				Content: remaining,
-				Type:    s.Type,
+				Title:     title,
+				Content:   remaining,
+				Type:      s.Type,
+				SectionID: s.SectionID, // all parts share the same section ID
 			})
 			break
 		}
@@ -73,9 +81,10 @@ func splitSectionIfNeeded(s ParsedSection) []ParsedSection {
 		}
 
 		result = append(result, ParsedSection{
-			Title:   title,
-			Content: strings.TrimSpace(remaining[:cutAt]),
-			Type:    s.Type,
+			Title:     title,
+			Content:   strings.TrimSpace(remaining[:cutAt]),
+			Type:      s.Type,
+			SectionID: s.SectionID, // all parts share the same section ID
 		})
 		remaining = strings.TrimSpace(remaining[cutAt:])
 		partNum++
@@ -115,15 +124,18 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 	// 1. Parse SKILL.md
 	parsed := ParseSkillMD(name, skillMD)
 
-	// 2. Collect all sections from SKILL.md body + rule files; split long sections
+	// 2. Collect all sections from SKILL.md body + rule files; split long sections.
+	//    Each section gets a SectionID before splitting so all parts stay linked.
 	var allSections []ParsedSection
 	for _, s := range parsed.Sections {
+		s.SectionID = generateSectionID(name, s.Title)
 		allSections = append(allSections, splitSectionIfNeeded(s)...)
 	}
 
 	for _, rule := range rules {
 		ruleSections := ParseRuleFile(rule.Path, rule.Content)
 		for _, section := range ruleSections {
+			section.SectionID = generateSectionID(name, section.Title)
 			allSections = append(allSections, splitSectionIfNeeded(section)...)
 		}
 	}
@@ -235,6 +247,7 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 		chunk := &SkillChunk{
 			ID:          uuid.New().String(),
 			SkillID:     skillID,
+			SectionID:   item.section.SectionID,
 			ChunkType:   item.section.Type,
 			Title:       item.section.Title,
 			Content:     rewrittenContent,
@@ -281,62 +294,123 @@ func (ing *Ingestor) IngestFiles(ctx context.Context, skillName string, files []
 	return stored, nil
 }
 
-// SearchSkills performs semantic search across all skill chunks.
+// SearchSkills performs semantic search with confidence-based context expansion:
+//   - score ≥ 0.80 (high):   return ALL chunks of the matched skill
+//   - score ≥ 0.55 (medium): return matched chunks + all split parts of the same section
+//   - score < 0.55 (low):    return only the matched chunks
 func (ing *Ingestor) SearchSkills(ctx context.Context, query string, limit int) ([]SkillSearchResult, error) {
-	// Generate query embedding
+	// 1. Embed query
 	queryVec, err := ing.provider.GenerateEmbedding(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
 
-	// Search chunks
-	chunkResults, err := ing.store.SearchChunks(ctx, queryVec, limit*3) // Fetch more to group by skill
+	// 2. Fetch top-k candidate chunks (overfetch to ensure enough distinct skills)
+	rawChunks, err := ing.store.SearchChunks(ctx, queryVec, limit*5)
 	if err != nil {
 		return nil, err
 	}
 
-	// Group by skill_id
-	skillMap := make(map[string]*SkillSearchResult)
+	// 3. Group by skill_id — track best score, matched chunks, and matched section IDs
+	type skillEntry struct {
+		bestScore  float32
+		chunks     []SkillChunkResult
+		sectionIDs map[string]bool
+	}
+	skillMap := make(map[string]*skillEntry)
 	var orderedIDs []string
 
-	for _, cr := range chunkResults {
-		existing, ok := skillMap[cr.SkillID]
+	for _, cr := range rawChunks {
+		e, ok := skillMap[cr.SkillID]
 		if !ok {
-			existing = &SkillSearchResult{
-				Score: cr.Score,
-			}
-			skillMap[cr.SkillID] = existing
+			e = &skillEntry{sectionIDs: make(map[string]bool)}
+			skillMap[cr.SkillID] = e
 			orderedIDs = append(orderedIDs, cr.SkillID)
 		}
-		existing.Chunks = append(existing.Chunks, cr)
-		if cr.Score > existing.Score {
-			existing.Score = cr.Score
+		e.chunks = append(e.chunks, cr)
+		if cr.Score > e.bestScore {
+			e.bestScore = cr.Score
+		}
+		if cr.SectionID != "" {
+			e.sectionIDs[cr.SectionID] = true
 		}
 	}
 
-	// Fetch skill details for each unique skill
+	// 4. For each matched skill, apply context-expansion based on confidence tier
 	var results []SkillSearchResult
 	count := 0
+
 	for _, skillID := range orderedIDs {
 		if count >= limit {
 			break
 		}
+		e := skillMap[skillID]
 
-		sr := skillMap[skillID]
+		// Fetch skill metadata (single lookup by ID)
+		sk, err := ing.store.GetSkillByID(ctx, skillID)
+		if err != nil {
+			continue // skill deleted between ingest and search — skip
+		}
 
-		// We need to fetch the skill name from any chunk's skill_id
-		// Use the first chunk's skill_id to fetch skill details
-		skills, err := ing.store.ListSkills(ctx, "", "", 1000, 0)
-		if err == nil {
-			for _, sk := range skills {
-				if sk.ID == skillID {
-					sr.Skill = sk
-					break
+		var finalChunks []SkillChunk
+
+		switch {
+		case e.bestScore >= scoreHighConfidence:
+			// High confidence: return the complete skill so the agent has all rules
+			allChunks, err := ing.store.GetAllChunksBySkillID(ctx, skillID)
+			if err == nil {
+				finalChunks = allChunks
+			} else {
+				// fallback to matched chunks on error
+				for _, cr := range e.chunks {
+					finalChunks = append(finalChunks, cr.SkillChunk)
 				}
+			}
+
+		case e.bestScore >= scoreMediumConfidence:
+			// Medium confidence: matched chunks + full sections they belong to
+			seen := make(map[string]bool)
+			for _, cr := range e.chunks {
+				if !seen[cr.ID] {
+					seen[cr.ID] = true
+					finalChunks = append(finalChunks, cr.SkillChunk)
+				}
+				// Expand to all split parts of the same original section
+				if cr.SectionID != "" {
+					siblings, err := ing.store.GetChunksBySectionID(ctx, cr.SectionID)
+					if err == nil {
+						for _, s := range siblings {
+							if !seen[s.ID] {
+								seen[s.ID] = true
+								finalChunks = append(finalChunks, s)
+							}
+						}
+					}
+				}
+			}
+			// Re-sort by chunk_index so content reads in order
+			sort.Slice(finalChunks, func(i, j int) bool {
+				return finalChunks[i].ChunkIndex < finalChunks[j].ChunkIndex
+			})
+
+		default:
+			// Low confidence: matched chunks only — let caller decide if useful
+			for _, cr := range e.chunks {
+				finalChunks = append(finalChunks, cr.SkillChunk)
 			}
 		}
 
-		results = append(results, *sr)
+		// Wrap in SkillChunkResult with the skill-level score
+		chunkResults := make([]SkillChunkResult, 0, len(finalChunks))
+		for _, c := range finalChunks {
+			chunkResults = append(chunkResults, SkillChunkResult{SkillChunk: c, Score: e.bestScore})
+		}
+
+		results = append(results, SkillSearchResult{
+			Skill:  *sk,
+			Chunks: chunkResults,
+			Score:  e.bestScore,
+		})
 		count++
 	}
 
@@ -345,6 +419,13 @@ func (ing *Ingestor) SearchSkills(ctx context.Context, query string, limit int) 
 
 func generateSkillID(name string) string {
 	h := sha256.Sum256([]byte("skill:" + name))
+	return hex.EncodeToString(h[:16])
+}
+
+// generateSectionID creates a stable ID for a logical section within a skill.
+// All chunks split from the same section share this ID, enabling section-level retrieval.
+func generateSectionID(skillName, sectionTitle string) string {
+	h := sha256.Sum256([]byte("section:" + skillName + ":" + sectionTitle))
 	return hex.EncodeToString(h[:16])
 }
 

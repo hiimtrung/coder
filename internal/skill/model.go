@@ -26,7 +26,8 @@ type Skill struct {
 type SkillChunk struct {
 	ID          string    `json:"id"`
 	SkillID     string    `json:"skill_id"`
-	ChunkType   string    `json:"chunk_type"` // "description", "rule", "example", "workflow"
+	SectionID   string    `json:"section_id"`  // links all parts split from the same logical section
+	ChunkType   string    `json:"chunk_type"`  // "description", "rule", "example", "workflow"
 	Title       string    `json:"title"`
 	Content     string    `json:"content"`
 	ChunkIndex  int       `json:"chunk_index"`
@@ -78,6 +79,11 @@ type SkillService interface {
 
 	// RAG Search
 	SearchChunks(ctx context.Context, queryVector []float32, limit int) ([]SkillChunkResult, error)
+
+	// Retrieval helpers for context expansion
+	GetSkillByID(ctx context.Context, id string) (*Skill, error)
+	GetAllChunksBySkillID(ctx context.Context, skillID string) ([]SkillChunk, error)
+	GetChunksBySectionID(ctx context.Context, sectionID string) ([]SkillChunk, error)
 
 	// Deduplication
 	GetChunkHashes(ctx context.Context, skillID string) (map[string]bool, error)

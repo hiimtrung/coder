@@ -15,9 +15,10 @@ type ParsedSkill struct {
 
 // ParsedSection represents a chunk extracted from SKILL.md body.
 type ParsedSection struct {
-	Title   string
-	Content string
-	Type    string // "description", "rule", "example", "workflow"
+	Title     string
+	Content   string
+	Type      string // "description", "rule", "example", "workflow"
+	SectionID string // set by ingestor to link all parts split from this section
 }
 
 // ParseSkillMD parses a SKILL.md file content and extracts metadata + sections.
