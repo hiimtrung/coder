@@ -1,0 +1,252 @@
+[
+  {
+    "id": "architecture",
+    "name": "architecture",
+    "path": ".agents/skills/architecture",
+    "category": "uncategorized",
+    "description": "Expert in system architecture, multi-tenant isolation, event-driven design, and service integration patterns.",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "banner-design",
+    "name": "banner-design",
+    "path": ".agents/skills/banner-design",
+    "category": "uncategorized",
+    "description": "Design banners for social media, ads, website heroes, creative assets, and print. Multiple art direction options with AI...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "brand",
+    "name": "brand",
+    "path": ".agents/skills/brand",
+    "category": "uncategorized",
+    "description": "Brand voice, visual identity, messaging frameworks, asset management, brand consistency. Activate for branded content, t...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "c",
+    "name": "c",
+    "path": ".agents/skills/c",
+    "category": "uncategorized",
+    "description": "Expert in procedural Clean Architecture, memory safety, and modular C development.",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "composition-patterns",
+    "name": "composition-patterns",
+    "path": ".agents/skills/composition-patterns",
+    "category": "uncategorized",
+    "description": "",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "dart",
+    "name": "dart",
+    "path": ".agents/skills/dart",
+    "category": "uncategorized",
+    "description": "Expert in Flutter/Dart development with sound null safety and Clean Architecture.",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "database",
+    "name": "database",
+    "path": ".agents/skills/database",
+    "category": "uncategorized",
+    "description": "Expert in database design, migrations, multi-database orchestration, and data persistence patterns. Handles PostgreSQL, ...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "design",
+    "name": "design",
+    "path": ".agents/skills/design",
+    "category": "uncategorized",
+    "description": "Comprehensive design skill: brand identity, design tokens, UI styling, logo generation (55 styles, Gemini AI), corporate...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "design-system",
+    "name": "design-system",
+    "path": ".agents/skills/design-system",
+    "category": "uncategorized",
+    "description": "Token architecture, component specifications, and slide generation. Three-layer tokens (primitive→semantic→component...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "development",
+    "name": "development",
+    "path": ".agents/skills/development",
+    "category": "uncategorized",
+    "description": "Expert in use case implementation, error handling, type safety, and external API integration. Focuses on building robust...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "docs-analysis",
+    "name": "docs-analysis",
+    "path": ".agents/skills/docs-analysis",
+    "category": "uncategorized",
+    "description": "Expert in project documentation analysis and maintenance. Ensures agents read existing docs before starting work and kee...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "frontend",
+    "name": "frontend",
+    "path": ".agents/skills/frontend",
+    "category": "uncategorized",
+    "description": "Senior Frontend Architect expert in UI engineering, SSR/CSR strategies, and design system orchestration.",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "general-patterns",
+    "name": "general-patterns",
+    "path": ".agents/skills/general-patterns",
+    "category": "uncategorized",
+    "description": "Universal backend development patterns, error handling, and architecture principles applicable across all languages (Nes...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "golang",
+    "name": "golang",
+    "path": ".agents/skills/golang",
+    "category": "uncategorized",
+    "description": "Expert in building concurrent Go services with clean architecture, error handling, and idiomatic patterns. Covers Go mod...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "java",
+    "name": "java",
+    "path": ".agents/skills/java",
+    "category": "uncategorized",
+    "description": "Expert in implementing enterprise Java applications (Spring/Quarkus) with Clean Architecture, strict typing, and multi-t...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "nestjs",
+    "name": "nestjs",
+    "path": ".agents/skills/nestjs",
+    "category": "uncategorized",
+    "description": "Expert in implementing enterprise NestJS applications with Clean Architecture, strict TypeScript, and event-driven desig...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "python",
+    "name": "python",
+    "path": ".agents/skills/python",
+    "category": "uncategorized",
+    "description": "Expert in modern Python development with Type Hints, Pydantic, and Clean Architecture.",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "react-best-practices",
+    "name": "react-best-practices",
+    "path": ".agents/skills/react-best-practices",
+    "category": "uncategorized",
+    "description": "React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, r...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "react-native-skills",
+    "name": "react-native-skills",
+    "path": ".agents/skills/react-native-skills",
+    "category": "uncategorized",
+    "description": "",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "rust",
+    "name": "rust",
+    "path": ".agents/skills/rust",
+    "category": "uncategorized",
+    "description": "Expert in building type-safe, concurrent Rust services with ownership patterns, error handling, and clean architecture. ...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "slides",
+    "name": "slides",
+    "path": ".agents/skills/slides",
+    "category": "uncategorized",
+    "description": "Create strategic HTML presentations with Chart.js, design tokens, responsive layouts, copywriting formulas, and contextu...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "testing",
+    "name": "testing",
+    "path": ".agents/skills/testing",
+    "category": "uncategorized",
+    "description": "Expert in unit testing, integration testing, E2E testing, and test automation strategies. Covers Jest, Mockito, and comp...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "ui-styling",
+    "name": "ui-styling",
+    "path": ".agents/skills/ui-styling",
+    "category": "uncategorized",
+    "description": "Create beautiful, accessible user interfaces with shadcn/ui components (built on Radix UI + Tailwind), Tailwind CSS util...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "ui-ux-pro-max",
+    "name": "ui-ux-pro-max",
+    "path": ".agents/skills/ui-ux-pro-max",
+    "category": "uncategorized",
+    "description": "UI/UX design intelligence for web and mobile. Includes 50+ styles, 161 color palettes, 57 font pairings, 161 product typ...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  },
+  {
+    "id": "web-design-guidelines",
+    "name": "web-design-guidelines",
+    "path": ".agents/skills/web-design-guidelines",
+    "category": "uncategorized",
+    "description": "Review UI code for Web Interface Guidelines compliance. Use when asked to \"review my UI\", \"check accessibility\", \"audit ...",
+    "risk": "safe",
+    "source": "local",
+    "date_added": "2026-03-17"
+  }
+]

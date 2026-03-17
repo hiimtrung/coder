@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -37,6 +38,7 @@ func runSkill(args []string) {
 		fmt.Fprintln(os.Stderr, "  coder skill cache pull --all")
 		fmt.Fprintln(os.Stderr, "  coder skill cache list")
 		fmt.Fprintln(os.Stderr, "  coder skill cache clear ui-ux-pro-max")
+		fmt.Fprintln(os.Stderr, "  index                   Generate skills_index.json from .agents/skills/")
 		os.Exit(1)
 	}
 
@@ -54,6 +56,8 @@ func runSkill(args []string) {
 		runSkillDelete(args[1:])
 	case "cache":
 		runSkillCache(args[1:])
+	case "index":
+		runSkillIndex(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "Error: unknown skill subcommand %q\n", sub)
 		os.Exit(1)
@@ -164,43 +168,64 @@ func runSkillIngest(args []string) {
 	}
 }
 
-// runIngestLocal reads all embedded skills from the binary and sends them to coder-node
-// for chunking, embedding, and storage in the vector DB.
+// runIngestLocal ingests skills from the local project directory.
+// Priority: 1) OS filesystem (.agents/skills/) → 2) embedded FS → 3) GitHub (own repo)
 func runIngestLocal(ctx context.Context, client skill.Client, includeFiles bool) {
-	skillDirs, err := tasagent.AgentFS.ReadDir(".agents/skills")
-	if err != nil || len(skillDirs) == 0 {
-		fmt.Println("No embedded skills found in binary. Fetching from official repository...")
-		repo := version.RepoOwner + "/" + version.RepoName
-		runIngestGitHub(ctx, client, repo, "")
-		return
-	}
-
-	fmt.Println("Ingesting local embedded skills...")
 	if includeFiles {
 		fmt.Println("(--include-files: scripts/data will be stored for cache extraction)")
 	}
 
-	successCount := 0
-	failCount := 0
+	// 1. Try OS filesystem first (running from project directory)
+	if entries, err := os.ReadDir(".agents/skills"); err == nil && len(entries) > 0 {
+		fmt.Println("Ingesting skills from project directory (.agents/skills/)...")
+		ingestFromFS(ctx, client, entries, readFSSkillMD, readFSRules, includeFiles)
+		return
+	}
 
-	for _, entry := range skillDirs {
-		if !entry.IsDir() {
+	// 2. Try embedded FS (binary contains skills)
+	if entries, err := tasagent.AgentFS.ReadDir(".agents/skills"); err == nil && len(entries) > 0 {
+		fmt.Println("Ingesting embedded skills from binary...")
+		ingestFromFS(ctx, client, entries, readEmbeddedSkillMD, readEmbeddedRules, includeFiles)
+		return
+	}
+
+	// 3. Fallback: fetch from GitHub (requires skills_index.json in repo)
+	fmt.Println("No local skills found. Fetching from official repository...")
+	repo := version.RepoOwner + "/" + version.RepoName
+	runIngestGitHub(ctx, client, repo, "")
+}
+
+// fsEntry abstracts os.DirEntry for both OS and embedded FS
+type fsEntry interface {
+	Name() string
+	IsDir() bool
+}
+
+func ingestFromFS(
+	ctx context.Context,
+	client skill.Client,
+	entries []os.DirEntry,
+	readMD func(name string) (string, error),
+	readRules func(name string) []skill.RuleFile,
+	includeFiles bool,
+) {
+	successCount, failCount := 0, 0
+
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
 		skillName := entry.Name()
 
-		// Read SKILL.md
-		skillMDPath := ".agents/skills/" + skillName + "/SKILL.md"
-		skillMDData, err := tasagent.AgentFS.ReadFile(skillMDPath)
+		skillMDData, err := readMD(skillName)
 		if err != nil {
 			fmt.Printf("  ⚠ %s: no SKILL.md found, skipping\n", skillName)
 			continue
 		}
 
-		// Read rule files from rules/ directory
-		rules := readLocalRules(skillName)
+		rules := readRules(skillName)
 
-		result, err := client.IngestSkill(ctx, skillName, string(skillMDData), rules, "local", "embedded", "")
+		result, err := client.IngestSkill(ctx, skillName, skillMDData, rules, "local", "embedded", "")
 		if err != nil {
 			fmt.Printf("  ✗ %s: %v\n", skillName, err)
 			failCount++
@@ -211,9 +236,9 @@ func runIngestLocal(ctx context.Context, client skill.Client, includeFiles bool)
 		if includeFiles {
 			files := readLocalSkillFiles(skillName)
 			if len(files) > 0 {
-				stored, err := client.StoreSkillFiles(ctx, skillName, files)
-				if err != nil {
-					filesMsg = fmt.Sprintf(" [files: %v]", err)
+				stored, storeErr := client.StoreSkillFiles(ctx, skillName, files)
+				if storeErr != nil {
+					filesMsg = fmt.Sprintf(" [files: %v]", storeErr)
 				} else {
 					filesMsg = fmt.Sprintf(" + %d files", stored)
 				}
@@ -225,6 +250,50 @@ func runIngestLocal(ctx context.Context, client skill.Client, includeFiles bool)
 	}
 
 	fmt.Printf("\nLocal ingestion complete: %d succeeded, %d failed\n", successCount, failCount)
+}
+
+// readFSSkillMD reads SKILL.md from the OS filesystem.
+func readFSSkillMD(skillName string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(".agents", "skills", skillName, "SKILL.md"))
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// readFSRules reads rule files from the OS filesystem.
+func readFSRules(skillName string) []skill.RuleFile {
+	var rules []skill.RuleFile
+	rulesDir := filepath.Join(".agents", "skills", skillName, "rules")
+	entries, err := os.ReadDir(rulesDir)
+	if err != nil {
+		return rules
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(rulesDir, e.Name()))
+		if err != nil {
+			continue
+		}
+		rules = append(rules, skill.RuleFile{Path: e.Name(), Content: string(data)})
+	}
+	return rules
+}
+
+// readEmbeddedSkillMD reads SKILL.md from the embedded FS.
+func readEmbeddedSkillMD(skillName string) (string, error) {
+	data, err := tasagent.AgentFS.ReadFile(".agents/skills/" + skillName + "/SKILL.md")
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// readEmbeddedRules reads rule files from the embedded FS.
+func readEmbeddedRules(skillName string) []skill.RuleFile {
+	return readLocalRules(skillName)
 }
 
 // readLocalRules reads all rule markdown files from the embedded skill's rules/ directory.
@@ -621,4 +690,79 @@ func readLocalSkillFiles(skillName string) []skill.SkillFile {
 	}
 
 	return files
+}
+
+// ── skill index ───────────────────────────────────────────────────────────────
+
+func runSkillIndex(args []string) {
+	fs := flag.NewFlagSet("skill index", flag.ExitOnError)
+	output := fs.String("output", "skills_index.json", "Output file path")
+	fs.Parse(args)
+
+	entries, err := os.ReadDir(".agents/skills")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: could not read .agents/skills/: %v\n", err)
+		os.Exit(1)
+	}
+
+	type indexEntry struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		Path        string `json:"path"`
+		Category    string `json:"category"`
+		Description string `json:"description"`
+		Risk        string `json:"risk"`
+		Source      string `json:"source"`
+		DateAdded   string `json:"date_added"`
+	}
+
+	var index []indexEntry
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		name := entry.Name()
+		skillPath := filepath.Join(".agents", "skills", name)
+
+		// Parse frontmatter from SKILL.md for description/category
+		description := ""
+		category := "uncategorized"
+		mdData, err := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
+		if err == nil {
+			parsed := skill.ParseSkillMD(name, string(mdData))
+			if parsed.Description != "" {
+				description = parsed.Description
+				if len(description) > 120 {
+					description = description[:120] + "..."
+				}
+			}
+			if parsed.Category != "" {
+				category = parsed.Category
+			}
+		}
+
+		index = append(index, indexEntry{
+			ID:          name,
+			Name:        name,
+			Path:        ".agents/skills/" + name,
+			Category:    category,
+			Description: description,
+			Risk:        "safe",
+			Source:      "local",
+			DateAdded:   time.Now().Format("2006-01-02"),
+		})
+	}
+
+	data, err := json.MarshalIndent(index, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := os.WriteFile(*output, data, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Generated %s with %d skills\n", *output, len(index))
 }

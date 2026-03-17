@@ -5,11 +5,69 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/trungtran/coder/internal/memory"
 )
+
+// maxChunkChars is the safe character limit per chunk for mxbai-embed-large (~512 tokens).
+// ~1800 chars ≈ 450 tokens with typical English text (4 chars/token average).
+const maxChunkChars = 1800
+
+// splitSectionIfNeeded splits a ParsedSection into multiple smaller sections
+// if its content exceeds maxChunkChars. Splits on paragraph boundaries (\n\n)
+// when possible, otherwise on newlines, otherwise hard-cuts.
+func splitSectionIfNeeded(s ParsedSection) []ParsedSection {
+	if len(s.Content) <= maxChunkChars {
+		return []ParsedSection{s}
+	}
+
+	var result []ParsedSection
+	remaining := s.Content
+	partNum := 0
+
+	for len(remaining) > 0 {
+		if len(remaining) <= maxChunkChars {
+			title := s.Title
+			if partNum > 0 {
+				title = fmt.Sprintf("%s (part %d)", s.Title, partNum+1)
+			}
+			result = append(result, ParsedSection{
+				Title:   title,
+				Content: remaining,
+				Type:    s.Type,
+			})
+			break
+		}
+
+		// Try to cut at a paragraph boundary (\n\n) within the limit
+		cutAt := maxChunkChars
+		if idx := strings.LastIndex(remaining[:cutAt], "\n\n"); idx > maxChunkChars/2 {
+			cutAt = idx
+		} else if idx := strings.LastIndex(remaining[:cutAt], "\n"); idx > maxChunkChars/2 {
+			cutAt = idx
+		}
+
+		title := s.Title
+		if partNum > 0 {
+			title = fmt.Sprintf("%s (part %d)", s.Title, partNum+1)
+		} else {
+			title = fmt.Sprintf("%s (part 1)", s.Title)
+		}
+
+		result = append(result, ParsedSection{
+			Title:   title,
+			Content: strings.TrimSpace(remaining[:cutAt]),
+			Type:    s.Type,
+		})
+		remaining = strings.TrimSpace(remaining[cutAt:])
+		partNum++
+	}
+
+	return result
+}
 
 // Ingestor handles parsing + embedding + storing skills into vector DB.
 type Ingestor struct {
@@ -42,13 +100,15 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 	// 1. Parse SKILL.md
 	parsed := ParseSkillMD(name, skillMD)
 
-	// 2. Collect all sections from SKILL.md body + rule files
+	// 2. Collect all sections from SKILL.md body + rule files; split long sections
 	var allSections []ParsedSection
-	allSections = append(allSections, parsed.Sections...)
+	for _, s := range parsed.Sections {
+		allSections = append(allSections, splitSectionIfNeeded(s)...)
+	}
 
 	for _, rule := range rules {
 		section := ParseRuleFile(rule.Path, rule.Content)
-		allSections = append(allSections, section)
+		allSections = append(allSections, splitSectionIfNeeded(section)...)
 	}
 
 	// 3. Create/Update skill record
