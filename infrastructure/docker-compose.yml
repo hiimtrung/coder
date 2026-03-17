@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: ankane/pgvector:latest
+    # pgvector/pgvector supports linux/amd64 + linux/arm64 (replaces ankane/pgvector)
+    image: pgvector/pgvector:pg16-alpine
     container_name: pgvector_db
     restart: unless-stopped
     environment:
@@ -9,22 +10,39 @@ services:
       POSTGRES_DB: coder
     volumes:
       - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coder -d coder"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   ollama:
+    # ollama/ollama supports linux/amd64 + linux/arm64
     image: ollama/ollama:latest
     container_name: ollama_embed
     restart: unless-stopped
     volumes:
       - ollama_data:/root/.ollama
-    entrypoint: ["/usr/bin/sh", "-c"]
-    command: 
+    entrypoint: ["/bin/sh", "-c"]
+    command:
       - |
         ollama serve &
-        sleep 20
+        OLLAMA_PID=$!
+        echo "Waiting for ollama to start..."
+        until ollama list > /dev/null 2>&1; do sleep 2; done
+        echo "Pulling mxbai-embed-large..."
         ollama pull mxbai-embed-large
-        tail -f /dev/null
+        echo "Ollama ready."
+        wait $OLLAMA_PID
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
 
   coder-node:
+    # multi-arch image: linux/amd64 + linux/arm64
     image: ghcr.io/hiimtrung/coder-node:latest
     container_name: coder_node
     restart: unless-stopped
@@ -38,8 +56,10 @@ services:
       - "50051:50051"
       - "8080:8080"
     depends_on:
-      - postgres
-      - ollama
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
 
 volumes:
   pg_data:
