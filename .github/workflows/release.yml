@@ -100,8 +100,9 @@ jobs:
           cp uninstall.ps1 dist/
           cp install-node.sh dist/
           cp uninstall-node.sh dist/
+          cp update-node.sh dist/
           cd dist
-          sha256sum coder-* uninstall* > checksums.txt
+          sha256sum coder-* uninstall* install* update* > checksums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -124,6 +125,13 @@ jobs:
             ```sh
             # Install & Start (Requires Docker)
             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install-node.sh | sh
+            ```
+
+            ## Update
+
+            ### Coder Node
+            ```sh
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/update-node.sh | sh
             ```
 
             ## Uninstall
@@ -156,6 +164,7 @@ jobs:
             dist/coder-*
             dist/uninstall*
             dist/install*
+            dist/update*
             dist/checksums.txt
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
