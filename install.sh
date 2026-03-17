@@ -52,10 +52,24 @@ ASSET_NAME="${BINARY}-${GOOS}-${GOARCH}"
 
 if [ -z "$VERSION" ]; then
   echo "Fetching latest release..."
-  VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+  if [ -n "$GITHUB_TOKEN" ]; then
+    VERSION="$(curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+      "https://api.github.com/repos/${REPO}/releases/latest" \
+      | grep '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+  else
+    VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+      | grep '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+  fi
   if [ -z "$VERSION" ]; then
     echo "Error: failed to fetch latest version from GitHub."
+    echo ""
+    echo "This is often caused by GitHub API rate limiting (60 req/hour for unauthenticated IPs)."
+    echo "To fix, set a GitHub token and retry:"
+    echo "  export GITHUB_TOKEN=<your_token>"
+    echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh)\""
+    echo ""
+    echo "Or install a specific version directly:"
+    echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh)\" -- --version v0.2.8"
     exit 1
   fi
 fi
