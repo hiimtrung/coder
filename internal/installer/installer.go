@@ -26,7 +26,6 @@ type FileSystem interface {
 type Manifest struct {
 	Version     string    `json:"version"`
 	Profile     string    `json:"profile"`
-	Skills      []string  `json:"skills"`
 	InstalledAt time.Time `json:"installed_at"`
 }
 
@@ -66,26 +65,19 @@ func Install(srcFS FileSystem, profile profiles.Profile, targetDir string, opts 
 
 	result := &Result{}
 
-	// Note: We no longer install skills locally in .agents/skills/
-	// because they are now managed in the centralized Skill RAG (Vector DB).
-	// This keeps the project cleaner and ensures agents use 'coder skill search'.
-	if profile.IncludeRules {
-		fmt.Println("  Installing rules...")
-		if err := installDir(srcFS, ".agents/rules", filepath.Join(targetDir, ".agents", "rules"), opts, result, targetDir); err != nil {
-			return err
-		}
+	fmt.Println("  Installing rules...")
+	if err := installRulesFiltered(srcFS, profile.Rules, targetDir, opts, result); err != nil {
+		return err
 	}
-	if profile.IncludeWorkflows {
-		fmt.Println("  Installing workflows...")
-		if err := installDir(srcFS, ".agents/workflows", filepath.Join(targetDir, ".agents", "workflows"), opts, result, targetDir); err != nil {
-			return err
-		}
+
+	fmt.Println("  Installing workflows...")
+	if err := installWorkflowsFiltered(srcFS, profile.Workflows, targetDir, opts, result); err != nil {
+		return err
 	}
-	if profile.IncludeAgents {
-		fmt.Println("  Installing agents...")
-		if err := installDir(srcFS, ".github/agents", filepath.Join(targetDir, ".github", "agents"), opts, result, targetDir); err != nil {
-			return err
-		}
+
+	fmt.Println("  Installing agents...")
+	if err := installAgentVariant(srcFS, profile.AgentFile, targetDir, opts, result); err != nil {
+		return err
 	}
 
 	if err := generateCopilotInstructions(srcFS, targetDir, opts, result); err != nil {
@@ -102,6 +94,73 @@ func Install(srcFS FileSystem, profile profiles.Profile, targetDir string, opts 
 	return nil
 }
 
+// installRulesFiltered copies rule files from .agents/rules/ into targetDir.
+// If filter is nil, all files are copied. Otherwise only files in the list are copied.
+func installRulesFiltered(srcFS FileSystem, filter []string, targetDir string, opts Options, result *Result) error {
+	srcDir := ".agents/rules"
+	dstDir := filepath.Join(targetDir, ".agents", "rules")
+	if filter == nil {
+		return installDir(srcFS, srcDir, dstDir, opts, result, targetDir)
+	}
+	filterSet := toSet(filter)
+	return fs.WalkDir(srcFS, srcDir, func(fsPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || d.Name() == ".DS_Store" {
+			return nil
+		}
+		if !filterSet[d.Name()] {
+			return nil
+		}
+		rel := strings.TrimPrefix(fsPath, srcDir)
+		rel = strings.TrimPrefix(rel, "/")
+		dstPath := filepath.Join(dstDir, filepath.FromSlash(rel))
+		return writeFile(srcFS, fsPath, dstPath, opts, result, targetDir)
+	})
+}
+
+// installWorkflowsFiltered copies workflow files from .agents/workflows/ into targetDir.
+// If filter is nil, all files are copied. Otherwise only files in the list are copied.
+func installWorkflowsFiltered(srcFS FileSystem, filter []string, targetDir string, opts Options, result *Result) error {
+	srcDir := ".agents/workflows"
+	dstDir := filepath.Join(targetDir, ".agents", "workflows")
+	if filter == nil {
+		return installDir(srcFS, srcDir, dstDir, opts, result, targetDir)
+	}
+	filterSet := toSet(filter)
+	return fs.WalkDir(srcFS, srcDir, func(fsPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || d.Name() == ".DS_Store" {
+			return nil
+		}
+		if !filterSet[d.Name()] {
+			return nil
+		}
+		rel := strings.TrimPrefix(fsPath, srcDir)
+		rel = strings.TrimPrefix(rel, "/")
+		dstPath := filepath.Join(dstDir, filepath.FromSlash(rel))
+		return writeFile(srcFS, fsPath, dstPath, opts, result, targetDir)
+	})
+}
+
+// installAgentVariant installs agent files from .github/agents/ into targetDir.
+// If agentFile is empty, all files are copied as-is.
+// If agentFile is set, only that file is copied and renamed to coder.agent.md.
+func installAgentVariant(srcFS FileSystem, agentFile string, targetDir string, opts Options, result *Result) error {
+	srcDir := ".github/agents"
+	dstDir := filepath.Join(targetDir, ".github", "agents")
+
+	if agentFile == "" {
+		return installDir(srcFS, srcDir, dstDir, opts, result, targetDir)
+	}
+
+	srcPath := srcDir + "/" + agentFile
+	dstPath := filepath.Join(dstDir, "coder.agent.md")
+	return writeFile(srcFS, srcPath, dstPath, opts, result, targetDir)
+}
 
 // installDir copies all files from srcDir (in srcFS) to dstDir on the local filesystem.
 func installDir(srcFS FileSystem, srcDir, dstDir string, opts Options, result *Result, targetDir string) error {
@@ -243,52 +302,10 @@ func stripFrontmatter(content string) string {
 	return strings.TrimSpace(rest[idx+4:])
 }
 
-func writeFileContent(data []byte, dstPath, display string, opts Options, result *Result) error {
-	_, statErr := os.Stat(dstPath)
-	fileExists := statErr == nil
-
-	if fileExists && !opts.Force {
-		result.Skipped = append(result.Skipped, display)
-		return nil
-	}
-
-	if opts.DryRun {
-		if fileExists {
-			fmt.Printf("    ~ %s\n", display)
-			result.Updated = append(result.Updated, display)
-		} else {
-			fmt.Printf("    + %s\n", display)
-			result.Created = append(result.Created, display)
-		}
-		return nil
-	}
-
-	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(dstPath, data, 0o644); err != nil {
-		return err
-	}
-
-	if fileExists {
-		fmt.Printf("    ~ %s\n", display)
-		result.Updated = append(result.Updated, display)
-	} else {
-		fmt.Printf("    + %s\n", display)
-		result.Created = append(result.Created, display)
-	}
-	return nil
-}
-
 func writeManifest(targetDir string, profile profiles.Profile) error {
-	skills := profile.Skills
-	if len(skills) == 1 && skills[0] == "all" {
-		skills = profiles.AllSkills
-	}
 	m := Manifest{
 		Version:     version.Version,
 		Profile:     profile.Name,
-		Skills:      skills,
 		InstalledAt: time.Now().UTC(),
 	}
 	data, err := json.MarshalIndent(m, "", "  ")
@@ -316,4 +333,13 @@ func printSummary(result *Result, opts Options, targetDir string) {
 		fmt.Printf("Skipped %d existing file(s) — use --force to overwrite\n", len(result.Skipped))
 	}
 	fmt.Printf("Done! %d file(s) installed to %s\n", total, targetDir)
+}
+
+// toSet converts a slice of strings to a set (map[string]bool) for O(1) lookup.
+func toSet(items []string) map[string]bool {
+	s := make(map[string]bool, len(items))
+	for _, item := range items {
+		s[item] = true
+	}
+	return s
 }

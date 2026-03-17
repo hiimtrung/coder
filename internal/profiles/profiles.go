@@ -2,151 +2,126 @@ package profiles
 
 import "fmt"
 
-// Profile defines a named set of skills, rules, workflows, and agents to install.
+// Profile defines a named configuration for installation.
+// Rules/Workflows nil means "install all". AgentFile empty means "install all agent files as-is".
 type Profile struct {
-	Name             string
-	Description      string
-	Skills           []string // skill directory names; "all" means every available skill
-	IncludeRules     bool
-	IncludeWorkflows bool
-	IncludeAgents    bool
-}
-
-// AllSkills is the ordered list of all skill directory names embedded in the binary.
-var AllSkills = []string{
-	"architecture",
-	"c",
-	"composition-patterns",
-	"dart",
-	"database",
-	"development",
-	"docs-analysis",
-	"frontend",
-	"general-patterns",
-	"golang",
-	"java",
-	"nestjs",
-	"python",
-	"react-best-practices",
-	"react-native-skills",
-	"rust",
-	"testing",
-	"ui-ux-pro-max",
-	"web-design-guidelines",
-}
-
-// coreSkills are included in every predefined profile.
-var coreSkills = []string{
-	"architecture",
-	"general-patterns",
-	"development",
-	"database",
-	"testing",
-	"docs-analysis",
+	Name        string
+	Description string
+	Rules       []string // rule file basenames from .agents/rules/ (nil = all)
+	Workflows   []string // workflow file basenames from .agents/workflows/ (nil = all)
+	AgentFile   string   // agent file to install as coder.agent.md (empty = all files as-is)
 }
 
 var predefined = map[string]Profile{
 	"be": {
 		Name:        "be",
 		Description: "Backend development (NestJS, Java, Go, Python, Rust, C, Dart)",
-		Skills: concat(coreSkills,
-			"nestjs", "java", "golang", "python", "rust", "c", "dart",
-		),
-		IncludeRules:     true,
-		IncludeWorkflows: true,
-		IncludeAgents:    true,
+		Rules: []string{
+			"general.instructions.md",
+			"be.instructions.md",
+		},
+		Workflows: []string{
+			"full-lifecycle-delivery.md",
+			"new-requirement.md",
+			"execute-plan.md",
+			"qa-testing.md",
+			"code-review.md",
+			"debug.md",
+			"debug-leak.md",
+			"writing-test.md",
+			"check-implementation.md",
+			"remember.md",
+			"capture-knowledge.md",
+			"technical-writer-review.md",
+			"update-planning.md",
+		},
+		AgentFile: "coder-be.agent.md",
 	},
 	"fe": {
 		Name:        "fe",
-		Description: "Frontend development (React, Next.js, Vue, Svelte, React Native)",
-		Skills: concat(coreSkills,
-			"frontend", "react-best-practices", "react-native-skills",
-			"composition-patterns", "web-design-guidelines", "ui-ux-pro-max",
-		),
-		IncludeRules:     true,
-		IncludeWorkflows: true,
-		IncludeAgents:    true,
+		Description: "Frontend development (React, Next.js, React Native)",
+		Rules: []string{
+			"general.instructions.md",
+			"fe.instructions.md",
+		},
+		Workflows: []string{
+			"new-requirement.md",
+			"execute-plan.md",
+			"qa-testing.md",
+			"code-review.md",
+			"debug.md",
+			"writing-test.md",
+			"review-design.md",
+			"check-implementation.md",
+			"remember.md",
+			"capture-knowledge.md",
+			"simplify-implementation.md",
+			"technical-writer-review.md",
+		},
+		AgentFile: "coder-fe.agent.md",
 	},
 	"fullstack": {
 		Name:        "fullstack",
 		Description: "Full-stack development (backend + frontend)",
-		Skills: concat(coreSkills,
-			"nestjs", "java", "golang", "python", "rust", "c", "dart",
-			"frontend", "react-best-practices", "react-native-skills",
-			"composition-patterns", "web-design-guidelines", "ui-ux-pro-max",
-		),
-		IncludeRules:     true,
-		IncludeWorkflows: true,
-		IncludeAgents:    true,
+		Rules:       nil, // all
+		Workflows:   nil, // all
+		AgentFile:   "coder.agent.md",
 	},
 	"all": {
-		Name:             "all",
-		Description:      "All available skills, rules, and workflows",
-		Skills:           []string{"all"},
-		IncludeRules:     true,
-		IncludeWorkflows: true,
-		IncludeAgents:    true,
+		Name:        "all",
+		Description: "All available files, rules, and workflows",
+		Rules:       nil, // all
+		Workflows:   nil, // all
+		AgentFile:   "", // all agent files as-is
 	},
 }
 
-// Get returns the Profile for the given name. Supports predefined profiles and
-// individual skill names (installs core skills + the named skill).
+// Get returns the Profile for the given name. Supports predefined profiles only.
 func Get(name string) (Profile, error) {
 	if p, ok := predefined[name]; ok {
 		return p, nil
 	}
-	for _, s := range AllSkills {
-		if s == name {
-			return Profile{
-				Name:             name,
-				Description:      fmt.Sprintf("Individual skill: %s", name),
-				Skills:           []string{name},
-				IncludeRules:     true,
-				IncludeWorkflows: true,
-				IncludeAgents:    true,
-			}, nil
-		}
-	}
 	return Profile{}, fmt.Errorf(
-		"unknown profile or skill: %q\n\nAvailable profiles: be, fe, fullstack, all\nRun 'coder list' to see all available skills",
+		"unknown profile: %q\n\nAvailable profiles: be, fe, fullstack, all\nRun 'coder list' to see all profiles",
 		name,
 	)
 }
 
-// PrintAll prints all predefined profiles and available skills.
+// PrintAll prints all predefined profiles.
 func PrintAll() {
-	fmt.Println("Predefined profiles:")
+	fmt.Println("Available profiles:")
 	fmt.Println("  be         Backend development (NestJS, Java, Go, Python, Rust, C, Dart)")
-	fmt.Println("  fe         Frontend development (React, Next.js, Vue, Svelte, React Native)")
+	fmt.Println("  fe         Frontend development (React, Next.js, React Native)")
 	fmt.Println("  fullstack  Full-stack development (backend + frontend)")
-	fmt.Println("  all        All available skills, rules, and workflows")
-	fmt.Println()
-	fmt.Println("Available skills (install individually):")
-	for _, s := range AllSkills {
-		fmt.Printf("  %s\n", s)
-	}
+	fmt.Println("  all        All available files, rules, and workflows")
 }
 
 // PrintProfile prints the details of a single profile.
 func PrintProfile(p Profile) {
 	fmt.Printf("Profile: %s\n", p.Name)
 	fmt.Printf("Description: %s\n", p.Description)
-	fmt.Println("Skills:")
-	skills := p.Skills
-	if len(skills) == 1 && skills[0] == "all" {
-		skills = AllSkills
-	}
-	for _, s := range skills {
-		fmt.Printf("  - %s\n", s)
-	}
-	fmt.Printf("Includes rules: %v\n", p.IncludeRules)
-	fmt.Printf("Includes workflows: %v\n", p.IncludeWorkflows)
-	fmt.Printf("Includes agents: %v\n", p.IncludeAgents)
-}
 
-func concat(base []string, extra ...string) []string {
-	result := make([]string, len(base)+len(extra))
-	copy(result, base)
-	copy(result[len(base):], extra)
-	return result
+	fmt.Println("Workflows:")
+	if p.Workflows == nil {
+		fmt.Println("  (all)")
+	} else {
+		for _, w := range p.Workflows {
+			fmt.Printf("  - %s\n", w)
+		}
+	}
+
+	fmt.Println("Rules:")
+	if p.Rules == nil {
+		fmt.Println("  (all)")
+	} else {
+		for _, r := range p.Rules {
+			fmt.Printf("  - %s\n", r)
+		}
+	}
+
+	if p.AgentFile == "" {
+		fmt.Println("Agent: (all files as-is)")
+	} else {
+		fmt.Printf("Agent: %s → coder.agent.md\n", p.AgentFile)
+	}
 }
