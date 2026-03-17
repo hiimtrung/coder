@@ -30,6 +30,16 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# ── Remove global configs ─────────────────────────────────────────────────────
+
+DEST=$(command -v $BINARY || echo "$INSTALL_DIR/$BINARY")
+
+if [ -f "$DEST" ] && [ -f "$DATA_DIR/global.json" ]; then
+  echo "Removing globally installed configs..."
+  "$DEST" remove global || true
+  echo ""
+fi
+
 # ── Detect installation ───────────────────────────────────────────────────────
 
 DEST=$(command -v $BINARY || echo "$INSTALL_DIR/$BINARY")
