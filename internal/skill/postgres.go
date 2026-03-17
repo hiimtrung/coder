@@ -338,6 +338,32 @@ func (s *postgresSkillStore) GetChunksBySectionID(ctx context.Context, sectionID
 	return chunks, nil
 }
 
+// GetAdjacentChunks returns chunks within ±radius of chunkIndex for a given skill.
+// Used for medium-confidence retrieval to include neighboring context around a matched chunk.
+func (s *postgresSkillStore) GetAdjacentChunks(ctx context.Context, skillID string, chunkIndex int, radius int) ([]SkillChunk, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, created_at
+		 FROM skill_chunks
+		 WHERE skill_id = $1 AND chunk_index BETWEEN $2 AND $3
+		 ORDER BY chunk_index`,
+		skillID, chunkIndex-radius, chunkIndex+radius,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chunks []SkillChunk
+	for rows.Next() {
+		var c SkillChunk
+		if err := rows.Scan(&c.ID, &c.SkillID, &c.SectionID, &c.ChunkType, &c.Title, &c.Content, &c.ChunkIndex, &c.ContentHash, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, nil
+}
+
 func (s *postgresSkillStore) Close() error {
 	return nil // DB connection is shared, don't close here
 }

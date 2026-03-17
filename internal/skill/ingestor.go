@@ -13,10 +13,14 @@ import (
 	"github.com/trungtran/coder/internal/memory"
 )
 
-// Confidence thresholds for context-expansion strategy in SearchSkills.
+// Confidence thresholds and retrieval tuning for SearchSkills.
 const (
 	scoreHighConfidence   float32 = 0.80 // return ALL chunks of the skill
-	scoreMediumConfidence float32 = 0.55 // return matched chunks + full section siblings
+	scoreMediumConfidence float32 = 0.55 // return matched chunks + section siblings + adjacent
+
+	// adjacentRadius is how many chunks before/after a matched chunk to include.
+	// 1 means ±1 (prev + next). Increase to 2 for wider context windows.
+	adjacentRadius = 1
 )
 
 // maxEmbedChars is the safe character limit for the combined embedding text sent to the model.
@@ -368,27 +372,41 @@ func (ing *Ingestor) SearchSkills(ctx context.Context, query string, limit int) 
 			}
 
 		case e.bestScore >= scoreMediumConfidence:
-			// Medium confidence: matched chunks + full sections they belong to
+			// Medium confidence: matched chunks + section siblings + adjacent neighbours.
+			// Layer order:
+			//   1. matched chunk itself
+			//   2. all parts split from the same original section (section_id match)
+			//   3. chunks at index ±adjacentRadius from each matched chunk
 			seen := make(map[string]bool)
-			for _, cr := range e.chunks {
-				if !seen[cr.ID] {
-					seen[cr.ID] = true
-					finalChunks = append(finalChunks, cr.SkillChunk)
+
+			addChunk := func(c SkillChunk) {
+				if !seen[c.ID] {
+					seen[c.ID] = true
+					finalChunks = append(finalChunks, c)
 				}
-				// Expand to all split parts of the same original section
+			}
+
+			for _, cr := range e.chunks {
+				addChunk(cr.SkillChunk)
+
+				// Layer 2: reassemble split section parts
 				if cr.SectionID != "" {
-					siblings, err := ing.store.GetChunksBySectionID(ctx, cr.SectionID)
-					if err == nil {
+					if siblings, err := ing.store.GetChunksBySectionID(ctx, cr.SectionID); err == nil {
 						for _, s := range siblings {
-							if !seen[s.ID] {
-								seen[s.ID] = true
-								finalChunks = append(finalChunks, s)
-							}
+							addChunk(s)
 						}
 					}
 				}
+
+				// Layer 3: adjacent chunks (prev + next) for narrative continuity
+				if neighbours, err := ing.store.GetAdjacentChunks(ctx, cr.SkillID, cr.ChunkIndex, adjacentRadius); err == nil {
+					for _, n := range neighbours {
+						addChunk(n)
+					}
+				}
 			}
-			// Re-sort by chunk_index so content reads in order
+
+			// Re-sort by chunk_index so content reads in logical order
 			sort.Slice(finalChunks, func(i, j int) bool {
 				return finalChunks[i].ChunkIndex < finalChunks[j].ChunkIndex
 			})

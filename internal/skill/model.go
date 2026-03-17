@@ -84,6 +84,7 @@ type SkillService interface {
 	GetSkillByID(ctx context.Context, id string) (*Skill, error)
 	GetAllChunksBySkillID(ctx context.Context, skillID string) ([]SkillChunk, error)
 	GetChunksBySectionID(ctx context.Context, sectionID string) ([]SkillChunk, error)
+	GetAdjacentChunks(ctx context.Context, skillID string, chunkIndex int, radius int) ([]SkillChunk, error)
 
 	// Deduplication
 	GetChunkHashes(ctx context.Context, skillID string) (map[string]bool, error)
