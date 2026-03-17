@@ -54,10 +54,14 @@ func globalManifestPath() (string, error) {
 }
 
 // InstallGlobal installs profile files to user-level directories:
-//   - ~/.copilot/instructions/ — VS Code Copilot custom instructions
-//   - ~/.copilot/agents/       — VS Code Copilot custom agents
-//   - ~/.claude/rules/         — Claude Code global rules
-//   - ~/.claude/CLAUDE.md      — Claude Code global instructions (merged with markers)
+//   - ~/.copilot/instructions/              — VS Code Copilot custom instructions
+//   - ~/.copilot/agents/                    — VS Code Copilot custom agents
+//   - ~/.copilot/chatmodes/                 — VS Code Copilot custom chat modes (workflows)
+//   - ~/.claude/rules/                      — Claude Code global rules
+//   - ~/.claude/commands/                   — Claude Code user-level slash commands (workflows)
+//   - ~/.claude/CLAUDE.md                   — Claude Code global instructions (merged with markers)
+//   - ~/.gemini/antigravity/global_workflows/ — Gemini CLI global workflows
+//   - ~/.gemini/GEMINI.md                   — Gemini CLI global rules (merged with markers)
 func InstallGlobal(srcFS FileSystem, profile profiles.Profile, opts Options) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -86,10 +90,24 @@ func InstallGlobal(srcFS FileSystem, profile profiles.Profile, opts Options) err
 		return err
 	}
 
+	// VS Code Copilot custom chat modes (workflows)
+	copilotChatmodesDir := filepath.Join(home, ".copilot", "chatmodes")
+	fmt.Println("  Installing → ~/.copilot/chatmodes/")
+	if err := installGlobalWorkflows(srcFS, profile.Workflows, copilotChatmodesDir, opts, result, &managed); err != nil {
+		return err
+	}
+
 	// Claude Code global rules
 	claudeRulesDir := filepath.Join(home, ".claude", "rules")
 	fmt.Println("  Installing → ~/.claude/rules/")
 	if err := installGlobalRules(srcFS, profile.Rules, claudeRulesDir, opts, result, &managed); err != nil {
+		return err
+	}
+
+	// Claude Code user-level slash commands (workflows)
+	claudeCommandsDir := filepath.Join(home, ".claude", "commands")
+	fmt.Println("  Installing → ~/.claude/commands/")
+	if err := installGlobalWorkflows(srcFS, profile.Workflows, claudeCommandsDir, opts, result, &managed); err != nil {
 		return err
 	}
 
@@ -101,6 +119,23 @@ func InstallGlobal(srcFS FileSystem, profile profiles.Profile, opts Options) err
 	}
 	if !opts.DryRun {
 		merged = append(merged, claudeMDPath)
+	}
+
+	// Gemini CLI global workflows
+	geminiWorkflowsDir := filepath.Join(home, ".gemini", "antigravity", "global_workflows")
+	fmt.Println("  Installing → ~/.gemini/antigravity/global_workflows/")
+	if err := installGlobalWorkflows(srcFS, profile.Workflows, geminiWorkflowsDir, opts, result, &managed); err != nil {
+		return err
+	}
+
+	// Gemini CLI GEMINI.md — merged with section markers
+	geminiMDPath := filepath.Join(home, ".gemini", "GEMINI.md")
+	fmt.Println("  Merging → ~/.gemini/GEMINI.md")
+	if err := mergeGlobalClaudeMD(srcFS, profile, geminiMDPath, opts, result); err != nil {
+		return err
+	}
+	if !opts.DryRun {
+		merged = append(merged, geminiMDPath)
 	}
 
 	if !opts.DryRun {
@@ -223,6 +258,44 @@ func installGlobalAgents(srcFS FileSystem, agentFile string, dstDir string, opts
 		}
 		if !opts.DryRun {
 			*managed = append(*managed, dstPath)
+		}
+		return nil
+	}
+
+	return fs.WalkDir(srcFS, srcDir, func(fsPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || d.Name() == ".DS_Store" {
+			return nil
+		}
+		rel := strings.TrimPrefix(fsPath, srcDir+"/")
+		dstPath := filepath.Join(dstDir, filepath.FromSlash(rel))
+		if err := writeGlobalFile(srcFS, fsPath, dstPath, opts, result); err != nil {
+			return err
+		}
+		if !opts.DryRun {
+			*managed = append(*managed, dstPath)
+		}
+		return nil
+	})
+}
+
+// installGlobalWorkflows copies workflow files from .agents/workflows/ to dstDir.
+// When filter is non-nil, files are read directly by name; otherwise all files are walked.
+func installGlobalWorkflows(srcFS FileSystem, filter []string, dstDir string, opts Options, result *Result, managed *[]string) error {
+	srcDir := ".agents/workflows"
+
+	if filter != nil {
+		for _, filename := range filter {
+			srcPath := srcDir + "/" + filename
+			dstPath := filepath.Join(dstDir, filename)
+			if err := writeGlobalFile(srcFS, srcPath, dstPath, opts, result); err != nil {
+				return err
+			}
+			if !opts.DryRun {
+				*managed = append(*managed, dstPath)
+			}
 		}
 		return nil
 	}
