@@ -24,8 +24,9 @@ func (p *OllamaEmbeddingProvider) GenerateEmbedding(ctx context.Context, text st
 	apiURL := strings.TrimSuffix(url, "/") + "/api/embed"
 
 	reqBody, _ := json.Marshal(map[string]interface{}{
-		"model": p.Model,
-		"input": text,
+		"model":    p.Model,
+		"input":    text,
+		"truncate": true, // truncate gracefully instead of erroring when input exceeds context
 	})
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(reqBody))
@@ -45,8 +46,9 @@ func (p *OllamaEmbeddingProvider) GenerateEmbedding(ctx context.Context, text st
 	if resp.StatusCode == http.StatusNotFound {
 		legacyURL := strings.TrimSuffix(url, "/") + "/api/embeddings"
 		legacyBody, _ := json.Marshal(map[string]interface{}{
-			"model":  p.Model,
-			"prompt": text,
+			"model":    p.Model,
+			"prompt":   text,
+			"truncate": true,
 		})
 
 		req, _ = http.NewRequestWithContext(ctx, "POST", legacyURL, bytes.NewBuffer(legacyBody))

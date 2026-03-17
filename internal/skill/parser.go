@@ -134,14 +134,17 @@ func classifySection(title string) string {
 	return "rule" // Default to rule for skill sections
 }
 
-// ParseRuleFile parses a single rule markdown file.
-func ParseRuleFile(path, content string) ParsedSection {
-	// Extract filename without extension as title
+// ParseRuleFile parses a single rule markdown file into one or more sections.
+// If the file contains ## headers, it is split by those headers so large files
+// are naturally chunked by semantic boundary before size-based splitting.
+// If no headers are found, the entire file is returned as one section.
+func ParseRuleFile(path, content string) []ParsedSection {
+	// Extract filename without extension as fallback title
 	parts := strings.Split(path, "/")
 	filename := parts[len(parts)-1]
-	title := strings.TrimSuffix(filename, ".md")
-	title = strings.ReplaceAll(title, "-", " ")
-	title = strings.ReplaceAll(title, "_", " ")
+	fileTitle := strings.TrimSuffix(filename, ".md")
+	fileTitle = strings.ReplaceAll(fileTitle, "-", " ")
+	fileTitle = strings.ReplaceAll(fileTitle, "_", " ")
 
 	// Strip frontmatter
 	body := content
@@ -153,9 +156,23 @@ func ParseRuleFile(path, content string) ParsedSection {
 		}
 	}
 
-	return ParsedSection{
-		Title:   title,
-		Content: body,
-		Type:    "rule",
+	// Split by ## headers for natural semantic chunking
+	sections := splitBySections(body)
+
+	// If no ## sections were found, return the whole body as one section
+	if len(sections) == 0 {
+		return []ParsedSection{{Title: fileTitle, Content: body, Type: "rule"}}
 	}
+
+	// Prefix unnamed sections with the filename title for context
+	for i := range sections {
+		if sections[i].Title == "" || sections[i].Title == "Overview" {
+			sections[i].Title = fileTitle
+		} else {
+			sections[i].Title = fileTitle + " — " + sections[i].Title
+		}
+		sections[i].Type = "rule"
+	}
+
+	return sections
 }

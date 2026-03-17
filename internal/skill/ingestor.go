@@ -12,16 +12,27 @@ import (
 	"github.com/trungtran/coder/internal/memory"
 )
 
-// maxChunkChars is the safe character limit per chunk for mxbai-embed-large (~512 tokens).
-// ~1800 chars ≈ 450 tokens with typical English text (4 chars/token average).
-const maxChunkChars = 1800
+// maxEmbedChars is the safe character limit for the combined embedding text sent to the model.
+// mxbai-embed-large has a 512-token context window. Code/markdown content averages ~2 chars/token
+// (much denser than English prose at ~4 chars/token). We budget 460 tokens × 2 chars = 920 chars,
+// then subtract ~50 chars for the section title that is prepended before embedding.
+const maxEmbedChars = 800
 
-// splitSectionIfNeeded splits a ParsedSection into multiple smaller sections
-// if its content exceeds maxChunkChars. Splits on paragraph boundaries (\n\n)
-// when possible, otherwise on newlines, otherwise hard-cuts.
+// splitSectionIfNeeded splits a ParsedSection into multiple smaller sections so that
+// title + "\n" + content stays within maxEmbedChars. Splits at paragraph (\n\n) or
+// line (\n) boundaries; falls back to hard-cut only when necessary.
 func splitSectionIfNeeded(s ParsedSection) []ParsedSection {
-	if len(s.Content) <= maxChunkChars {
+	// Check against the combined embedding text length
+	combined := s.Title + "\n" + s.Content
+	if len(combined) <= maxEmbedChars {
 		return []ParsedSection{s}
+	}
+
+	// Content budget after reserving space for title overhead
+	titleOverhead := len(s.Title) + 1 // title + "\n"
+	contentBudget := maxEmbedChars - titleOverhead
+	if contentBudget < 100 {
+		contentBudget = 100 // floor: always take at least 100 chars of content
 	}
 
 	var result []ParsedSection
@@ -29,7 +40,7 @@ func splitSectionIfNeeded(s ParsedSection) []ParsedSection {
 	partNum := 0
 
 	for len(remaining) > 0 {
-		if len(remaining) <= maxChunkChars {
+		if len(remaining) <= contentBudget {
 			title := s.Title
 			if partNum > 0 {
 				title = fmt.Sprintf("%s (part %d)", s.Title, partNum+1)
@@ -42,19 +53,23 @@ func splitSectionIfNeeded(s ParsedSection) []ParsedSection {
 			break
 		}
 
-		// Try to cut at a paragraph boundary (\n\n) within the limit
-		cutAt := maxChunkChars
-		if idx := strings.LastIndex(remaining[:cutAt], "\n\n"); idx > maxChunkChars/2 {
+		// Try to cut at a paragraph boundary (\n\n) in the second half of the budget
+		cutAt := contentBudget
+		if idx := strings.LastIndex(remaining[:cutAt], "\n\n"); idx > contentBudget/2 {
 			cutAt = idx
-		} else if idx := strings.LastIndex(remaining[:cutAt], "\n"); idx > maxChunkChars/2 {
+		} else if idx := strings.LastIndex(remaining[:cutAt], "\n"); idx > contentBudget/2 {
 			cutAt = idx
+		}
+		// Ensure we always make forward progress
+		if cutAt == 0 {
+			cutAt = contentBudget
 		}
 
 		title := s.Title
-		if partNum > 0 {
-			title = fmt.Sprintf("%s (part %d)", s.Title, partNum+1)
-		} else {
+		if partNum == 0 {
 			title = fmt.Sprintf("%s (part 1)", s.Title)
+		} else {
+			title = fmt.Sprintf("%s (part %d)", s.Title, partNum+1)
 		}
 
 		result = append(result, ParsedSection{
@@ -107,8 +122,10 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 	}
 
 	for _, rule := range rules {
-		section := ParseRuleFile(rule.Path, rule.Content)
-		allSections = append(allSections, splitSectionIfNeeded(section)...)
+		ruleSections := ParseRuleFile(rule.Path, rule.Content)
+		for _, section := range ruleSections {
+			allSections = append(allSections, splitSectionIfNeeded(section)...)
+		}
 	}
 
 	// 3. Create/Update skill record
