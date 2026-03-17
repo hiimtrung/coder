@@ -11,10 +11,13 @@ USAGE:
   coder <command> [arguments] [flags]
 
 CORE COMMANDS:
-  install <profile>   Install agent skills, rules, and workflows (e.g., 'be', 'fe', 'golang')
-  update [profile]    Sync/Force-update existing project configuration
-  list [profile]      Explore available profiles or specific skill details
-  version             Display CLI version and build information
+  install <profile>          Install agent configs per-project (e.g., 'be', 'fe', 'fullstack')
+  install global [profile]   Install agent configs globally for the current user
+  update [profile]           Sync/Force-update existing project configuration
+  update global              Sync/Force-update globally installed configs
+  remove global              Remove globally installed configs
+  list [profile]             Explore available profiles or specific skill details
+  version                    Display CLI version and build information
 
 MAINTENANCE:
   check-update        Search for newer versions on GitHub
@@ -28,12 +31,15 @@ GLOBAL FLAGS:
   --help, -h          Show this help message
 
 EXAMPLES:
-  coder install be                # Setup backend patterns
-  coder update                    # Refresh current project skills
-  coder memory search "auth"      # Search semantic memory
-  coder skill search "error"      # Search ingested skills
-  coder skill ingest --source local # Ingest local skills into vector DB
-  coder --version                 # Check version
+  coder install be                    # Setup backend patterns per-project
+  coder install global be             # Install backend patterns globally
+  coder update                        # Refresh current project skills
+  coder update global                 # Refresh globally installed configs
+  coder remove global                 # Remove globally installed configs
+  coder memory search "auth"          # Search semantic memory
+  coder skill search "error"          # Search ingested skills
+  coder skill ingest --source local   # Ingest local skills into vector DB
+  coder --version                     # Check version
 
 Run 'coder <command> --help' for specific command details.
 `
@@ -64,6 +70,8 @@ func main() {
 		runSkill(os.Args[2:])
 	case "memory":
 		runMemory(os.Args[2:])
+	case "remove":
+		runRemove(os.Args[2:])
 	case "help", "--help", "-h":
 		fmt.Print(usage)
 	default:

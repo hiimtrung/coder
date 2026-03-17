@@ -14,6 +14,19 @@ import (
 )
 
 func runInstall(args []string) {
+	if len(args) < 1 || strings.HasPrefix(args[0], "-") {
+		fmt.Fprintln(os.Stderr, "Error: profile argument required")
+		fmt.Fprintln(os.Stderr, "Usage: coder install <profile> [flags]")
+		fmt.Fprintln(os.Stderr, "       coder install global [profile] [flags]")
+		fmt.Fprintln(os.Stderr, "Run 'coder list' to see available profiles")
+		os.Exit(1)
+	}
+
+	if args[0] == "global" {
+		runInstallGlobal(args[1:])
+		return
+	}
+
 	fs := flag.NewFlagSet("install", flag.ExitOnError)
 	target := fs.String("target", "", "Target directory (default: current directory)")
 	fs.StringVar(target, "t", "", "Target directory (shorthand)")
@@ -26,14 +39,7 @@ func runInstall(args []string) {
 		fs.PrintDefaults()
 	}
 
-	if len(args) < 1 || strings.HasPrefix(args[0], "-") {
-		fmt.Fprintln(os.Stderr, "Error: profile argument required")
-		fmt.Fprintln(os.Stderr, "Usage: coder install <profile> [flags]")
-		fmt.Fprintln(os.Stderr, "Run 'coder list' to see available profiles")
-		os.Exit(1)
-	}
 	profileName := args[0]
-
 	if err := fs.Parse(args[1:]); err != nil {
 		os.Exit(1)
 	}
@@ -51,16 +57,103 @@ func runInstall(args []string) {
 	fmt.Printf("Fetching latest engine components from GitHub (%s/%s)...\n", version.RepoOwner, version.RepoName)
 	remoteFS := installer.NewGitHubFS(version.RepoOwner+"/"+version.RepoName, "main")
 
-	// Try installing from remote
 	err = installer.Install(remoteFS, profile, targetDir, opts)
 	if err != nil {
 		fmt.Printf("  ⚠ Remote fetch failed: %v\n", err)
 		fmt.Println("  Falling back to embedded engine components...")
-		// Fallback to embedded AgentFS
 		if err := installer.Install(tasagent.AgentFS, profile, targetDir, opts); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	}
+}
+
+func runInstallGlobal(args []string) {
+	fs := flag.NewFlagSet("install global", flag.ExitOnError)
+	force := fs.Bool("force", false, "Overwrite existing files")
+	fs.BoolVar(force, "f", false, "Overwrite existing files (shorthand)")
+	dryRun := fs.Bool("dry-run", false, "Show what would be installed without making changes")
+
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: coder install global [profile] [flags]")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Installs AI agent configs to user-level global directories:")
+		fmt.Fprintln(os.Stderr, "  ~/.copilot/instructions/  VS Code Copilot custom instructions")
+		fmt.Fprintln(os.Stderr, "  ~/.copilot/agents/         VS Code Copilot custom agents")
+		fmt.Fprintln(os.Stderr, "  ~/.claude/rules/           Claude Code global rules")
+		fmt.Fprintln(os.Stderr, "  ~/.claude/CLAUDE.md        Claude Code global instructions")
+		fmt.Fprintln(os.Stderr, "")
+		fs.PrintDefaults()
+	}
+
+	// Optional profile arg before flags
+	profileName := "fullstack"
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		profileName = args[0]
+		args = args[1:]
+	}
+
+	if err := fs.Parse(args); err != nil {
+		os.Exit(1)
+	}
+
+	profile, err := profiles.Get(profileName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	opts := installer.Options{DryRun: *dryRun, Force: *force}
+
+	fmt.Printf("Fetching latest engine components from GitHub (%s/%s)...\n", version.RepoOwner, version.RepoName)
+	remoteFS := installer.NewGitHubFS(version.RepoOwner+"/"+version.RepoName, "main")
+
+	err = installer.InstallGlobal(remoteFS, profile, opts)
+	if err != nil {
+		fmt.Printf("  ⚠ Remote fetch failed: %v\n", err)
+		fmt.Println("  Falling back to embedded engine components...")
+		if err := installer.InstallGlobal(tasagent.AgentFS, profile, opts); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+}
+
+func runRemove(args []string) {
+	if len(args) < 1 || strings.HasPrefix(args[0], "-") {
+		fmt.Fprintln(os.Stderr, "Error: subcommand required")
+		fmt.Fprintln(os.Stderr, "Usage: coder remove global [flags]")
+		os.Exit(1)
+	}
+
+	if args[0] == "global" {
+		runRemoveGlobal(args[1:])
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "Error: unknown remove subcommand %q\n", args[0])
+	fmt.Fprintln(os.Stderr, "Usage: coder remove global [flags]")
+	os.Exit(1)
+}
+
+func runRemoveGlobal(args []string) {
+	fs := flag.NewFlagSet("remove global", flag.ExitOnError)
+	dryRun := fs.Bool("dry-run", false, "Show what would be removed without making changes")
+
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: coder remove global [flags]")
+		fmt.Fprintln(os.Stderr, "Removes all globally installed files tracked in ~/.coder/global.json")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		os.Exit(1)
+	}
+
+	opts := installer.Options{DryRun: *dryRun}
+	if err := installer.RemoveGlobal(opts); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -75,11 +168,43 @@ func runUpdate(args []string) {
 		fs.PrintDefaults()
 	}
 
-	// Profile is optional for update — read from manifest if omitted
+	// Profile is optional for update — read from manifest if omitted.
+	// "global" is a special keyword that updates the global install.
 	var profileName string
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		profileName = args[0]
 		args = args[1:]
+	}
+
+	if profileName == "global" {
+		if err := fs.Parse(args); err != nil {
+			os.Exit(1)
+		}
+		// Read profile from global manifest
+		manifest, err := installer.ReadGlobalManifest()
+		if err != nil {
+			fmt.Fprintf(os.Stderr,
+				"Error: no global install found — run 'coder install global <profile>' first\n")
+			os.Exit(1)
+		}
+		globalProfile, err := profiles.Get(manifest.Profile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		opts := installer.Options{DryRun: *dryRun, Force: true}
+		fmt.Printf("Fetching latest engine components from GitHub (%s/%s)...\n", version.RepoOwner, version.RepoName)
+		remoteFS := installer.NewGitHubFS(version.RepoOwner+"/"+version.RepoName, "main")
+		err = installer.InstallGlobal(remoteFS, globalProfile, opts)
+		if err != nil {
+			fmt.Printf("  ⚠ Remote fetch failed: %v\n", err)
+			fmt.Println("  Falling back to embedded engine components...")
+			if err := installer.InstallGlobal(tasagent.AgentFS, globalProfile, opts); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		return
 	}
 
 	if err := fs.Parse(args); err != nil {
