@@ -3,13 +3,14 @@ package profiles
 import "fmt"
 
 // Profile defines a named configuration for installation.
-// Rules/Workflows nil means "install all". AgentFile empty means "install all agent files as-is".
+// Rules/Workflows nil means "install all". AgentFile/ClaudeAgentFile empty means "install all files as-is".
 type Profile struct {
-	Name        string
-	Description string
-	Rules       []string // rule file basenames from .agents/rules/ (nil = all)
-	Workflows   []string // workflow file basenames from .agents/workflows/ (nil = all)
-	AgentFile   string   // agent file to install as coder.agent.md (empty = all files as-is)
+	Name            string
+	Description     string
+	Rules           []string // rule file basenames from .agents/rules/ (nil = all)
+	Workflows       []string // workflow file basenames from .agents/workflows/ (nil = all)
+	AgentFile       string   // VS Code Copilot agent: .github/agents/<file> → .github/agents/coder.agent.md (empty = all as-is)
+	ClaudeAgentFile string   // Claude CLI agent: .claude/agents/<file> → .claude/agents/<file> (empty = all as-is)
 }
 
 var predefined = map[string]Profile{
@@ -35,7 +36,8 @@ var predefined = map[string]Profile{
 			"technical-writer-review.md",
 			"update-planning.md",
 		},
-		AgentFile: "coder-be.agent.md",
+		AgentFile:       "coder-be.agent.md",
+		ClaudeAgentFile: "coder-be.md",
 	},
 	"fe": {
 		Name:        "fe",
@@ -58,21 +60,24 @@ var predefined = map[string]Profile{
 			"simplify-implementation.md",
 			"technical-writer-review.md",
 		},
-		AgentFile: "coder-fe.agent.md",
+		AgentFile:       "coder-fe.agent.md",
+		ClaudeAgentFile: "coder-fe.md",
 	},
 	"fullstack": {
-		Name:        "fullstack",
-		Description: "Full-stack development (backend + frontend)",
-		Rules:       nil, // all
-		Workflows:   nil, // all
-		AgentFile:   "coder.agent.md",
+		Name:            "fullstack",
+		Description:     "Full-stack development (backend + frontend)",
+		Rules:           nil, // all
+		Workflows:       nil, // all
+		AgentFile:       "coder.agent.md",
+		ClaudeAgentFile: "coder.md",
 	},
 	"all": {
-		Name:        "all",
-		Description: "All available files, rules, and workflows",
-		Rules:       nil, // all
-		Workflows:   nil, // all
-		AgentFile:   "", // all agent files as-is
+		Name:            "all",
+		Description:     "All available files, rules, and workflows",
+		Rules:           nil, // all
+		Workflows:       nil, // all
+		AgentFile:       "", // all VS Code agent files as-is
+		ClaudeAgentFile: "", // all Claude agent files as-is
 	},
 }
 
@@ -120,8 +125,14 @@ func PrintProfile(p Profile) {
 	}
 
 	if p.AgentFile == "" {
-		fmt.Println("Agent: (all files as-is)")
+		fmt.Println("VS Code Agent: (all files as-is)")
 	} else {
-		fmt.Printf("Agent: %s → coder.agent.md\n", p.AgentFile)
+		fmt.Printf("VS Code Agent: %s → coder.agent.md\n", p.AgentFile)
+	}
+
+	if p.ClaudeAgentFile == "" {
+		fmt.Println("Claude Agent: (all files as-is)")
+	} else {
+		fmt.Printf("Claude Agent: %s\n", p.ClaudeAgentFile)
 	}
 }

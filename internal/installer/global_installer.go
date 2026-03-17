@@ -111,6 +111,13 @@ func InstallGlobal(srcFS FileSystem, profile profiles.Profile, opts Options) err
 		return err
 	}
 
+	// Claude Code sub-agents
+	claudeAgentsDir := filepath.Join(home, ".claude", "agents")
+	fmt.Println("  Installing → ~/.claude/agents/")
+	if err := installGlobalClaudeAgents(srcFS, profile.ClaudeAgentFile, claudeAgentsDir, opts, result, &managed); err != nil {
+		return err
+	}
+
 	// Claude Code CLAUDE.md — merged with section markers
 	claudeMDPath := filepath.Join(home, ".claude", "CLAUDE.md")
 	fmt.Println("  Merging → ~/.claude/CLAUDE.md")
@@ -253,6 +260,42 @@ func installGlobalAgents(srcFS FileSystem, agentFile string, dstDir string, opts
 	if agentFile != "" {
 		srcPath := srcDir + "/" + agentFile
 		dstPath := filepath.Join(dstDir, agentFile)
+		if err := writeGlobalFile(srcFS, srcPath, dstPath, opts, result); err != nil {
+			return err
+		}
+		if !opts.DryRun {
+			*managed = append(*managed, dstPath)
+		}
+		return nil
+	}
+
+	return fs.WalkDir(srcFS, srcDir, func(fsPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || d.Name() == ".DS_Store" {
+			return nil
+		}
+		rel := strings.TrimPrefix(fsPath, srcDir+"/")
+		dstPath := filepath.Join(dstDir, filepath.FromSlash(rel))
+		if err := writeGlobalFile(srcFS, fsPath, dstPath, opts, result); err != nil {
+			return err
+		}
+		if !opts.DryRun {
+			*managed = append(*managed, dstPath)
+		}
+		return nil
+	})
+}
+
+// installGlobalClaudeAgents copies Claude CLI agent files from .claude/agents/ to dstDir.
+// Keeps original filenames so multiple profiles can coexist in the global agents directory.
+func installGlobalClaudeAgents(srcFS FileSystem, claudeAgentFile string, dstDir string, opts Options, result *Result, managed *[]string) error {
+	srcDir := ".claude/agents"
+
+	if claudeAgentFile != "" {
+		srcPath := srcDir + "/" + claudeAgentFile
+		dstPath := filepath.Join(dstDir, claudeAgentFile)
 		if err := writeGlobalFile(srcFS, srcPath, dstPath, opts, result); err != nil {
 			return err
 		}

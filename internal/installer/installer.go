@@ -80,6 +80,11 @@ func Install(srcFS FileSystem, profile profiles.Profile, targetDir string, opts 
 		return err
 	}
 
+	fmt.Println("  Installing Claude agents...")
+	if err := installClaudeAgentVariant(srcFS, profile.ClaudeAgentFile, targetDir, opts, result); err != nil {
+		return err
+	}
+
 	if err := generateCopilotInstructions(srcFS, targetDir, opts, result); err != nil {
 		return err
 	}
@@ -144,6 +149,22 @@ func installWorkflowsFiltered(srcFS FileSystem, filter []string, targetDir strin
 		dstPath := filepath.Join(dstDir, filepath.FromSlash(rel))
 		return writeFile(srcFS, fsPath, dstPath, opts, result, targetDir)
 	})
+}
+
+// installClaudeAgentVariant installs Claude CLI agent files from .claude/agents/ into targetDir.
+// If claudeAgentFile is empty, all files are copied as-is.
+// If claudeAgentFile is set, only that file is copied keeping its original filename.
+func installClaudeAgentVariant(srcFS FileSystem, claudeAgentFile string, targetDir string, opts Options, result *Result) error {
+	srcDir := ".claude/agents"
+	dstDir := filepath.Join(targetDir, ".claude", "agents")
+
+	if claudeAgentFile == "" {
+		return installDir(srcFS, srcDir, dstDir, opts, result, targetDir)
+	}
+
+	srcPath := srcDir + "/" + claudeAgentFile
+	dstPath := filepath.Join(dstDir, claudeAgentFile)
+	return writeFile(srcFS, srcPath, dstPath, opts, result, targetDir)
 }
 
 // installAgentVariant installs agent files from .github/agents/ into targetDir.
