@@ -68,7 +68,7 @@ func runSkill(args []string) {
 
 func runSkillSearch(args []string) {
 	fs := flag.NewFlagSet("skill search", flag.ExitOnError)
-	limit := fs.Int("limit", 5, "Maximum number of results")
+	limit := fs.Int("limit", 10, "Maximum number of results")
 
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: coder skill search <query> [flags]")

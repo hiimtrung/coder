@@ -76,17 +76,34 @@ func (s *postgresSkillStore) init() error {
 		return err
 	}
 
-	// Idempotent migration: add section_id to existing skill_chunks tables
+	// Idempotent migrations for existing tables
 	migrations := []string{
+		// Phase 1: section_id for context-expansion retrieval
 		`ALTER TABLE skill_chunks ADD COLUMN IF NOT EXISTS section_id TEXT`,
 		`CREATE INDEX IF NOT EXISTS idx_skill_chunks_section_id ON skill_chunks(section_id)`,
+		// Deduplicate guard: remove any existing duplicate (skill_id, chunk_index) rows,
+		// then add a unique constraint so concurrent ingests can never create duplicates again.
+		// The DELETE keeps the row with the lowest ctid (first inserted).
+		`DELETE FROM skill_chunks a
+		 USING skill_chunks b
+		 WHERE a.skill_id = b.skill_id
+		   AND a.chunk_index = b.chunk_index
+		   AND a.ctid > b.ctid`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_skill_chunks_unique_pos ON skill_chunks(skill_id, chunk_index)`,
 	}
 	for _, m := range migrations {
 		if _, err := s.db.Exec(m); err != nil {
-			return fmt.Errorf("migration failed: %w", err)
+			return fmt.Errorf("migration failed (%s): %w", m[:min(40, len(m))], err)
 		}
 	}
 	return nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (s *postgresSkillStore) UpsertSkill(ctx context.Context, sk *Skill) error {
@@ -121,12 +138,12 @@ func (s *postgresSkillStore) StoreChunk(ctx context.Context, c *SkillChunk) erro
 	query := `
 	INSERT INTO skill_chunks (id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, vector, created_at)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	ON CONFLICT (id) DO UPDATE SET
+	ON CONFLICT (skill_id, chunk_index) DO UPDATE SET
+		id = EXCLUDED.id,
 		section_id = EXCLUDED.section_id,
 		content = EXCLUDED.content,
 		chunk_type = EXCLUDED.chunk_type,
 		title = EXCLUDED.title,
-		chunk_index = EXCLUDED.chunk_index,
 		content_hash = EXCLUDED.content_hash,
 		vector = EXCLUDED.vector
 	`

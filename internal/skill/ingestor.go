@@ -152,6 +152,9 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 	if parsed.Category != "" {
 		finalCategory = parsed.Category
 	}
+	if finalCategory == "" || finalCategory == "uncategorized" {
+		finalCategory = inferCategory(name, parsed.Description)
+	}
 
 	sk := &Skill{
 		ID:          skillID,
@@ -442,6 +445,44 @@ func generateSkillID(name string) string {
 
 // generateSectionID creates a stable ID for a logical section within a skill.
 // All chunks split from the same section share this ID, enabling section-level retrieval.
+// inferCategory derives a category from the skill name and description when
+// the SKILL.md frontmatter does not specify one explicitly.
+func inferCategory(name, description string) string {
+	lower := strings.ToLower(name + " " + description)
+
+	frontendKW := []string{"react", "vue", "angular", "svelte", "next", "nuxt", "css", "html",
+		"frontend", "ui", "ux", "design", "banner", "brand", "slides", "figma",
+		"tailwind", "sass", "web-design", "stylesheet", "component"}
+	backendKW := []string{"golang", "rust", "java", "nestjs", "django", "fastapi", "spring",
+		"grpc", "database", "sql", "postgres", "redis", "backend", "api", "server",
+		"microservice", "architecture", "docker", "kubernetes", "devops", "c language",
+		"c development", "dart", "flutter", "mobile"}
+	generalKW := []string{"testing", "test", "pattern", "composition", "general", "docs",
+		"documentation", "analysis", "development", "refactor", "clean code", "python"}
+
+	score := func(kws []string) int {
+		n := 0
+		for _, kw := range kws {
+			if strings.Contains(lower, kw) {
+				n++
+			}
+		}
+		return n
+	}
+
+	fe, be, gen := score(frontendKW), score(backendKW), score(generalKW)
+	switch {
+	case fe > be && fe > gen:
+		return "frontend"
+	case be > fe && be > gen:
+		return "backend"
+	case gen > 0:
+		return "general"
+	default:
+		return "general"
+	}
+}
+
 func generateSectionID(skillName, sectionTitle string) string {
 	h := sha256.Sum256([]byte("section:" + skillName + ":" + sectionTitle))
 	return hex.EncodeToString(h[:16])
