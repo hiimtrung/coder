@@ -57,6 +57,19 @@ func (s *postgresSkillStore) init() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_skill_chunks_skill_id ON skill_chunks(skill_id);
 	CREATE INDEX IF NOT EXISTS idx_skill_chunks_hash ON skill_chunks(content_hash);
+
+	CREATE TABLE IF NOT EXISTS skill_files (
+		id TEXT PRIMARY KEY,
+		skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+		rel_path TEXT NOT NULL,
+		content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+		content BYTEA NOT NULL,
+		content_hash TEXT NOT NULL,
+		size_bytes INTEGER NOT NULL DEFAULT 0,
+		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		UNIQUE(skill_id, rel_path)
+	);
+	CREATE INDEX IF NOT EXISTS idx_skill_files_skill_id ON skill_files(skill_id);
 	`
 	_, err := s.db.Exec(query)
 	return err
@@ -247,6 +260,49 @@ func (s *postgresSkillStore) DeleteChunksBySkillID(ctx context.Context, skillID 
 
 func (s *postgresSkillStore) Close() error {
 	return nil // DB connection is shared, don't close here
+}
+
+func (s *postgresSkillStore) StoreFile(ctx context.Context, f *SkillFile) error {
+	query := `
+	INSERT INTO skill_files (id, skill_id, rel_path, content_type, content, content_hash, size_bytes, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	ON CONFLICT (skill_id, rel_path) DO UPDATE SET
+		content_type = EXCLUDED.content_type,
+		content      = EXCLUDED.content,
+		content_hash = EXCLUDED.content_hash,
+		size_bytes   = EXCLUDED.size_bytes,
+		created_at   = EXCLUDED.created_at
+	`
+	_, err := s.db.ExecContext(ctx, query,
+		f.ID, f.SkillID, f.RelPath, f.ContentType, f.Content, f.ContentHash, f.SizeBytes, f.CreatedAt,
+	)
+	return err
+}
+
+func (s *postgresSkillStore) GetFiles(ctx context.Context, skillID string) ([]SkillFile, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, skill_id, rel_path, content_type, content, content_hash, size_bytes, created_at
+		 FROM skill_files WHERE skill_id = $1 ORDER BY rel_path`, skillID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []SkillFile
+	for rows.Next() {
+		var f SkillFile
+		if err := rows.Scan(&f.ID, &f.SkillID, &f.RelPath, &f.ContentType, &f.Content, &f.ContentHash, &f.SizeBytes, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+	return files, nil
+}
+
+func (s *postgresSkillStore) DeleteFilesBySkillID(ctx context.Context, skillID string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM skill_files WHERE skill_id = $1`, skillID)
+	return err
 }
 
 func (s *postgresSkillStore) GetChunkHashes(ctx context.Context, skillID string) (map[string]bool, error) {

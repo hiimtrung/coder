@@ -135,7 +135,7 @@ func runUpdate(args []string) {
 		// Run ingestion synchronously since local ingestion is fast.
 		client := getSkillClient()
 		defer client.Close()
-		runIngestLocal(context.Background(), client)
+		runIngestLocal(context.Background(), client, false)
 	}
 }
 

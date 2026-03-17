@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+
 type skillClient struct {
 	conn   *grpc.ClientConn
 	client skillpb.SkillServiceClient
@@ -175,6 +176,16 @@ func (c *skillClient) GetSkill(ctx context.Context, name string) (*skill.Skill, 
 func (c *skillClient) DeleteSkill(ctx context.Context, name string) error {
 	_, err := c.client.DeleteSkill(ctx, &skillpb.DeleteSkillRequest{Name: name})
 	return err
+}
+
+// StoreSkillFiles and GetSkillFiles are not yet supported over gRPC.
+// Use an HTTP connection (coder login --protocol http) for file operations.
+func (c *skillClient) StoreSkillFiles(_ context.Context, _ string, _ []skill.SkillFile) (int, error) {
+	return 0, fmt.Errorf("file operations are not supported over gRPC; reconnect with --protocol http")
+}
+
+func (c *skillClient) GetSkillFiles(_ context.Context, _ string) ([]skill.SkillFile, error) {
+	return nil, fmt.Errorf("file operations are not supported over gRPC; reconnect with --protocol http")
 }
 
 func (c *skillClient) Close() error {

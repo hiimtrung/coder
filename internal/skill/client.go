@@ -11,5 +11,10 @@ type Client interface {
 	ListSkills(ctx context.Context, source, category string, limit, offset int) ([]Skill, error)
 	GetSkill(ctx context.Context, name string) (*Skill, []SkillChunk, error)
 	DeleteSkill(ctx context.Context, name string) error
+
+	// File management — store and retrieve raw scripts/data for cache extraction
+	StoreSkillFiles(ctx context.Context, skillName string, files []SkillFile) (int, error)
+	GetSkillFiles(ctx context.Context, skillName string) ([]SkillFile, error)
+
 	Close() error
 }

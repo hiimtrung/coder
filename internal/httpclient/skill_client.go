@@ -3,6 +3,7 @@ package httpclient
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -223,6 +224,103 @@ func (c *skillClient) DeleteSkill(ctx context.Context, name string) error {
 	}
 
 	return nil
+}
+
+func (c *skillClient) StoreSkillFiles(ctx context.Context, skillName string, files []skill.SkillFile) (int, error) {
+	type fileEntry struct {
+		RelPath     string `json:"rel_path"`
+		ContentType string `json:"content_type"`
+		Content     string `json:"content"` // base64-encoded
+		SizeBytes   int    `json:"size_bytes"`
+	}
+	entries := make([]fileEntry, len(files))
+	for i, f := range files {
+		entries[i] = fileEntry{
+			RelPath:     f.RelPath,
+			ContentType: f.ContentType,
+			Content:     base64.StdEncoding.EncodeToString(f.Content),
+			SizeBytes:   f.SizeBytes,
+		}
+	}
+
+	payload := map[string]interface{}{
+		"skill_name": skillName,
+		"files":      entries,
+	}
+	data, _ := json.Marshal(payload)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/skill/files", bytes.NewBuffer(data))
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("server returned error: HTTP %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Stored int `json:"stored"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, err
+	}
+	return result.Stored, nil
+}
+
+func (c *skillClient) GetSkillFiles(ctx context.Context, skillName string) ([]skill.SkillFile, error) {
+	u, _ := url.Parse(c.baseURL + "/v1/skill/files")
+	q := u.Query()
+	q.Set("name", skillName)
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned error: HTTP %d", resp.StatusCode)
+	}
+
+	var wrapper struct {
+		Files []struct {
+			RelPath     string `json:"rel_path"`
+			ContentType string `json:"content_type"`
+			Content     string `json:"content"` // base64
+			SizeBytes   int    `json:"size_bytes"`
+		} `json:"files"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&wrapper); err != nil {
+		return nil, err
+	}
+
+	result := make([]skill.SkillFile, 0, len(wrapper.Files))
+	for _, f := range wrapper.Files {
+		decoded, err := base64.StdEncoding.DecodeString(f.Content)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode file %s: %w", f.RelPath, err)
+		}
+		result = append(result, skill.SkillFile{
+			RelPath:     f.RelPath,
+			ContentType: f.ContentType,
+			Content:     decoded,
+			SizeBytes:   f.SizeBytes,
+		})
+	}
+	return result, nil
 }
 
 func (c *skillClient) Close() error {

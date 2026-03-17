@@ -143,10 +143,13 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 		}
 	}
 
-	// 8. Process changed/new sections → generate embedding → store chunk
+	// 8. Process changed/new sections → rewrite paths → generate embedding → store chunk
 	for _, item := range sectionsToIngest {
-		// Generate embedding
-		embeddingText := item.section.Title + "\n" + item.section.Content
+		// Rewrite script paths to point to ~/.coder/cache/<skill>/ before embedding
+		rewrittenContent := RewriteSkillPaths(item.section.Content, name)
+
+		// Generate embedding on rewritten content so semantic search reflects cache paths
+		embeddingText := item.section.Title + "\n" + rewrittenContent
 		embedding, err := ing.provider.GenerateEmbedding(ctx, embeddingText)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate embedding for chunk %d of %q: %w", item.index, name, err)
@@ -157,7 +160,7 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 			SkillID:     skillID,
 			ChunkType:   item.section.Type,
 			Title:       item.section.Title,
-			Content:     item.section.Content,
+			Content:     rewrittenContent,
 			ChunkIndex:  item.index,
 			ContentHash: item.hash,
 			Vector:      embedding,
@@ -172,6 +175,33 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 	}
 
 	return result, nil
+}
+
+// IngestFiles stores raw skill files (scripts, data, references) into the DB.
+// Called separately from IngestSkill; files are keyed by (skillID, relPath).
+func (ing *Ingestor) IngestFiles(ctx context.Context, skillName string, files []SkillFile) (int, error) {
+	sk, _, err := ing.store.GetSkill(ctx, skillName)
+	if err != nil {
+		return 0, fmt.Errorf("skill %q must be ingested before its files: %w", skillName, err)
+	}
+
+	// Clear old files first so removed files don't linger
+	if err := ing.store.DeleteFilesBySkillID(ctx, sk.ID); err != nil {
+		return 0, fmt.Errorf("failed to clear old files for %q: %w", skillName, err)
+	}
+
+	stored := 0
+	for _, f := range files {
+		f.SkillID = sk.ID
+		if f.ID == "" {
+			f.ID = uuid.New().String()
+		}
+		if err := ing.store.StoreFile(ctx, &f); err != nil {
+			return stored, fmt.Errorf("failed to store file %q for skill %q: %w", f.RelPath, skillName, err)
+		}
+		stored++
+	}
+	return stored, nil
 }
 
 // SearchSkills performs semantic search across all skill chunks.

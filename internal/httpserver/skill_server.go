@@ -1,10 +1,15 @@
 package httpserver
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/trungtran/coder/internal/skill"
 )
 
@@ -26,6 +31,7 @@ func (s *SkillServer) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/skill/list", s.handleList)
 	mux.HandleFunc("/v1/skill/info", s.handleGetSkill)
 	mux.HandleFunc("/v1/skill/delete", s.handleDelete)
+	mux.HandleFunc("/v1/skill/files", s.handleFiles)
 }
 
 func (s *SkillServer) handleIngest(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +154,107 @@ func (s *SkillServer) handleGetSkill(w http.ResponseWriter, r *http.Request) {
 		"skill":  sk,
 		"chunks": chunks,
 	})
+}
+
+// handleFiles handles GET /v1/skill/files?name=<skill> and POST /v1/skill/files.
+func (s *SkillServer) handleFiles(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		name := r.URL.Query().Get("name")
+		if name == "" {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+		sk, _, err := s.store.GetSkill(r.Context(), name)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		files, err := s.store.GetFiles(r.Context(), sk.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		type fileResp struct {
+			RelPath     string `json:"rel_path"`
+			ContentType string `json:"content_type"`
+			Content     string `json:"content"` // base64
+			SizeBytes   int    `json:"size_bytes"`
+		}
+		resp := make([]fileResp, len(files))
+		for i, f := range files {
+			resp[i] = fileResp{
+				RelPath:     f.RelPath,
+				ContentType: f.ContentType,
+				Content:     base64.StdEncoding.EncodeToString(f.Content),
+				SizeBytes:   f.SizeBytes,
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"files": resp})
+
+	case http.MethodPost:
+		var req struct {
+			SkillName string `json:"skill_name"`
+			Files     []struct {
+				RelPath     string `json:"rel_path"`
+				ContentType string `json:"content_type"`
+				Content     string `json:"content"` // base64
+				SizeBytes   int    `json:"size_bytes"`
+			} `json:"files"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		sk, _, err := s.store.GetSkill(r.Context(), req.SkillName)
+		if err != nil {
+			http.Error(w, "skill not found: "+err.Error(), http.StatusNotFound)
+			return
+		}
+
+		// Clear old files
+		s.store.DeleteFilesBySkillID(r.Context(), sk.ID)
+
+		stored := 0
+		now := time.Now()
+		for _, f := range req.Files {
+			decoded, err := base64.StdEncoding.DecodeString(f.Content)
+			if err != nil {
+				http.Error(w, "invalid base64 for "+f.RelPath, http.StatusBadRequest)
+				return
+			}
+			sf := &skill.SkillFile{
+				ID:          uuid.New().String(),
+				SkillID:     sk.ID,
+				RelPath:     f.RelPath,
+				ContentType: f.ContentType,
+				Content:     decoded,
+				ContentHash: sha256Hex(decoded),
+				SizeBytes:   len(decoded),
+				CreatedAt:   now,
+			}
+			if err := s.store.StoreFile(r.Context(), sf); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			stored++
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"stored": stored})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+
+func sha256Hex(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }
 
 func (s *SkillServer) handleDelete(w http.ResponseWriter, r *http.Request) {

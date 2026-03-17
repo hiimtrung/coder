@@ -2,10 +2,16 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
+	"time"
 
 	tasagent "github.com/trungtran/coder"
 	"github.com/trungtran/coder/internal/skill"
@@ -27,6 +33,10 @@ func runSkill(args []string) {
 		fmt.Fprintln(os.Stderr, "  coder skill ingest --source github --repo sickn33/antigravity-awesome-skills")
 		fmt.Fprintln(os.Stderr, "  coder skill list --category core")
 		fmt.Fprintln(os.Stderr, "  coder skill info nestjs")
+		fmt.Fprintln(os.Stderr, "  coder skill cache pull ui-ux-pro-max")
+		fmt.Fprintln(os.Stderr, "  coder skill cache pull --all")
+		fmt.Fprintln(os.Stderr, "  coder skill cache list")
+		fmt.Fprintln(os.Stderr, "  coder skill cache clear ui-ux-pro-max")
 		os.Exit(1)
 	}
 
@@ -42,6 +52,8 @@ func runSkill(args []string) {
 		runSkillInfo(args[1:])
 	case "delete":
 		runSkillDelete(args[1:])
+	case "cache":
+		runSkillCache(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "Error: unknown skill subcommand %q\n", sub)
 		os.Exit(1)
@@ -117,13 +129,14 @@ func runSkillIngest(args []string) {
 	source := fs.String("source", "local", "Ingestion source: local, github")
 	repo := fs.String("repo", version.RepoOwner+"/"+version.RepoName, "GitHub repo (e.g., hiimtrung/coder)")
 	skillFilter := fs.String("skills", "", "Comma-separated skill names to ingest (default: all)")
+	includeFiles := fs.Bool("include-files", false, "Also store scripts/data files into DB for cache extraction")
 
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: coder skill ingest [flags]")
 		fmt.Fprintln(os.Stderr, "\nFLAGS:")
 		fs.PrintDefaults()
 		fmt.Fprintln(os.Stderr, "\nEXAMPLES:")
-		fmt.Fprintln(os.Stderr, "  coder skill ingest --source local")
+		fmt.Fprintln(os.Stderr, "  coder skill ingest --source local --include-files")
 		fmt.Fprintln(os.Stderr, "  coder skill ingest --source github --repo sickn33/antigravity-awesome-skills")
 	}
 
@@ -135,7 +148,7 @@ func runSkillIngest(args []string) {
 
 	switch *source {
 	case "local":
-		runIngestLocal(ctx, client)
+		runIngestLocal(ctx, client, *includeFiles)
 
 	case "github":
 		if *repo == "" {
@@ -153,7 +166,7 @@ func runSkillIngest(args []string) {
 
 // runIngestLocal reads all embedded skills from the binary and sends them to coder-node
 // for chunking, embedding, and storage in the vector DB.
-func runIngestLocal(ctx context.Context, client skill.Client) {
+func runIngestLocal(ctx context.Context, client skill.Client, includeFiles bool) {
 	skillDirs, err := tasagent.AgentFS.ReadDir(".agents/skills")
 	if err != nil || len(skillDirs) == 0 {
 		fmt.Println("No embedded skills found in binary. Fetching from official repository...")
@@ -163,6 +176,9 @@ func runIngestLocal(ctx context.Context, client skill.Client) {
 	}
 
 	fmt.Println("Ingesting local embedded skills...")
+	if includeFiles {
+		fmt.Println("(--include-files: scripts/data will be stored for cache extraction)")
+	}
 
 	successCount := 0
 	failCount := 0
@@ -191,7 +207,20 @@ func runIngestLocal(ctx context.Context, client skill.Client) {
 			continue
 		}
 
-		fmt.Printf("  ✓ %s (%d chunks)\n", skillName, result.ChunksTotal)
+		filesMsg := ""
+		if includeFiles {
+			files := readLocalSkillFiles(skillName)
+			if len(files) > 0 {
+				stored, err := client.StoreSkillFiles(ctx, skillName, files)
+				if err != nil {
+					filesMsg = fmt.Sprintf(" [files: %v]", err)
+				} else {
+					filesMsg = fmt.Sprintf(" + %d files", stored)
+				}
+			}
+		}
+
+		fmt.Printf("  ✓ %s (%d chunks%s)\n", skillName, result.ChunksTotal, filesMsg)
 		successCount++
 	}
 
@@ -407,4 +436,189 @@ func runSkillDelete(args []string) {
 	}
 
 	fmt.Printf("Skill %q deleted from vector DB.\n", name)
+}
+
+// ── skill cache ───────────────────────────────────────────────────────────────
+
+func runSkillCache(args []string) {
+	if len(args) < 1 || args[0] == "-h" || args[0] == "--help" || args[0] == "help" {
+		fmt.Fprintln(os.Stderr, "Usage: coder skill cache <subcommand> [arguments]")
+		fmt.Fprintln(os.Stderr, "\nSUBCOMMANDS:")
+		fmt.Fprintln(os.Stderr, "  pull [<name>|--all]   Extract skill files to ~/.coder/cache/")
+		fmt.Fprintln(os.Stderr, "  list                  Show cached skills and their status")
+		fmt.Fprintln(os.Stderr, "  clear [<name>|--all]  Remove cached files")
+		fmt.Fprintln(os.Stderr, "\nEXAMPLES:")
+		fmt.Fprintln(os.Stderr, "  coder skill cache pull ui-ux-pro-max")
+		fmt.Fprintln(os.Stderr, "  coder skill cache pull --all")
+		fmt.Fprintln(os.Stderr, "  coder skill cache list")
+		fmt.Fprintln(os.Stderr, "  coder skill cache clear ui-ux-pro-max")
+		os.Exit(1)
+	}
+
+	sub := args[0]
+	rest := args[1:]
+
+	// Cache commands operate directly against the DB via the skill store,
+	// since files need to be written to the local filesystem.
+	store := getSkillStore()
+	cache := skill.NewCacheManager(store)
+
+	switch sub {
+	case "pull":
+		runCachePull(cache, rest)
+	case "list":
+		runCacheList(cache)
+	case "clear":
+		runCacheClear(cache, rest)
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unknown cache subcommand %q\n", sub)
+		os.Exit(1)
+	}
+}
+
+func runCachePull(cache *skill.CacheManager, args []string) {
+	fs := flag.NewFlagSet("cache pull", flag.ExitOnError)
+	all := fs.Bool("all", false, "Pull all skills that have stored files")
+	fs.Parse(args)
+
+	ctx := context.Background()
+
+	if *all {
+		ok, fail, err := cache.PullAll(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Cache pull complete: %d extracted, %d failed\n", ok, fail)
+		return
+	}
+
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: coder skill cache pull <name> | --all")
+		os.Exit(1)
+	}
+
+	skillName := fs.Arg(0)
+	dir, err := cache.Pull(ctx, skillName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("✓ %s → %s\n", skillName, dir)
+}
+
+func runCacheList(cache *skill.CacheManager) {
+	entries := cache.ListCached()
+	if len(entries) == 0 {
+		fmt.Println("No skills cached. Run: coder skill cache pull --all")
+		return
+	}
+
+	home, _ := os.UserHomeDir()
+	fmt.Printf("Cached skills in ~/.coder/cache/ (%d):\n\n", len(entries))
+	fmt.Printf("  %-25s %-12s %-6s %s\n", "SKILL", "VERSION", "FILES", "CACHED AT")
+	fmt.Printf("  %-25s %-12s %-6s %s\n", "─────", "───────", "─────", "─────────")
+	for name, e := range entries {
+		cacheDir := filepath.Join(home, ".coder", "cache", name)
+		status := "✓"
+		if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+			status = "✗ (missing)"
+		}
+		fmt.Printf("  %-25s %-12s %-6d %s %s\n",
+			name, e.Version, e.FileCount,
+			e.CachedAt.Format("2006-01-02 15:04"), status,
+		)
+	}
+}
+
+func runCacheClear(cache *skill.CacheManager, args []string) {
+	fs := flag.NewFlagSet("cache clear", flag.ExitOnError)
+	all := fs.Bool("all", false, "Clear all cached skills")
+	fs.Parse(args)
+
+	if *all {
+		if err := cache.Clear(""); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("All skill caches cleared.")
+		return
+	}
+
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: coder skill cache clear <name> | --all")
+		os.Exit(1)
+	}
+
+	skillName := fs.Arg(0)
+	if err := cache.Clear(skillName); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Cache cleared for %q.\n", skillName)
+}
+
+// ── file ingestion helpers ────────────────────────────────────────────────────
+
+// ingestableExts maps file extensions to MIME types for files worth storing.
+var ingestableExts = map[string]string{
+	".py":   "text/x-python",
+	".csv":  "text/csv",
+	".json": "application/json",
+	".md":   "text/markdown",
+	".txt":  "text/plain",
+	".js":   "text/javascript",
+	".cjs":  "text/javascript",
+	".sh":   "text/x-sh",
+	".sql":  "text/x-sql",
+}
+
+// ingestableDirs lists subdirectories of a skill to scan for files.
+var ingestableDirs = []string{"scripts", "data", "references", "templates"}
+
+const maxFileBytes = 5 * 1024 * 1024 // 5 MB
+
+// readLocalSkillFiles scans a skill's subdirectories in the embedded FS
+// and returns all ingestable files as SkillFile records.
+func readLocalSkillFiles(skillName string) []skill.SkillFile {
+	var files []skill.SkillFile
+	now := time.Now()
+
+	for _, dir := range ingestableDirs {
+		dirPath := ".agents/skills/" + skillName + "/" + dir
+
+		// Walk the embedded FS directory
+		_ = fs.WalkDir(tasagent.AgentFS, dirPath, func(fpath string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+
+			ext := strings.ToLower(filepath.Ext(fpath))
+			contentType, ok := ingestableExts[ext]
+			if !ok {
+				return nil // skip binary / unknown files
+			}
+
+			data, err := tasagent.AgentFS.ReadFile(fpath)
+			if err != nil || len(data) == 0 || len(data) > maxFileBytes {
+				return nil
+			}
+
+			// rel_path relative to the skill root, e.g. "scripts/search.py"
+			relPath := path.Join(dir, strings.TrimPrefix(fpath, dirPath+"/"))
+
+			h := sha256.Sum256(data)
+			files = append(files, skill.SkillFile{
+				RelPath:     relPath,
+				ContentType: contentType,
+				Content:     data,
+				ContentHash: hex.EncodeToString(h[:]),
+				SizeBytes:   len(data),
+				CreatedAt:   now,
+			})
+			return nil
+		})
+	}
+
+	return files
 }

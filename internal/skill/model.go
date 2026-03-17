@@ -54,6 +54,19 @@ type RuleFile struct {
 	Content string
 }
 
+// SkillFile represents a raw script/data file associated with a skill.
+// Stored as bytea in PostgreSQL; extracted to ~/.coder/cache/<skill>/ at runtime.
+type SkillFile struct {
+	ID          string    `json:"id"`
+	SkillID     string    `json:"skill_id"`
+	RelPath     string    `json:"rel_path"`      // e.g. "scripts/search.py", "data/colors.csv"
+	ContentType string    `json:"content_type"`  // "text/x-python", "text/csv", etc.
+	Content     []byte    `json:"content"`
+	ContentHash string    `json:"content_hash"`
+	SizeBytes   int       `json:"size_bytes"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 // SkillService defines the interface for skill CRUD + RAG operations.
 type SkillService interface {
 	// CRUD
@@ -71,5 +84,11 @@ type SkillService interface {
 
 	// Cleanup
 	DeleteChunksBySkillID(ctx context.Context, skillID string) error
+
+	// File storage (scripts, data, references)
+	StoreFile(ctx context.Context, f *SkillFile) error
+	GetFiles(ctx context.Context, skillID string) ([]SkillFile, error)
+	DeleteFilesBySkillID(ctx context.Context, skillID string) error
+
 	Close() error
 }
