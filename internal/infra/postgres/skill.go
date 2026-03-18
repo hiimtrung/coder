@@ -1,0 +1,513 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/pgvector/pgvector-go"
+	skilldomain "github.com/trungtran/coder/internal/domain/skill"
+)
+
+type postgresSkillStore struct {
+	db *sql.DB
+}
+
+// NewPostgresSkillStore creates a new PostgreSQL-backed skill store.
+// It re-uses an existing *sql.DB connection (shared with memory store).
+func NewPostgresSkillStore(db *sql.DB) (skilldomain.SkillRepository, error) {
+	s := &postgresSkillStore{db: db}
+	if err := s.init(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (s *postgresSkillStore) init() error {
+	query := `
+	CREATE TABLE IF NOT EXISTS skills (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL UNIQUE,
+		description TEXT,
+		category TEXT DEFAULT 'uncategorized',
+		source TEXT DEFAULT 'local',
+		source_repo TEXT,
+		risk TEXT DEFAULT 'unknown',
+		version TEXT,
+		tags JSONB DEFAULT '[]'::jsonb,
+		metadata JSONB DEFAULT '{}'::jsonb,
+		created_at TIMESTAMP,
+		updated_at TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_skills_name ON skills(name);
+	CREATE INDEX IF NOT EXISTS idx_skills_category ON skills(category);
+	CREATE INDEX IF NOT EXISTS idx_skills_source ON skills(source);
+
+	CREATE TABLE IF NOT EXISTS skill_chunks (
+		id TEXT PRIMARY KEY,
+		skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+		section_id TEXT,
+		chunk_type TEXT DEFAULT 'rule',
+		title TEXT,
+		content TEXT NOT NULL,
+		chunk_index INTEGER,
+		content_hash TEXT,
+		vector vector(1024),
+		created_at TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_skill_chunks_skill_id ON skill_chunks(skill_id);
+	CREATE INDEX IF NOT EXISTS idx_skill_chunks_hash ON skill_chunks(content_hash);
+
+	CREATE TABLE IF NOT EXISTS skill_files (
+		id TEXT PRIMARY KEY,
+		skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+		rel_path TEXT NOT NULL,
+		content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+		content BYTEA NOT NULL,
+		content_hash TEXT NOT NULL,
+		size_bytes INTEGER NOT NULL DEFAULT 0,
+		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		UNIQUE(skill_id, rel_path)
+	);
+	CREATE INDEX IF NOT EXISTS idx_skill_files_skill_id ON skill_files(skill_id);
+	`
+	if _, err := s.db.Exec(query); err != nil {
+		return err
+	}
+
+	// Idempotent migrations for existing tables
+	migrations := []string{
+		// Phase 1: section_id for context-expansion retrieval
+		`ALTER TABLE skill_chunks ADD COLUMN IF NOT EXISTS section_id TEXT`,
+		`CREATE INDEX IF NOT EXISTS idx_skill_chunks_section_id ON skill_chunks(section_id)`,
+		// Deduplicate guard: remove any existing duplicate (skill_id, chunk_index) rows,
+		// then add a unique constraint so concurrent ingests can never create duplicates again.
+		// The DELETE keeps the row with the lowest ctid (first inserted).
+		`DELETE FROM skill_chunks a
+		 USING skill_chunks b
+		 WHERE a.skill_id = b.skill_id
+		   AND a.chunk_index = b.chunk_index
+		   AND a.ctid > b.ctid`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_skill_chunks_unique_pos ON skill_chunks(skill_id, chunk_index)`,
+		// Phase 2: full-text search column for hybrid semantic + keyword search (RRF).
+		// GENERATED ALWAYS AS ... STORED requires PostgreSQL 12+.
+		`ALTER TABLE skill_chunks ADD COLUMN IF NOT EXISTS fts tsvector
+		 GENERATED ALWAYS AS (
+		     to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, ''))
+		 ) STORED`,
+		`CREATE INDEX IF NOT EXISTS idx_skill_chunks_fts ON skill_chunks USING GIN(fts)`,
+	}
+	for _, m := range migrations {
+		if _, err := s.db.Exec(m); err != nil {
+			return fmt.Errorf("migration failed (%s): %w", m[:min(40, len(m))], err)
+		}
+	}
+	return nil
+}
+
+func (s *postgresSkillStore) UpsertSkill(ctx context.Context, sk *skilldomain.Skill) error {
+	tagsJSON, _ := json.Marshal(sk.Tags)
+	metaJSON, _ := json.Marshal(sk.Metadata)
+
+	query := `
+	INSERT INTO skills (id, name, description, category, source, source_repo, risk, version, tags, metadata, created_at, updated_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	ON CONFLICT (name) DO UPDATE SET
+		description = EXCLUDED.description,
+		category = EXCLUDED.category,
+		source = EXCLUDED.source,
+		source_repo = EXCLUDED.source_repo,
+		risk = EXCLUDED.risk,
+		version = EXCLUDED.version,
+		tags = EXCLUDED.tags,
+		metadata = EXCLUDED.metadata,
+		updated_at = EXCLUDED.updated_at
+	`
+	_, err := s.db.ExecContext(ctx, query,
+		sk.ID, sk.Name, sk.Description, sk.Category, sk.Source, sk.SourceRepo,
+		sk.Risk, sk.Version, string(tagsJSON), string(metaJSON),
+		sk.CreatedAt, sk.UpdatedAt,
+	)
+	return err
+}
+
+func (s *postgresSkillStore) StoreChunk(ctx context.Context, c *skilldomain.SkillChunk) error {
+	vec := pgvector.NewVector(c.Vector)
+
+	query := `
+	INSERT INTO skill_chunks (id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, vector, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	ON CONFLICT (skill_id, chunk_index) DO UPDATE SET
+		id = EXCLUDED.id,
+		section_id = EXCLUDED.section_id,
+		content = EXCLUDED.content,
+		chunk_type = EXCLUDED.chunk_type,
+		title = EXCLUDED.title,
+		content_hash = EXCLUDED.content_hash,
+		vector = EXCLUDED.vector
+	`
+	_, err := s.db.ExecContext(ctx, query,
+		c.ID, c.SkillID, c.SectionID, c.ChunkType, c.Title, c.Content, c.ChunkIndex, c.ContentHash, vec, c.CreatedAt,
+	)
+	return err
+}
+
+func (s *postgresSkillStore) GetSkill(ctx context.Context, name string) (*skilldomain.Skill, []skilldomain.SkillChunk, error) {
+	var sk skilldomain.Skill
+	var tagsStr, metaStr []byte
+
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, name, description, category, source, source_repo, risk, version, tags, metadata, created_at, updated_at FROM skills WHERE name = $1`, name,
+	).Scan(&sk.ID, &sk.Name, &sk.Description, &sk.Category, &sk.Source, &sk.SourceRepo,
+		&sk.Risk, &sk.Version, &tagsStr, &metaStr, &sk.CreatedAt, &sk.UpdatedAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil, fmt.Errorf("skill %q not found", name)
+		}
+		return nil, nil, err
+	}
+
+	json.Unmarshal(tagsStr, &sk.Tags)
+	json.Unmarshal(metaStr, &sk.Metadata)
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, created_at FROM skill_chunks WHERE skill_id = $1 ORDER BY chunk_index`, sk.ID,
+	)
+	if err != nil {
+		return &sk, nil, err
+	}
+	defer rows.Close()
+
+	var chunks []skilldomain.SkillChunk
+	for rows.Next() {
+		var c skilldomain.SkillChunk
+		if err := rows.Scan(&c.ID, &c.SkillID, &c.SectionID, &c.ChunkType, &c.Title, &c.Content, &c.ChunkIndex, &c.ContentHash, &c.CreatedAt); err != nil {
+			return &sk, nil, err
+		}
+		chunks = append(chunks, c)
+	}
+
+	return &sk, chunks, nil
+}
+
+func (s *postgresSkillStore) ListSkills(ctx context.Context, source string, category string, limit int, offset int) ([]skilldomain.Skill, error) {
+	sqlQuery := `SELECT s.id, s.name, s.description, s.category, s.source, s.source_repo, s.risk, s.version, s.tags, s.metadata, s.created_at, s.updated_at,
+		(SELECT COUNT(*) FROM skill_chunks sc WHERE sc.skill_id = s.id) as chunk_count
+		FROM skills s`
+
+	var args []any
+	argCount := 1
+	var conditions []string
+
+	if source != "" {
+		conditions = append(conditions, fmt.Sprintf("s.source = $%d", argCount))
+		args = append(args, source)
+		argCount++
+	}
+	if category != "" {
+		conditions = append(conditions, fmt.Sprintf("s.category = $%d", argCount))
+		args = append(args, category)
+		argCount++
+	}
+
+	if len(conditions) > 0 {
+		sqlQuery += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	sqlQuery += " ORDER BY s.name"
+
+	if limit > 0 {
+		sqlQuery += fmt.Sprintf(" LIMIT $%d", argCount)
+		args = append(args, limit)
+		argCount++
+	}
+	if offset > 0 {
+		sqlQuery += fmt.Sprintf(" OFFSET $%d", argCount)
+		args = append(args, offset)
+	}
+
+	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var skills []skilldomain.Skill
+	for rows.Next() {
+		var sk skilldomain.Skill
+		var tagsStr, metaStr []byte
+		if err := rows.Scan(&sk.ID, &sk.Name, &sk.Description, &sk.Category, &sk.Source, &sk.SourceRepo,
+			&sk.Risk, &sk.Version, &tagsStr, &metaStr, &sk.CreatedAt, &sk.UpdatedAt, &sk.ChunkCount); err != nil {
+			return nil, err
+		}
+		json.Unmarshal(tagsStr, &sk.Tags)
+		json.Unmarshal(metaStr, &sk.Metadata)
+		skills = append(skills, sk)
+	}
+
+	return skills, nil
+}
+
+func (s *postgresSkillStore) DeleteSkill(ctx context.Context, name string) error {
+	// CASCADE will delete chunks
+	_, err := s.db.ExecContext(ctx, `DELETE FROM skills WHERE name = $1`, name)
+	return err
+}
+
+// SearchChunks performs hybrid search using Reciprocal Rank Fusion (RRF) to
+// blend pgvector cosine similarity with PostgreSQL full-text search.
+//
+// When queryText is non-empty both rankings are merged:
+//
+//	rrf_score = 1/(k + semantic_rank) + 1/(k + keyword_rank)   where k = 60
+//
+// When queryText is empty the method falls back to pure semantic search.
+func (s *postgresSkillStore) SearchChunks(ctx context.Context, queryVector []float32, queryText string, limit int) ([]skilldomain.SkillChunkResult, error) {
+	if strings.TrimSpace(queryText) != "" {
+		return s.hybridSearchChunks(ctx, queryVector, queryText, limit)
+	}
+	return s.semanticSearchChunks(ctx, queryVector, limit)
+}
+
+// semanticSearchChunks is the original pure-vector search.
+func (s *postgresSkillStore) semanticSearchChunks(ctx context.Context, queryVector []float32, limit int) ([]skilldomain.SkillChunkResult, error) {
+	vec := pgvector.NewVector(queryVector)
+	query := `
+		SELECT sc.id, sc.skill_id, sc.section_id, sc.chunk_type, sc.title, sc.content,
+		       sc.chunk_index, sc.content_hash, sc.created_at,
+		       1 - (sc.vector <=> $1) AS score
+		FROM skill_chunks sc
+		ORDER BY sc.vector <=> $1
+		LIMIT $2
+	`
+	return s.runChunkQuery(ctx, query, vec, limit)
+}
+
+// hybridSearchChunks fuses pgvector semantic ranks with tsvector keyword ranks via RRF.
+func (s *postgresSkillStore) hybridSearchChunks(ctx context.Context, queryVector []float32, queryText string, limit int) ([]skilldomain.SkillChunkResult, error) {
+	vec := pgvector.NewVector(queryVector)
+
+	// Candidate list is 5× the final limit, matching the overfetch factor used
+	// by the ingestor so the RRF pool has enough diversity across skills.
+	candidateLimit := max(limit*5, 50)
+
+	// $1 = embedding vector, $2 = query text for plainto_tsquery.
+	// candidate_limit and limit are embedded as literals (not user input).
+	sqlQuery := fmt.Sprintf(`
+	WITH
+	  semantic AS (
+	    SELECT id,
+	           ROW_NUMBER() OVER (ORDER BY vector <=> $1) AS rank
+	    FROM skill_chunks
+	    ORDER BY vector <=> $1
+	    LIMIT %d
+	  ),
+	  keyword AS (
+	    SELECT id,
+	           ROW_NUMBER() OVER (ORDER BY ts_rank(fts, plainto_tsquery('english', $2)) DESC) AS rank
+	    FROM skill_chunks
+	    WHERE fts @@ plainto_tsquery('english', $2)
+	    ORDER BY ts_rank(fts, plainto_tsquery('english', $2)) DESC
+	    LIMIT %d
+	  ),
+	  rrf AS (
+	    SELECT
+	      COALESCE(s.id, k.id) AS id,
+	      COALESCE(1.0 / (60.0 + s.rank), 0.0) + COALESCE(1.0 / (60.0 + k.rank), 0.0) AS rrf_score
+	    FROM semantic s
+	    FULL OUTER JOIN keyword k ON s.id = k.id
+	  )
+	SELECT sc.id, sc.skill_id, sc.section_id, sc.chunk_type, sc.title, sc.content,
+	       sc.chunk_index, sc.content_hash, sc.created_at, r.rrf_score AS score
+	FROM skill_chunks sc
+	JOIN rrf r ON sc.id = r.id
+	ORDER BY r.rrf_score DESC
+	LIMIT %d
+	`, candidateLimit, candidateLimit, limit)
+
+	return s.runChunkQuery(ctx, sqlQuery, vec, queryText)
+}
+
+// runChunkQuery executes any chunk search query and scans the standard 10-column result.
+func (s *postgresSkillStore) runChunkQuery(ctx context.Context, query string, args ...any) ([]skilldomain.SkillChunkResult, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []skilldomain.SkillChunkResult
+	for rows.Next() {
+		var r skilldomain.SkillChunkResult
+		if err := rows.Scan(&r.ID, &r.SkillID, &r.SectionID, &r.ChunkType, &r.Title, &r.Content, &r.ChunkIndex, &r.ContentHash, &r.CreatedAt, &r.Score); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, nil
+}
+
+func (s *postgresSkillStore) DeleteChunksBySkillID(ctx context.Context, skillID string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM skill_chunks WHERE skill_id = $1`, skillID)
+	return err
+}
+
+// GetSkillByID fetches a single skill record by its internal ID (no chunks).
+// Used by SearchSkills to avoid the N×ListSkills anti-pattern.
+func (s *postgresSkillStore) GetSkillByID(ctx context.Context, id string) (*skilldomain.Skill, error) {
+	var sk skilldomain.Skill
+	var tagsStr, metaStr []byte
+
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, name, description, category, source, source_repo, risk, version, tags, metadata, created_at, updated_at FROM skills WHERE id = $1`, id,
+	).Scan(&sk.ID, &sk.Name, &sk.Description, &sk.Category, &sk.Source, &sk.SourceRepo,
+		&sk.Risk, &sk.Version, &tagsStr, &metaStr, &sk.CreatedAt, &sk.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(tagsStr, &sk.Tags)
+	json.Unmarshal(metaStr, &sk.Metadata)
+	return &sk, nil
+}
+
+// GetAllChunksBySkillID returns every chunk for a skill sorted by chunk_index.
+// Used for high-confidence retrieval so the agent receives complete skill content.
+func (s *postgresSkillStore) GetAllChunksBySkillID(ctx context.Context, skillID string) ([]skilldomain.SkillChunk, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, created_at
+		 FROM skill_chunks WHERE skill_id = $1 ORDER BY chunk_index`, skillID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chunks []skilldomain.SkillChunk
+	for rows.Next() {
+		var c skilldomain.SkillChunk
+		if err := rows.Scan(&c.ID, &c.SkillID, &c.SectionID, &c.ChunkType, &c.Title, &c.Content, &c.ChunkIndex, &c.ContentHash, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, nil
+}
+
+// GetChunksBySectionID returns all chunks that share a section_id, sorted by chunk_index.
+// Used for medium-confidence retrieval to reassemble split sections into complete context.
+func (s *postgresSkillStore) GetChunksBySectionID(ctx context.Context, sectionID string) ([]skilldomain.SkillChunk, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, created_at
+		 FROM skill_chunks WHERE section_id = $1 ORDER BY chunk_index`, sectionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chunks []skilldomain.SkillChunk
+	for rows.Next() {
+		var c skilldomain.SkillChunk
+		if err := rows.Scan(&c.ID, &c.SkillID, &c.SectionID, &c.ChunkType, &c.Title, &c.Content, &c.ChunkIndex, &c.ContentHash, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, nil
+}
+
+// GetAdjacentChunks returns chunks within ±radius of chunkIndex for a given skill.
+// Used for medium-confidence retrieval to include neighboring context around a matched chunk.
+func (s *postgresSkillStore) GetAdjacentChunks(ctx context.Context, skillID string, chunkIndex int, radius int) ([]skilldomain.SkillChunk, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, created_at
+		 FROM skill_chunks
+		 WHERE skill_id = $1 AND chunk_index BETWEEN $2 AND $3
+		 ORDER BY chunk_index`,
+		skillID, chunkIndex-radius, chunkIndex+radius,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chunks []skilldomain.SkillChunk
+	for rows.Next() {
+		var c skilldomain.SkillChunk
+		if err := rows.Scan(&c.ID, &c.SkillID, &c.SectionID, &c.ChunkType, &c.Title, &c.Content, &c.ChunkIndex, &c.ContentHash, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, nil
+}
+
+func (s *postgresSkillStore) Close() error {
+	return nil // DB connection is shared, don't close here
+}
+
+func (s *postgresSkillStore) StoreFile(ctx context.Context, f *skilldomain.SkillFile) error {
+	query := `
+	INSERT INTO skill_files (id, skill_id, rel_path, content_type, content, content_hash, size_bytes, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	ON CONFLICT (skill_id, rel_path) DO UPDATE SET
+		content_type = EXCLUDED.content_type,
+		content      = EXCLUDED.content,
+		content_hash = EXCLUDED.content_hash,
+		size_bytes   = EXCLUDED.size_bytes,
+		created_at   = EXCLUDED.created_at
+	`
+	_, err := s.db.ExecContext(ctx, query,
+		f.ID, f.SkillID, f.RelPath, f.ContentType, f.Content, f.ContentHash, f.SizeBytes, f.CreatedAt,
+	)
+	return err
+}
+
+func (s *postgresSkillStore) GetFiles(ctx context.Context, skillID string) ([]skilldomain.SkillFile, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, skill_id, rel_path, content_type, content, content_hash, size_bytes, created_at
+		 FROM skill_files WHERE skill_id = $1 ORDER BY rel_path`, skillID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []skilldomain.SkillFile
+	for rows.Next() {
+		var f skilldomain.SkillFile
+		if err := rows.Scan(&f.ID, &f.SkillID, &f.RelPath, &f.ContentType, &f.Content, &f.ContentHash, &f.SizeBytes, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+	return files, nil
+}
+
+func (s *postgresSkillStore) DeleteFilesBySkillID(ctx context.Context, skillID string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM skill_files WHERE skill_id = $1`, skillID)
+	return err
+}
+
+func (s *postgresSkillStore) GetChunkHashes(ctx context.Context, skillID string) (map[string]bool, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT content_hash FROM skill_chunks WHERE skill_id = $1`, skillID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	hashes := make(map[string]bool)
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return nil, err
+		}
+		hashes[hash] = true
+	}
+	return hashes, nil
+}

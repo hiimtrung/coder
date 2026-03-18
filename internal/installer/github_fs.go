@@ -5,14 +5,14 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/trungtran/coder/internal/skill"
+	githubclient "github.com/trungtran/coder/internal/infra/github"
 )
 
 // GitHubFS implements fs.FS, fs.ReadDirFS, and fs.ReadFileFS for a GitHub repository.
 type GitHubFS struct {
 	repo    string
 	branch  string
-	fetcher *skill.GitHubFetcher
+	fetcher *githubclient.GitHubFetcher
 }
 
 // NewGitHubFS creates a new GitHubFS.
@@ -23,7 +23,7 @@ func NewGitHubFS(repo, branch string) *GitHubFS {
 	return &GitHubFS{
 		repo:    repo,
 		branch:  branch,
-		fetcher: skill.NewGitHubFetcher(),
+		fetcher: githubclient.NewGitHubFetcher(),
 	}
 }
 
@@ -132,4 +132,4 @@ func (i *githubFileInfo) Mode() fs.FileMode  {
 }
 func (i *githubFileInfo) ModTime() time.Time { return time.Now() }
 func (i *githubFileInfo) IsDir() bool        { return i.isDir }
-func (i *githubFileInfo) Sys() interface{}   { return nil }
+func (i *githubFileInfo) Sys() any { return nil }

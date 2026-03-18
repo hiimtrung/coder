@@ -6,10 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/trungtran/coder/internal/grpcclient"
-	"github.com/trungtran/coder/internal/httpclient"
-	"github.com/trungtran/coder/internal/memory"
-	"github.com/trungtran/coder/internal/skill"
+	memdomain "github.com/trungtran/coder/internal/domain/memory"
+	skilldomain "github.com/trungtran/coder/internal/domain/skill"
+	"github.com/trungtran/coder/internal/infra/embedding"
+	"github.com/trungtran/coder/internal/infra/postgres"
+	grpcclient "github.com/trungtran/coder/internal/transport/grpc/client"
+	httpclient "github.com/trungtran/coder/internal/transport/http/client"
+	ucmemory "github.com/trungtran/coder/internal/usecase/memory"
 )
 
 // Config represents the coder configuration stored at ~/.coder/config.json.
@@ -44,7 +47,7 @@ func loadConfig() (*Config, error) {
 	return &cfg, nil
 }
 
-func getMemoryManager() memory.MemoryManager {
+func getMemoryManager() memdomain.MemoryManager {
 	cfg, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
@@ -92,7 +95,7 @@ func getMemoryManager() memory.MemoryManager {
 		}
 	}
 
-	var db memory.MemoryService
+	var db memdomain.MemoryRepository
 
 	dbType := cfg.Memory.DatabaseType
 	if dbType == "" {
@@ -108,7 +111,7 @@ func getMemoryManager() memory.MemoryManager {
 			fmt.Fprintf(os.Stderr, "Error: postgres_dsn is not configured\n")
 			os.Exit(1)
 		}
-		pgdb, err := memory.NewPostgresMemory(dsn)
+		pgdb, err := postgres.NewPostgresMemory(dsn)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: failed to open postgres database: %v\n", err)
 			os.Exit(1)
@@ -119,7 +122,7 @@ func getMemoryManager() memory.MemoryManager {
 		os.Exit(1)
 	}
 
-	var provider memory.EmbeddingProvider
+	var provider memdomain.EmbeddingProvider
 
 	if providerType == "ollama" {
 		baseURL := cfg.Memory.BaseURL
@@ -137,7 +140,7 @@ func getMemoryManager() memory.MemoryManager {
 		if model == "" {
 			model = "mxbai-embed-large" // dimension 1024
 		}
-		provider = &memory.OllamaEmbeddingProvider{
+		provider = &embedding.OllamaEmbeddingProvider{
 			BaseURL: baseURL,
 			Model:   model,
 		}
@@ -160,17 +163,17 @@ func getMemoryManager() memory.MemoryManager {
 			model = "text-embedding-3-small"
 		}
 
-		provider = &memory.OpenAIEmbeddingProvider{
+		provider = &embedding.OpenAIEmbeddingProvider{
 			APIKey:  apiKey,
 			BaseURL: baseURL,
 			Model:   model,
 		}
 	}
 
-	return memory.NewManager(db, provider)
+	return ucmemory.NewManager(db, provider)
 }
 
-func getSkillClient() skill.Client {
+func getSkillClient() skilldomain.SkillClient {
 	cfg, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)

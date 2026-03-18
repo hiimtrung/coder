@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/trungtran/coder/internal/memory"
+	memdomain "github.com/trungtran/coder/internal/domain/memory"
 )
 
 func runMemory(args []string) {
@@ -76,12 +76,12 @@ func runMemoryStore(args []string) {
 		}
 	}
 
-	var metadata map[string]interface{}
+	var metadata map[string]any
 	if *meta != "" {
 		json.Unmarshal([]byte(*meta), &metadata)
 	}
 
-	id, err := mgr.Store(context.Background(), title, content, memory.MemoryType(*memType), metadata, *scope, tagList)
+	id, err := mgr.Store(context.Background(), title, content, memdomain.MemoryType(*memType), metadata, *scope, tagList)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -114,12 +114,12 @@ func runMemorySearch(args []string) {
 	mgr := getMemoryManager()
 	defer mgr.Close()
 
-	var metaFilters map[string]interface{}
+	var metaFilters map[string]any
 	if *meta != "" {
 		json.Unmarshal([]byte(*meta), &metaFilters)
 	}
 
-	results, err := mgr.Search(context.Background(), query, *scope, nil, memory.MemoryType(*memType), metaFilters, *limit)
+	results, err := mgr.Search(context.Background(), query, *scope, nil, memdomain.MemoryType(*memType), metaFilters, *limit)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

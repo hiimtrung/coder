@@ -9,10 +9,12 @@ import (
 
 	"github.com/trungtran/coder/api/grpc/memorypb"
 	"github.com/trungtran/coder/api/grpc/skillpb"
-	"github.com/trungtran/coder/internal/grpcserver"
-	"github.com/trungtran/coder/internal/httpserver"
-	"github.com/trungtran/coder/internal/memory"
-	"github.com/trungtran/coder/internal/skill"
+	"github.com/trungtran/coder/internal/infra/embedding"
+	"github.com/trungtran/coder/internal/infra/postgres"
+	grpcserver "github.com/trungtran/coder/internal/transport/grpc/server"
+	httpserver "github.com/trungtran/coder/internal/transport/http/server"
+	ucmemory "github.com/trungtran/coder/internal/usecase/memory"
+	ucskill "github.com/trungtran/coder/internal/usecase/skill"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -44,29 +46,32 @@ func main() {
 	}
 
 	// Initialize Postgres with shared DB handle
-	memDB, rawDB, err := memory.NewPostgresMemoryWithDB(dsn)
+	memDB, rawDB, err := postgres.NewPostgresMemoryWithDB(dsn)
 	if err != nil {
 		log.Fatalf("Failed to initialize postgres: %v", err)
 	}
 
 	// Initialize Ollama provider
-	provider := &memory.OllamaEmbeddingProvider{
+	provider := &embedding.OllamaEmbeddingProvider{
 		BaseURL: ollamaBase,
 		Model:   ollamaModel,
 	}
 
-	// Initialize memory manager
-	mgr := memory.NewManager(memDB, provider)
+	// Initialize memory manager (use case)
+	mgr := ucmemory.NewManager(memDB, provider)
 	defer mgr.Close()
 
-	// Initialize skill store (shares same DB connection)
-	skillStore, err := skill.NewPostgresSkillStore(rawDB)
+	// Initialize skill store (infrastructure, shares same DB connection)
+	skillStore, err := postgres.NewPostgresSkillStore(rawDB)
 	if err != nil {
 		log.Fatalf("Failed to initialize skill store: %v", err)
 	}
 
-	// Initialize skill ingestor
-	skillIngestor := skill.NewIngestor(skillStore, provider)
+	// Initialize skill ingestor (use case)
+	skillIngestor := ucskill.NewIngestor(skillStore, provider)
+
+	// Initialize skill facade (use case — combines ingestor + store)
+	skillFacade := ucskill.NewSkillFacade(skillIngestor, skillStore)
 
 	// 1. Setup gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
@@ -78,7 +83,7 @@ func main() {
 	memoryServer := grpcserver.NewMemoryServer(mgr)
 	memorypb.RegisterMemoryServiceServer(grpcServer, memoryServer)
 
-	skillServer := grpcserver.NewSkillServer(skillIngestor, skillStore)
+	skillServer := grpcserver.NewSkillServer(skillFacade)
 	skillpb.RegisterSkillServiceServer(grpcServer, skillServer)
 
 	reflection.Register(grpcServer)
@@ -95,7 +100,7 @@ func main() {
 	httpMemoryServer := httpserver.NewMemoryServer(mgr)
 	httpMemoryServer.RegisterHandlers(httpMux)
 
-	httpSkillServer := httpserver.NewSkillServer(skillIngestor, skillStore)
+	httpSkillServer := httpserver.NewSkillServer(skillFacade)
 	httpSkillServer.RegisterHandlers(httpMux)
 
 	log.Printf("coder-node HTTP server listening at :%s", httpPort)

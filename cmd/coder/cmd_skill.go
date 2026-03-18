@@ -15,7 +15,9 @@ import (
 	"time"
 
 	tasagent "github.com/trungtran/coder"
-	"github.com/trungtran/coder/internal/skill"
+	skilldomain "github.com/trungtran/coder/internal/domain/skill"
+	githubclient "github.com/trungtran/coder/internal/infra/github"
+	ucskill "github.com/trungtran/coder/internal/usecase/skill"
 	"github.com/trungtran/coder/internal/version"
 )
 
@@ -171,7 +173,7 @@ func runSkillIngest(args []string) {
 // runIngestLocal ingests skills strictly from the local project directory or embedded binary.
 // It does NOT fall back to GitHub. If no local skills are found it exits with a clear error.
 // Use `coder skill ingest --source auto` for the try-local-then-GitHub behaviour.
-func runIngestLocal(ctx context.Context, client skill.Client, includeFiles bool) {
+func runIngestLocal(ctx context.Context, client skilldomain.SkillClient, includeFiles bool) {
 	if includeFiles {
 		fmt.Println("(--include-files: scripts/data will be stored for cache extraction)")
 	}
@@ -205,7 +207,7 @@ func runIngestLocal(ctx context.Context, client skill.Client, includeFiles bool)
 
 // runIngestAuto tries local → embedded → GitHub in order.
 // This is the "best effort" mode for users who want skills ingested regardless of environment.
-func runIngestAuto(ctx context.Context, client skill.Client, repo string, includeFiles bool) {
+func runIngestAuto(ctx context.Context, client skilldomain.SkillClient, repo string, includeFiles bool) {
 	if includeFiles {
 		fmt.Println("(--include-files: scripts/data will be stored for cache extraction)")
 	}
@@ -240,10 +242,10 @@ type fsEntry interface {
 
 func ingestFromFS(
 	ctx context.Context,
-	client skill.Client,
+	client skilldomain.SkillClient,
 	entries []os.DirEntry,
 	readMD func(name string) (string, error),
-	readRules func(name string) []skill.RuleFile,
+	readRules func(name string) []skilldomain.RuleFile,
 	includeFiles bool,
 ) {
 	successCount, failCount := 0, 0
@@ -299,8 +301,8 @@ func readFSSkillMD(skillName string) (string, error) {
 }
 
 // readFSRules reads rule files from the OS filesystem.
-func readFSRules(skillName string) []skill.RuleFile {
-	var rules []skill.RuleFile
+func readFSRules(skillName string) []skilldomain.RuleFile {
+	var rules []skilldomain.RuleFile
 	rulesDir := filepath.Join(".agents", "skills", skillName, "rules")
 	entries, err := os.ReadDir(rulesDir)
 	if err != nil {
@@ -314,7 +316,7 @@ func readFSRules(skillName string) []skill.RuleFile {
 		if err != nil {
 			continue
 		}
-		rules = append(rules, skill.RuleFile{Path: e.Name(), Content: string(data)})
+		rules = append(rules, skilldomain.RuleFile{Path: e.Name(), Content: string(data)})
 	}
 	return rules
 }
@@ -329,13 +331,13 @@ func readEmbeddedSkillMD(skillName string) (string, error) {
 }
 
 // readEmbeddedRules reads rule files from the embedded FS.
-func readEmbeddedRules(skillName string) []skill.RuleFile {
+func readEmbeddedRules(skillName string) []skilldomain.RuleFile {
 	return readLocalRules(skillName)
 }
 
 // readLocalRules reads all rule markdown files from the embedded skill's rules/ directory.
-func readLocalRules(skillName string) []skill.RuleFile {
-	var rules []skill.RuleFile
+func readLocalRules(skillName string) []skilldomain.RuleFile {
+	var rules []skilldomain.RuleFile
 	rulesDir := ".agents/skills/" + skillName + "/rules"
 
 	ruleEntries, err := tasagent.AgentFS.ReadDir(rulesDir)
@@ -352,7 +354,7 @@ func readLocalRules(skillName string) []skill.RuleFile {
 		if err != nil {
 			continue
 		}
-		rules = append(rules, skill.RuleFile{
+		rules = append(rules, skilldomain.RuleFile{
 			Path:    re.Name(),
 			Content: string(ruleData),
 		})
@@ -362,10 +364,10 @@ func readLocalRules(skillName string) []skill.RuleFile {
 
 // runIngestGitHub fetches skills from a GitHub repository, including their rule files,
 // and sends them to coder-node for ingestion.
-func runIngestGitHub(ctx context.Context, client skill.Client, repo string, skillFilter string) {
+func runIngestGitHub(ctx context.Context, client skilldomain.SkillClient, repo string, skillFilter string) {
 	fmt.Printf("Fetching skills index from %s...\n", repo)
 
-	fetcher := skill.NewGitHubFetcher()
+	fetcher := githubclient.NewGitHubFetcher()
 	entries, err := fetcher.FetchSkillIndex(repo)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -378,7 +380,7 @@ func runIngestGitHub(ctx context.Context, client skill.Client, repo string, skil
 		for _, n := range strings.Split(skillFilter, ",") {
 			names = append(names, strings.TrimSpace(n))
 		}
-		entries = skill.FilterSkills(entries, names)
+		entries = githubclient.FilterSkills(entries, names)
 	}
 
 	fmt.Printf("Found %d skill(s) to ingest\n\n", len(entries))
@@ -417,8 +419,8 @@ func runIngestGitHub(ctx context.Context, client skill.Client, repo string, skil
 
 // fetchGitHubRules attempts to discover and fetch rule files from a skill's rules/
 // directory on GitHub. It uses the GitHub Trees API to list files, then fetches each one.
-func fetchGitHubRules(fetcher *skill.GitHubFetcher, repo, skillPath string) []skill.RuleFile {
-	var rules []skill.RuleFile
+func fetchGitHubRules(fetcher *githubclient.GitHubFetcher, repo, skillPath string) []skilldomain.RuleFile {
+	var rules []skilldomain.RuleFile
 
 	// Try to fetch a rules index or discover rule files via the GitHub Contents API
 	rulesIndexPath := skillPath + "/rules"
@@ -441,7 +443,7 @@ func fetchGitHubRules(fetcher *skill.GitHubFetcher, repo, skillPath string) []sk
 			continue // Skip individual file failures
 		}
 
-		rules = append(rules, skill.RuleFile{
+		rules = append(rules, skilldomain.RuleFile{
 			Path:    rf,
 			Content: content,
 		})
@@ -564,10 +566,10 @@ func runSkillCache(args []string) {
 	sub := args[0]
 	rest := args[1:]
 
-	// Cache commands use the same skill.Client transport (gRPC or HTTP) as
+	// Cache commands use the same skilldomain.SkillClient transport (gRPC or HTTP) as
 	// every other skill operation — no direct postgres connection required.
 	client := getSkillClient()
-	cache := skill.NewCacheManager(client)
+	cache := ucskill.NewCacheManager(client)
 
 	switch sub {
 	case "pull":
@@ -582,7 +584,7 @@ func runSkillCache(args []string) {
 	}
 }
 
-func runCachePull(cache *skill.CacheManager, args []string) {
+func runCachePull(cache *ucskill.CacheManager, args []string) {
 	fs := flag.NewFlagSet("cache pull", flag.ExitOnError)
 	all := fs.Bool("all", false, "Pull all skills that have stored files")
 	fs.Parse(args)
@@ -613,7 +615,7 @@ func runCachePull(cache *skill.CacheManager, args []string) {
 	fmt.Printf("✓ %s → %s\n", skillName, dir)
 }
 
-func runCacheList(cache *skill.CacheManager) {
+func runCacheList(cache *ucskill.CacheManager) {
 	entries := cache.ListCached()
 	if len(entries) == 0 {
 		fmt.Println("No skills cached. Run: coder skill cache pull --all")
@@ -637,7 +639,7 @@ func runCacheList(cache *skill.CacheManager) {
 	}
 }
 
-func runCacheClear(cache *skill.CacheManager, args []string) {
+func runCacheClear(cache *ucskill.CacheManager, args []string) {
 	fs := flag.NewFlagSet("cache clear", flag.ExitOnError)
 	all := fs.Bool("all", false, "Clear all cached skills")
 	fs.Parse(args)
@@ -686,8 +688,8 @@ const maxFileBytes = 5 * 1024 * 1024 // 5 MB
 
 // readLocalSkillFiles scans a skill's subdirectories in the embedded FS
 // and returns all ingestable files as SkillFile records.
-func readLocalSkillFiles(skillName string) []skill.SkillFile {
-	var files []skill.SkillFile
+func readLocalSkillFiles(skillName string) []skilldomain.SkillFile {
+	var files []skilldomain.SkillFile
 	now := time.Now()
 
 	for _, dir := range ingestableDirs {
@@ -714,7 +716,7 @@ func readLocalSkillFiles(skillName string) []skill.SkillFile {
 			relPath := path.Join(dir, strings.TrimPrefix(fpath, dirPath+"/"))
 
 			h := sha256.Sum256(data)
-			files = append(files, skill.SkillFile{
+			files = append(files, skilldomain.SkillFile{
 				RelPath:     relPath,
 				ContentType: contentType,
 				Content:     data,
@@ -766,7 +768,7 @@ func runSkillIndex(args []string) {
 		category := "uncategorized"
 		mdData, err := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
 		if err == nil {
-			parsed := skill.ParseSkillMD(name, string(mdData))
+			parsed := skilldomain.ParseSkillMD(name, string(mdData))
 			if parsed.Description != "" {
 				description = parsed.Description
 				if len(description) > 120 {
