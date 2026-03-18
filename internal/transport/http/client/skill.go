@@ -15,13 +15,14 @@ import (
 )
 
 type skillClient struct {
-	baseURL string
-	client  *http.Client
+	baseURL     string
+	client      *http.Client
+	accessToken string
 }
 
 // NewSkillClient creates a new HTTP client for the skill service.
 // It implements skilldomain.SkillClient.
-func NewSkillClient(baseURL string) (skilldomain.SkillClient, error) {
+func NewSkillClient(baseURL, accessToken string) (skilldomain.SkillClient, error) {
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "http://" + baseURL
 	}
@@ -31,9 +32,17 @@ func NewSkillClient(baseURL string) (skilldomain.SkillClient, error) {
 	}
 
 	return &skillClient{
-		baseURL: u.String(),
-		client:  &http.Client{},
+		baseURL:     u.String(),
+		client:      &http.Client{},
+		accessToken: accessToken,
 	}, nil
+}
+
+// addAuth injects the Authorization header when an access token is configured.
+func (c *skillClient) addAuth(req *http.Request) {
+	if c.accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	}
 }
 
 func (c *skillClient) IngestSkill(ctx context.Context, name, skillMD string, rules []skilldomain.RuleFile, source, sourceRepo, category string) (*skilldomain.IngestResult, error) {
@@ -65,6 +74,7 @@ func (c *skillClient) IngestSkill(ctx context.Context, name, skillMD string, rul
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -108,6 +118,7 @@ func (c *skillClient) SearchSkills(ctx context.Context, query string, limit int)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -150,6 +161,7 @@ func (c *skillClient) ListSkills(ctx context.Context, source, category string, l
 	if err != nil {
 		return nil, err
 	}
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -181,6 +193,7 @@ func (c *skillClient) GetSkill(ctx context.Context, name string) (*skilldomain.S
 	if err != nil {
 		return nil, nil, err
 	}
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -213,6 +226,7 @@ func (c *skillClient) DeleteSkill(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -255,6 +269,7 @@ func (c *skillClient) StoreSkillFiles(ctx context.Context, skillName string, fil
 		return 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -285,6 +300,7 @@ func (c *skillClient) GetSkillFiles(ctx context.Context, skillName string) ([]sk
 	if err != nil {
 		return nil, err
 	}
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -9,10 +10,13 @@ import (
 
 	"github.com/trungtran/coder/api/grpc/memorypb"
 	"github.com/trungtran/coder/api/grpc/skillpb"
+	authdomain "github.com/trungtran/coder/internal/domain/auth"
 	"github.com/trungtran/coder/internal/infra/embedding"
 	"github.com/trungtran/coder/internal/infra/postgres"
 	grpcserver "github.com/trungtran/coder/internal/transport/grpc/server"
+	httpmiddleware "github.com/trungtran/coder/internal/transport/http/middleware"
 	httpserver "github.com/trungtran/coder/internal/transport/http/server"
+	ucauth "github.com/trungtran/coder/internal/usecase/auth"
 	ucmemory "github.com/trungtran/coder/internal/usecase/memory"
 	ucskill "github.com/trungtran/coder/internal/usecase/skill"
 	"google.golang.org/grpc"
@@ -73,6 +77,30 @@ func main() {
 	// Initialize skill facade (use case — combines ingestor + store)
 	skillFacade := ucskill.NewSkillFacade(skillIngestor, skillStore)
 
+	// Secure mode setup
+	ctx := context.Background()
+	var authMgr authdomain.AuthManager
+
+	if os.Getenv("SECURE_MODE") == "true" {
+		authRepo, err := postgres.NewPostgresAuth(rawDB)
+		if err != nil {
+			log.Fatalf("Failed to initialize auth repository: %v", err)
+		}
+		authMgr = ucauth.NewManager(authRepo, true)
+
+		// Print bootstrap token if this is the first startup
+		bootstrapToken, err := authMgr.GetBootstrapToken(ctx)
+		if err != nil {
+			log.Printf("Warning: failed to generate bootstrap token: %v", err)
+		} else if bootstrapToken != "" {
+			fmt.Printf("\nBOOTSTRAP TOKEN (shown once): %s\n", bootstrapToken)
+			fmt.Println("   Share this with clients so they can run: coder login")
+			fmt.Println()
+		}
+	} else {
+		authMgr = ucauth.NewManager(nil, false) // open mode — no-op auth
+	}
+
 	// 1. Setup gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
 	if err != nil {
@@ -97,14 +125,29 @@ func main() {
 
 	// 2. Setup HTTP server
 	httpMux := http.NewServeMux()
+
+	// Health endpoint (always public)
+	httpMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"status":"ok","secure_mode":%v}`, authMgr.IsSecureMode())
+	})
+
 	httpMemoryServer := httpserver.NewMemoryServer(mgr)
 	httpMemoryServer.RegisterHandlers(httpMux)
 
 	httpSkillServer := httpserver.NewSkillServer(skillFacade)
 	httpSkillServer.RegisterHandlers(httpMux)
 
-	log.Printf("coder-node HTTP server listening at :%s", httpPort)
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", httpPort), httpMux); err != nil {
+	// Auth endpoints
+	httpAuthServer := httpserver.NewAuthServer(authMgr)
+	httpAuthServer.RegisterHandlers(httpMux)
+
+	// Wrap entire mux with auth middleware
+	var handler http.Handler = httpMux
+	handler = httpmiddleware.Auth(authMgr)(handler)
+
+	log.Printf("coder-node HTTP server listening at :%s (secure_mode=%v)", httpPort, authMgr.IsSecureMode())
+	if err := http.ListenAndServe(fmt.Sprintf(":%s", httpPort), handler); err != nil {
 		log.Fatalf("HTTP server failed: %v", err)
 	}
 }

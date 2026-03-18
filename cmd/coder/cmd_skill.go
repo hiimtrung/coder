@@ -69,6 +69,7 @@ func runSkill(args []string) {
 // ── skill search ─────────────────────────────────────────────────────────────
 
 func runSkillSearch(args []string) {
+	logActivity("skill search")
 	fs := flag.NewFlagSet("skill search", flag.ExitOnError)
 	limit := fs.Int("limit", 10, "Maximum number of results")
 
@@ -123,6 +124,7 @@ func runSkillSearch(args []string) {
 // ── skill ingest ─────────────────────────────────────────────────────────────
 
 func runSkillIngest(args []string) {
+	logActivity("skill ingest")
 	fs := flag.NewFlagSet("skill ingest", flag.ExitOnError)
 	source := fs.String("source", "auto", "Ingestion source: local, github, auto")
 	repo := fs.String("repo", version.RepoOwner+"/"+version.RepoName, "GitHub repo (e.g., hiimtrung/coder)")
@@ -234,11 +236,6 @@ func runIngestAuto(ctx context.Context, client skilldomain.SkillClient, repo str
 	runIngestGitHub(ctx, client, repo, "")
 }
 
-// fsEntry abstracts os.DirEntry for both OS and embedded FS
-type fsEntry interface {
-	Name() string
-	IsDir() bool
-}
 
 func ingestFromFS(
 	ctx context.Context,
@@ -377,7 +374,7 @@ func runIngestGitHub(ctx context.Context, client skilldomain.SkillClient, repo s
 	// Apply filter if specified
 	if skillFilter != "" {
 		var names []string
-		for _, n := range strings.Split(skillFilter, ",") {
+		for n := range strings.SplitSeq(skillFilter, ",") {
 			names = append(names, strings.TrimSpace(n))
 		}
 		entries = githubclient.FilterSkills(entries, names)

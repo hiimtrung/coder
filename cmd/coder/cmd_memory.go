@@ -45,6 +45,7 @@ func runMemory(args []string) {
 }
 
 func runMemoryStore(args []string) {
+	logActivity("memory store")
 	fs := flag.NewFlagSet("memory store", flag.ExitOnError)
 	tags := fs.String("tags", "", "Comma-separated tags")
 	scope := fs.String("scope", "", "Memory scope")
@@ -71,7 +72,7 @@ func runMemoryStore(args []string) {
 
 	tagList := []string{}
 	if *tags != "" {
-		for _, t := range strings.Split(*tags, ",") {
+		for t := range strings.SplitSeq(*tags, ",") {
 			tagList = append(tagList, strings.TrimSpace(t))
 		}
 	}
@@ -91,6 +92,7 @@ func runMemoryStore(args []string) {
 }
 
 func runMemorySearch(args []string) {
+	logActivity("memory search")
 	fs := flag.NewFlagSet("memory search", flag.ExitOnError)
 	limit := fs.Int("limit", 5, "Number of results to return")
 	scope := fs.String("scope", "", "Memory scope")

@@ -26,6 +26,9 @@ type Config struct {
 		Model        string `json:"model"`
 		PostgresDSN  string `json:"postgres_dsn"`
 	} `json:"memory"`
+	Auth struct {
+		AccessToken string `json:"access_token"` // raw token saved after registration
+	} `json:"auth"`
 }
 
 func loadConfig() (*Config, error) {
@@ -86,7 +89,7 @@ func getMemoryManager() memdomain.MemoryManager {
 			}
 			return client
 		} else {
-			client, err := httpclient.NewClient(baseURL)
+			client, err := httpclient.NewClient(baseURL, cfg.Auth.AccessToken)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node (HTTP): %v\n", err)
 				os.Exit(1)
@@ -202,7 +205,7 @@ func getSkillClient() skilldomain.SkillClient {
 		}
 		return client
 	} else {
-		client, err := httpclient.NewSkillClient(baseURL)
+		client, err := httpclient.NewSkillClient(baseURL, cfg.Auth.AccessToken)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node skill service (HTTP): %v\n", err)
 			os.Exit(1)

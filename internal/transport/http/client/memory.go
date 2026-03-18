@@ -14,11 +14,12 @@ import (
 
 // Client is an HTTP memory client that implements memdomain.MemoryManager.
 type Client struct {
-	baseURL string
-	client  *http.Client
+	baseURL     string
+	client      *http.Client
+	accessToken string
 }
 
-func NewClient(baseURL string) (*Client, error) {
+func NewClient(baseURL, accessToken string) (*Client, error) {
 	// Ensure baseURL has protocol
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "http://" + baseURL
@@ -30,9 +31,17 @@ func NewClient(baseURL string) (*Client, error) {
 	}
 
 	return &Client{
-		baseURL: u.String(),
-		client:  &http.Client{},
+		baseURL:     u.String(),
+		client:      &http.Client{},
+		accessToken: accessToken,
 	}, nil
+}
+
+// addAuth injects the Authorization header when an access token is configured.
+func (c *Client) addAuth(req *http.Request) {
+	if c.accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	}
 }
 
 func (c *Client) Store(ctx context.Context, title, content string, memType memdomain.MemoryType, metadata map[string]any, scope string, tags []string) (string, error) {
@@ -48,6 +57,7 @@ func (c *Client) Store(ctx context.Context, title, content string, memType memdo
 	data, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/memory/store", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -81,6 +91,7 @@ func (c *Client) Search(ctx context.Context, query string, scope string, tags []
 	data, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/memory/search", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -109,6 +120,7 @@ func (c *Client) List(ctx context.Context, limit, offset int) ([]memdomain.Knowl
 	u.RawQuery = q.Encode()
 
 	req, _ := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	c.addAuth(req)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -135,6 +147,7 @@ func (c *Client) Delete(ctx context.Context, id string) error {
 	u.RawQuery = q.Encode()
 
 	req, _ := http.NewRequestWithContext(ctx, "DELETE", u.String(), nil)
+	c.addAuth(req)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return err
@@ -155,6 +168,7 @@ func (c *Client) Compact(ctx context.Context, threshold float32) (int, error) {
 	data, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/memory/compact", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -183,6 +197,7 @@ func (c *Client) Revector(ctx context.Context) error {
 	data, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/memory/compact", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -193,6 +208,26 @@ func (c *Client) Revector(ctx context.Context) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned status: %s", resp.Status)
 	}
+	return nil
+}
+
+// LogActivity sends a command activity record to coder-node.
+func (c *Client) LogActivity(ctx context.Context, command, repo, branch string) error {
+	payload := map[string]string{
+		"command": command,
+		"repo":    repo,
+		"branch":  branch,
+	}
+	data, _ := json.Marshal(payload)
+	req, _ := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/auth/log-activity", bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 	return nil
 }
 
