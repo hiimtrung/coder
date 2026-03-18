@@ -47,6 +47,31 @@ This creates a `~/.coder-node/` directory and starts:
 2. **`ollama`**: Pre-configured to pull the `mxbai-embed-large` model.
 3. **`coder-node`**: The gRPC/HTTP service layer.
 
+### Secure Mode (Authentication)
+
+By default, `coder-node` runs in **open mode** — any client can connect without authentication. To restrict access to registered developers only, start with `--secure`:
+
+```bash
+# Install with authentication enabled
+curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install-node.sh | sh -s -- --secure
+```
+
+On first startup, the server prints a **one-time bootstrap token**:
+
+```bash
+docker logs coder_node 2>&1 | grep 'BOOTSTRAP TOKEN'
+# BOOTSTRAP TOKEN (shown once): a3f9c2e1d4b87f...
+#    Share this with clients so they can run: coder login
+```
+
+Share this token with each developer. Each person runs `coder login` and enters the token to register their machine. After registration, all `coder memory` and `coder skill` commands automatically include an `Authorization: Bearer` header.
+
+To enable or disable secure mode after installation, edit `~/.coder-node/.env`:
+
+```bash
+echo "SECURE_MODE=true" > ~/.coder-node/.env && docker compose -f ~/.coder-node/docker-compose.yml up -d
+```
+
 ### Manual Configuration
 
 You can configure the service via environment variables in `docker-compose.yml`:
@@ -58,6 +83,7 @@ You can configure the service via environment variables in `docker-compose.yml`:
 | `OLLAMA_EMBEDDING_MODEL` | Model used for vectors | `mxbai-embed-large` |
 | `GRPC_PORT` | Port for gRPC service | `50051` |
 | `HTTP_PORT` | Port for HTTP service | `8080` |
+| `SECURE_MODE` | Require client auth tokens | `false` |
 
 ---
 
@@ -69,7 +95,9 @@ Once the node is running, link your CLI to it:
 coder login
 ```
 
-Choose your protocol (**gRPC** is recommended for speed) and enter the URL (e.g., `localhost:50051`). This information is stored in `~/.coder/config.json`.
+Choose your protocol (**gRPC** is recommended for speed) and enter the URL (e.g., `localhost:50051`).
+
+If the server is running in **secure mode**, answer `y` when prompted for authentication and enter the bootstrap token provided by your server admin. Your access token is stored in `~/.coder/config.json` and used automatically on every subsequent command.
 
 ---
 

@@ -56,6 +56,10 @@ services:
       OLLAMA_EMBEDDING_MODEL: mxbai-embed-large
       GRPC_PORT: 50051
       HTTP_PORT: 8080
+      # Set SECURE_MODE=true to require client authentication.
+      # When enabled, the server prints a one-time bootstrap token on first startup.
+      # Each developer must run `coder login` with that token to register their machine.
+      SECURE_MODE: ${SECURE_MODE:-false}
     ports:
       - "50051:50051"
       - "8080:8080"

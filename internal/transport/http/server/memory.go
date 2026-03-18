@@ -2,7 +2,6 @@ package httpserver
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -23,7 +22,6 @@ func (s *MemoryServer) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/memory/list", s.handleList)
 	mux.HandleFunc("/v1/memory/delete", s.handleDelete)
 	mux.HandleFunc("/v1/memory/compact", s.handleCompact)
-	mux.HandleFunc("/health", s.handleHealth)
 }
 
 func (s *MemoryServer) handleStore(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +174,3 @@ func (s *MemoryServer) handleCompact(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]int{"removed_count": count})
 }
 
-func (s *MemoryServer) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "OK")
-}

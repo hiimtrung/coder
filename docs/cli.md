@@ -78,7 +78,16 @@ Removes a specific entry.
 Displays CLI version, commit hash, and build date.
 
 ### `coder login`
-Interactive setup to configure your `coder-node` connection.
+Interactive setup to configure your `coder-node` connection and (optionally) register as an authenticated client.
+
+The wizard will ask for:
+1. **Protocol** — gRPC (recommended) or HTTP.
+2. **Server URL** — e.g., `localhost:50051` (gRPC) or `192.168.1.100:8080` (HTTP).
+3. **Authentication** — if the server runs in secure mode, enter `y` and provide the bootstrap token given by your admin.
+
+On successful registration, an access token is saved to `~/.coder/config.json`. Every subsequent `coder memory` and `coder skill` command will include this token automatically.
+
+> **Note for secure mode servers**: use HTTP protocol during `coder login` (token exchange happens over HTTP). After registration, switch to gRPC for daily use if preferred by re-running `coder login` without the auth step.
 
 ### `coder check-update`
 Checks if a newer version of the CLI is available on GitHub.

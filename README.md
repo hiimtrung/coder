@@ -23,9 +23,14 @@ irm https://raw.githubusercontent.com/hiimtrung/coder/main/install.ps1 | iex
 
 ### 2. Set up Infrastructure
 ```bash
-# Install coder-node (Postgres + Ollama + gRPC)
+# Open mode — no authentication required
 curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install-node.sh | sh
+
+# Secure mode — restrict access to registered developers only
+curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install-node.sh | sh -s -- --secure
 ```
+
+> In secure mode, a one-time **bootstrap token** is printed to server logs on first startup. Each developer runs `coder login` with that token to register their machine.
 
 ### 3. Apply to a Project
 ```bash
@@ -72,7 +77,7 @@ After running `coder install <profile>`, your project will be equipped with the 
 Dive deeper into the system:
 
 - **[🏗️ Architecture](docs/architecture.md)** — High-level overview and Mermaid diagrams.
-- **[📥 Installation](docs/installation.md)** — Detailed setup for CLI and Node.
+- **[📥 Installation](docs/installation.md)** — Detailed setup for CLI and Node, including secure mode.
 - **[⌨️ CLI Reference](docs/cli.md)** — Full command list and flag reference.
 - **[🎯 Skill RAG System](docs/skill_system.md)** — How the vector intelligence works.
 - **[💾 Memory System](docs/memory_system.md)** — Semantic memory and project context.
