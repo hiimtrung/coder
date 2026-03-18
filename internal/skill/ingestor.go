@@ -312,8 +312,9 @@ func (ing *Ingestor) SearchSkills(ctx context.Context, query string, limit int) 
 		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
 
-	// 2. Fetch top-k candidate chunks (overfetch to ensure enough distinct skills)
-	rawChunks, err := ing.store.SearchChunks(ctx, queryVec, limit*5)
+	// 2. Fetch top-k candidate chunks via hybrid search (semantic + keyword RRF).
+	// Overfetch so there are enough distinct skills after grouping.
+	rawChunks, err := ing.store.SearchChunks(ctx, queryVec, query, limit*5)
 	if err != nil {
 		return nil, err
 	}

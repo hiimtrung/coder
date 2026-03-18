@@ -75,8 +75,27 @@ func (p *postgresMemory) init() error {
 	CREATE INDEX IF NOT EXISTS idx_knowledge_parent ON knowledge(parent_id);
 	CREATE INDEX IF NOT EXISTS idx_knowledge_metadata ON knowledge USING GIN (metadata);
 	`
-	_, err = p.db.Exec(query)
-	return err
+	if _, err = p.db.Exec(query); err != nil {
+		return err
+	}
+
+	// Idempotent migrations: add full-text search column and index for hybrid search.
+	migrations := []string{
+		// Generated stored tsvector column: concatenates title + content for full-text indexing.
+		// GENERATED ALWAYS AS ... STORED is supported in PostgreSQL 12+.
+		`ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS fts tsvector
+		 GENERATED ALWAYS AS (
+		     to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, ''))
+		 ) STORED`,
+		// GIN index for fast full-text search.
+		`CREATE INDEX IF NOT EXISTS idx_knowledge_fts ON knowledge USING GIN(fts)`,
+	}
+	for _, m := range migrations {
+		if _, err := p.db.Exec(m); err != nil {
+			return fmt.Errorf("memory migration failed: %w", err)
+		}
+	}
+	return nil
 }
 
 func (p *postgresMemory) Store(ctx context.Context, k *Knowledge) error {
@@ -113,53 +132,168 @@ func (p *postgresMemory) Store(ctx context.Context, k *Knowledge) error {
 	return err
 }
 
-func (p *postgresMemory) Search(ctx context.Context, queryVector []float32, scope string, tags []string, memType MemoryType, metaFilters map[string]interface{}, limit int) ([]SearchResult, error) {
+// Search performs hybrid search combining pgvector cosine similarity with
+// PostgreSQL full-text search, fused via Reciprocal Rank Fusion (RRF).
+//
+// When queryText is non-empty, both semantic and keyword candidate lists are
+// built independently, then merged with:
+//
+//	rrf_score = 1/(k + semantic_rank) + 1/(k + keyword_rank)   where k = 60
+//
+// When queryText is empty the method falls back to pure semantic search.
+func (p *postgresMemory) Search(ctx context.Context, queryVector []float32, queryText string, scope string, tags []string, memType MemoryType, metaFilters map[string]interface{}, limit int) ([]SearchResult, error) {
+	if strings.TrimSpace(queryText) != "" {
+		return p.hybridSearch(ctx, queryVector, queryText, scope, tags, memType, metaFilters, limit)
+	}
+	return p.semanticSearch(ctx, queryVector, scope, tags, memType, metaFilters, limit)
+}
+
+// semanticSearch is the original pure-vector search (used as fallback when
+// no query text is available or FTS adds no value).
+func (p *postgresMemory) semanticSearch(ctx context.Context, queryVector []float32, scope string, tags []string, memType MemoryType, metaFilters map[string]interface{}, limit int) ([]SearchResult, error) {
 	vec := pgvector.NewVector(queryVector)
 
 	sqlQuery := `
-		SELECT id, title, content, type, metadata, tags, scope, parent_id, chunk_index, normalized_title, content_hash, created_at, updated_at,
+		SELECT id, title, content, type, metadata, tags, scope, parent_id, chunk_index,
+		       normalized_title, content_hash, created_at, updated_at,
 		       1 - (vector <=> $1) AS score
 		FROM knowledge
 	`
 	var args []interface{}
 	args = append(args, vec)
-	argCounts := 2
+	argIdx := 2
 
 	var conditions []string
-
 	if scope != "" {
-		conditions = append(conditions, fmt.Sprintf("scope = $%d", argCounts))
+		conditions = append(conditions, fmt.Sprintf("scope = $%d", argIdx))
 		args = append(args, scope)
-		argCounts++
+		argIdx++
 	}
-
 	if string(memType) != "" {
-		conditions = append(conditions, fmt.Sprintf("type = $%d", argCounts))
+		conditions = append(conditions, fmt.Sprintf("type = $%d", argIdx))
 		args = append(args, string(memType))
-		argCounts++
+		argIdx++
 	}
-
 	if len(tags) > 0 {
 		tagsJSON, _ := json.Marshal(tags)
-		conditions = append(conditions, fmt.Sprintf("tags @> $%d", argCounts))
+		conditions = append(conditions, fmt.Sprintf("tags @> $%d", argIdx))
 		args = append(args, string(tagsJSON))
-		argCounts++
+		argIdx++
 	}
-
 	if len(metaFilters) > 0 {
 		metaJSON, _ := json.Marshal(metaFilters)
-		conditions = append(conditions, fmt.Sprintf("metadata @> $%d", argCounts))
+		conditions = append(conditions, fmt.Sprintf("metadata @> $%d", argIdx))
 		args = append(args, string(metaJSON))
-		argCounts++
+		argIdx++
 	}
-
 	if len(conditions) > 0 {
 		sqlQuery += " WHERE " + strings.Join(conditions, " AND ")
 	}
-
-	sqlQuery += fmt.Sprintf(" ORDER BY vector <=> $1 LIMIT $%d", argCounts)
+	sqlQuery += fmt.Sprintf(" ORDER BY vector <=> $1 LIMIT $%d", argIdx)
 	args = append(args, limit)
 
+	return p.runSearchQuery(ctx, sqlQuery, args)
+}
+
+// hybridSearch uses Reciprocal Rank Fusion (RRF) to blend pgvector cosine
+// similarity ranks with PostgreSQL full-text search ranks.
+//
+// Architecture:
+//
+//	filtered  CTE  — applies scope/type/tag/meta filters once
+//	semantic  CTE  — top candidate_limit rows by vector distance, ranked 1…N
+//	keyword   CTE  — top candidate_limit rows by ts_rank,        ranked 1…M
+//	rrf       CTE  — FULL OUTER JOIN, score = Σ 1/(60 + rank_i)
+//	final query    — join back to knowledge, ORDER BY rrf_score DESC, LIMIT
+func (p *postgresMemory) hybridSearch(ctx context.Context, queryVector []float32, queryText string, scope string, tags []string, memType MemoryType, metaFilters map[string]interface{}, limit int) ([]SearchResult, error) {
+	vec := pgvector.NewVector(queryVector)
+
+	// $1 = embedding vector, $2 = query text for plainto_tsquery
+	args := []interface{}{vec, queryText}
+	argIdx := 3 // next dynamic parameter index
+
+	// Build the WHERE clause for the "filtered" CTE.
+	var conditions []string
+	if scope != "" {
+		conditions = append(conditions, fmt.Sprintf("scope = $%d", argIdx))
+		args = append(args, scope)
+		argIdx++
+	}
+	if string(memType) != "" {
+		conditions = append(conditions, fmt.Sprintf("type = $%d", argIdx))
+		args = append(args, string(memType))
+		argIdx++
+	}
+	if len(tags) > 0 {
+		tagsJSON, _ := json.Marshal(tags)
+		conditions = append(conditions, fmt.Sprintf("tags @> $%d", argIdx))
+		args = append(args, string(tagsJSON))
+		argIdx++
+	}
+	if len(metaFilters) > 0 {
+		metaJSON, _ := json.Marshal(metaFilters)
+		conditions = append(conditions, fmt.Sprintf("metadata @> $%d", argIdx))
+		args = append(args, string(metaJSON))
+		argIdx++
+	}
+
+	filterClause := ""
+	if len(conditions) > 0 {
+		filterClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Candidate list is 3× the final limit so RRF has enough diversity.
+	candidateLimit := limit * 3
+	if candidateLimit < 30 {
+		candidateLimit = 30
+	}
+
+	sqlQuery := fmt.Sprintf(`
+	WITH
+	  filtered AS (
+	    SELECT id, title, content, type, metadata, tags, scope, parent_id,
+	           chunk_index, normalized_title, content_hash, created_at, updated_at,
+	           vector, fts
+	    FROM knowledge
+	    %s
+	  ),
+	  semantic AS (
+	    SELECT id,
+	           ROW_NUMBER() OVER (ORDER BY vector <=> $1) AS rank
+	    FROM filtered
+	    ORDER BY vector <=> $1
+	    LIMIT %d
+	  ),
+	  keyword AS (
+	    SELECT id,
+	           ROW_NUMBER() OVER (ORDER BY ts_rank(fts, plainto_tsquery('english', $2)) DESC) AS rank
+	    FROM filtered
+	    WHERE fts @@ plainto_tsquery('english', $2)
+	    ORDER BY ts_rank(fts, plainto_tsquery('english', $2)) DESC
+	    LIMIT %d
+	  ),
+	  rrf AS (
+	    SELECT
+	      COALESCE(s.id, k.id) AS id,
+	      COALESCE(1.0 / (60.0 + s.rank), 0.0) + COALESCE(1.0 / (60.0 + k.rank), 0.0) AS rrf_score
+	    FROM semantic s
+	    FULL OUTER JOIN keyword k ON s.id = k.id
+	  )
+	SELECT
+	  f.id, f.title, f.content, f.type, f.metadata, f.tags, f.scope, f.parent_id,
+	  f.chunk_index, f.normalized_title, f.content_hash, f.created_at, f.updated_at,
+	  r.rrf_score AS score
+	FROM filtered f
+	JOIN rrf r ON f.id = r.id
+	ORDER BY r.rrf_score DESC
+	LIMIT %d
+	`, filterClause, candidateLimit, candidateLimit, limit)
+
+	return p.runSearchQuery(ctx, sqlQuery, args)
+}
+
+// runSearchQuery executes a search SQL and scans the standard column set.
+func (p *postgresMemory) runSearchQuery(ctx context.Context, sqlQuery string, args []interface{}) ([]SearchResult, error) {
 	rows, err := p.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, err
@@ -179,7 +313,6 @@ func (p *postgresMemory) Search(ctx context.Context, queryVector []float32, scop
 		); err != nil {
 			return nil, err
 		}
-
 		sr.Type = MemoryType(mType)
 		if len(tagsStr) > 0 {
 			json.Unmarshal(tagsStr, &sr.Tags)
@@ -189,7 +322,6 @@ func (p *postgresMemory) Search(ctx context.Context, queryVector []float32, scop
 		}
 		results = append(results, sr)
 	}
-
 	return results, nil
 }
 

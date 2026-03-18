@@ -40,10 +40,14 @@ type SearchResult struct {
 	Score float32 `json:"score"`
 }
 
-// MemoryService defines the interface for memory operations
+// MemoryService defines the interface for memory operations.
+// Search accepts both a pre-computed embedding vector (for semantic similarity)
+// and the raw query text (for full-text keyword search). Implementations that
+// support hybrid search (e.g. PostgreSQL with pgvector + tsvector) use both;
+// others may ignore queryText and fall back to pure semantic search.
 type MemoryService interface {
 	Store(ctx context.Context, k *Knowledge) error
-	Search(ctx context.Context, queryVector []float32, scope string, tags []string, memType MemoryType, metaFilters map[string]interface{}, limit int) ([]SearchResult, error)
+	Search(ctx context.Context, queryVector []float32, queryText string, scope string, tags []string, memType MemoryType, metaFilters map[string]interface{}, limit int) ([]SearchResult, error)
 	List(ctx context.Context, limit int, offset int) ([]Knowledge, error)
 	Delete(ctx context.Context, id string) error
 	Close() error

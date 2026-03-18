@@ -76,7 +76,9 @@ func (m *Manager) Search(ctx context.Context, query string, scope string, tags [
 		return nil, err
 	}
 
-	return m.db.Search(ctx, embedding, scope, tags, memType, metaFilters, limit)
+	// Pass both the embedding vector and the raw query text so the storage
+	// layer can perform hybrid semantic + full-text search (RRF).
+	return m.db.Search(ctx, embedding, query, scope, tags, memType, metaFilters, limit)
 }
 
 func (m *Manager) List(ctx context.Context, limit, offset int) ([]Knowledge, error) {

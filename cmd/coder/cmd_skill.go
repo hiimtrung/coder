@@ -564,10 +564,10 @@ func runSkillCache(args []string) {
 	sub := args[0]
 	rest := args[1:]
 
-	// Cache commands operate directly against the DB via the skill store,
-	// since files need to be written to the local filesystem.
-	store := getSkillStore()
-	cache := skill.NewCacheManager(store)
+	// Cache commands use the same skill.Client transport (gRPC or HTTP) as
+	// every other skill operation — no direct postgres connection required.
+	client := getSkillClient()
+	cache := skill.NewCacheManager(client)
 
 	switch sub {
 	case "pull":

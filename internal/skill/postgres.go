@@ -90,6 +90,13 @@ func (s *postgresSkillStore) init() error {
 		   AND a.chunk_index = b.chunk_index
 		   AND a.ctid > b.ctid`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_skill_chunks_unique_pos ON skill_chunks(skill_id, chunk_index)`,
+		// Phase 2: full-text search column for hybrid semantic + keyword search (RRF).
+		// GENERATED ALWAYS AS ... STORED requires PostgreSQL 12+.
+		`ALTER TABLE skill_chunks ADD COLUMN IF NOT EXISTS fts tsvector
+		 GENERATED ALWAYS AS (
+		     to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, ''))
+		 ) STORED`,
+		`CREATE INDEX IF NOT EXISTS idx_skill_chunks_fts ON skill_chunks USING GIN(fts)`,
 	}
 	for _, m := range migrations {
 		if _, err := s.db.Exec(m); err != nil {
@@ -256,18 +263,86 @@ func (s *postgresSkillStore) DeleteSkill(ctx context.Context, name string) error
 	return err
 }
 
-func (s *postgresSkillStore) SearchChunks(ctx context.Context, queryVector []float32, limit int) ([]SkillChunkResult, error) {
-	vec := pgvector.NewVector(queryVector)
+// SearchChunks performs hybrid search using Reciprocal Rank Fusion (RRF) to
+// blend pgvector cosine similarity with PostgreSQL full-text search.
+//
+// When queryText is non-empty both rankings are merged:
+//
+//	rrf_score = 1/(k + semantic_rank) + 1/(k + keyword_rank)   where k = 60
+//
+// When queryText is empty the method falls back to pure semantic search.
+func (s *postgresSkillStore) SearchChunks(ctx context.Context, queryVector []float32, queryText string, limit int) ([]SkillChunkResult, error) {
+	if strings.TrimSpace(queryText) != "" {
+		return s.hybridSearchChunks(ctx, queryVector, queryText, limit)
+	}
+	return s.semanticSearchChunks(ctx, queryVector, limit)
+}
 
+// semanticSearchChunks is the original pure-vector search.
+func (s *postgresSkillStore) semanticSearchChunks(ctx context.Context, queryVector []float32, limit int) ([]SkillChunkResult, error) {
+	vec := pgvector.NewVector(queryVector)
 	query := `
-		SELECT sc.id, sc.skill_id, sc.section_id, sc.chunk_type, sc.title, sc.content, sc.chunk_index, sc.content_hash, sc.created_at,
+		SELECT sc.id, sc.skill_id, sc.section_id, sc.chunk_type, sc.title, sc.content,
+		       sc.chunk_index, sc.content_hash, sc.created_at,
 		       1 - (sc.vector <=> $1) AS score
 		FROM skill_chunks sc
 		ORDER BY sc.vector <=> $1
 		LIMIT $2
 	`
+	return s.runChunkQuery(ctx, query, vec, limit)
+}
 
-	rows, err := s.db.QueryContext(ctx, query, vec, limit)
+// hybridSearchChunks fuses pgvector semantic ranks with tsvector keyword ranks via RRF.
+func (s *postgresSkillStore) hybridSearchChunks(ctx context.Context, queryVector []float32, queryText string, limit int) ([]SkillChunkResult, error) {
+	vec := pgvector.NewVector(queryVector)
+
+	// Candidate list is 5× the final limit, matching the overfetch factor used
+	// by the ingestor so the RRF pool has enough diversity across skills.
+	candidateLimit := limit * 5
+	if candidateLimit < 50 {
+		candidateLimit = 50
+	}
+
+	// $1 = embedding vector, $2 = query text for plainto_tsquery.
+	// candidate_limit and limit are embedded as literals (not user input).
+	sqlQuery := fmt.Sprintf(`
+	WITH
+	  semantic AS (
+	    SELECT id,
+	           ROW_NUMBER() OVER (ORDER BY vector <=> $1) AS rank
+	    FROM skill_chunks
+	    ORDER BY vector <=> $1
+	    LIMIT %d
+	  ),
+	  keyword AS (
+	    SELECT id,
+	           ROW_NUMBER() OVER (ORDER BY ts_rank(fts, plainto_tsquery('english', $2)) DESC) AS rank
+	    FROM skill_chunks
+	    WHERE fts @@ plainto_tsquery('english', $2)
+	    ORDER BY ts_rank(fts, plainto_tsquery('english', $2)) DESC
+	    LIMIT %d
+	  ),
+	  rrf AS (
+	    SELECT
+	      COALESCE(s.id, k.id) AS id,
+	      COALESCE(1.0 / (60.0 + s.rank), 0.0) + COALESCE(1.0 / (60.0 + k.rank), 0.0) AS rrf_score
+	    FROM semantic s
+	    FULL OUTER JOIN keyword k ON s.id = k.id
+	  )
+	SELECT sc.id, sc.skill_id, sc.section_id, sc.chunk_type, sc.title, sc.content,
+	       sc.chunk_index, sc.content_hash, sc.created_at, r.rrf_score AS score
+	FROM skill_chunks sc
+	JOIN rrf r ON sc.id = r.id
+	ORDER BY r.rrf_score DESC
+	LIMIT %d
+	`, candidateLimit, candidateLimit, limit)
+
+	return s.runChunkQuery(ctx, sqlQuery, vec, queryText)
+}
+
+// runChunkQuery executes any chunk search query and scans the standard 10-column result.
+func (s *postgresSkillStore) runChunkQuery(ctx context.Context, query string, args ...interface{}) ([]SkillChunkResult, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +356,6 @@ func (s *postgresSkillStore) SearchChunks(ctx context.Context, queryVector []flo
 		}
 		results = append(results, r)
 	}
-
 	return results, nil
 }
 

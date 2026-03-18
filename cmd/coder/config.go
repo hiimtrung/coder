@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"github.com/trungtran/coder/internal/httpclient"
 	"github.com/trungtran/coder/internal/memory"
 	"github.com/trungtran/coder/internal/skill"
-	_ "github.com/lib/pq"
 )
 
 // Config represents the coder configuration stored at ~/.coder/config.json.
@@ -208,38 +206,6 @@ func getSkillClient() skill.Client {
 		}
 		return client
 	}
-}
-
-// getSkillStore returns a direct PostgreSQL SkillService connection.
-// Used by cache commands that must read file blobs and write them to local disk.
-func getSkillStore() skill.SkillService {
-	cfg, err := loadConfig()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
-		cfg = &Config{}
-	}
-
-	dsn := cfg.Memory.PostgresDSN
-	if dsn == "" {
-		dsn = os.Getenv("POSTGRES_DSN")
-	}
-	if dsn == "" {
-		fmt.Fprintf(os.Stderr, "Error: postgres_dsn is required for cache commands. Set it in ~/.coder/config.json or POSTGRES_DSN env var.\n")
-		os.Exit(1)
-	}
-
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: failed to open postgres: %v\n", err)
-		os.Exit(1)
-	}
-
-	store, err := skill.NewPostgresSkillStore(db)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: failed to init skill store: %v\n", err)
-		os.Exit(1)
-	}
-	return store
 }
 
 // resolveTargetDir returns the given flag value, or the current working directory.

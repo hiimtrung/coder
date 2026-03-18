@@ -11,22 +11,24 @@ import (
 
 // cacheManifestEntry tracks a skill's cache state.
 type cacheManifestEntry struct {
-	Version    string    `json:"version"`
-	CachedAt   time.Time `json:"cached_at"`
-	FileCount  int       `json:"file_count"`
+	Version   string    `json:"version"`
+	CachedAt  time.Time `json:"cached_at"`
+	FileCount int       `json:"file_count"`
 }
 
 // CacheManager manages skill script/data files in ~/.coder/cache/<skill>/.
+// It operates through the skill.Client interface (gRPC or HTTP) so no direct
+// database connection is required — the same transport used by other skill commands.
 type CacheManager struct {
-	store    SkillService
+	client   Client
 	cacheDir string // defaults to ~/.coder/cache
 }
 
-// NewCacheManager creates a CacheManager backed by the given SkillService.
-func NewCacheManager(store SkillService) *CacheManager {
+// NewCacheManager creates a CacheManager backed by a skill.Client.
+func NewCacheManager(client Client) *CacheManager {
 	home, _ := os.UserHomeDir()
 	return &CacheManager{
-		store:    store,
+		client:   client,
 		cacheDir: filepath.Join(home, ".coder", "cache"),
 	}
 }
@@ -46,10 +48,10 @@ func (c *CacheManager) IsCached(skillName, version string) bool {
 	return entry.Version == version && entry.FileCount > 0
 }
 
-// EnsureCached checks the cache; extracts from DB if missing or stale.
+// EnsureCached checks the cache; extracts from remote if missing or stale.
 // Returns the cache directory path.
 func (c *CacheManager) EnsureCached(ctx context.Context, skillName string) (string, error) {
-	sk, _, err := c.store.GetSkill(ctx, skillName)
+	sk, _, err := c.client.GetSkill(ctx, skillName)
 	if err != nil {
 		return "", fmt.Errorf("skill %q not found: %w", skillName, err)
 	}
@@ -61,14 +63,14 @@ func (c *CacheManager) EnsureCached(ctx context.Context, skillName string) (stri
 	return c.Pull(ctx, skillName)
 }
 
-// Pull force-extracts all files for a skill from DB to ~/.coder/cache/<skillName>/.
+// Pull force-extracts all files for a skill to ~/.coder/cache/<skillName>/.
 func (c *CacheManager) Pull(ctx context.Context, skillName string) (string, error) {
-	sk, _, err := c.store.GetSkill(ctx, skillName)
+	sk, _, err := c.client.GetSkill(ctx, skillName)
 	if err != nil {
 		return "", fmt.Errorf("skill %q not found: %w", skillName, err)
 	}
 
-	files, err := c.store.GetFiles(ctx, sk.ID)
+	files, err := c.client.GetSkillFiles(ctx, skillName)
 	if err != nil {
 		return "", fmt.Errorf("failed to get files for %q: %w", skillName, err)
 	}
@@ -103,16 +105,17 @@ func (c *CacheManager) Pull(ctx context.Context, skillName string) (string, erro
 
 // PullAll extracts all skills that have stored files.
 func (c *CacheManager) PullAll(ctx context.Context) (int, int, error) {
-	skills, err := c.store.ListSkills(ctx, "", "", 1000, 0)
+	skills, err := c.client.ListSkills(ctx, "", "", 1000, 0)
 	if err != nil {
 		return 0, 0, err
 	}
 
 	ok, fail := 0, 0
 	for _, sk := range skills {
-		files, err := c.store.GetFiles(ctx, sk.ID)
+		// Check if this skill has any files before attempting to pull.
+		files, err := c.client.GetSkillFiles(ctx, sk.Name)
 		if err != nil || len(files) == 0 {
-			continue // no files stored — skip
+			continue // no files stored — skip silently
 		}
 		if _, err := c.Pull(ctx, sk.Name); err != nil {
 			fail++

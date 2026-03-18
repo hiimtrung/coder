@@ -77,8 +77,9 @@ type SkillService interface {
 	ListSkills(ctx context.Context, source string, category string, limit int, offset int) ([]Skill, error)
 	DeleteSkill(ctx context.Context, name string) error
 
-	// RAG Search
-	SearchChunks(ctx context.Context, queryVector []float32, limit int) ([]SkillChunkResult, error)
+	// RAG Search — queryText is used for full-text keyword ranking (hybrid RRF).
+	// Pass an empty string to fall back to pure semantic search.
+	SearchChunks(ctx context.Context, queryVector []float32, queryText string, limit int) ([]SkillChunkResult, error)
 
 	// Retrieval helpers for context expansion
 	GetSkillByID(ctx context.Context, id string) (*Skill, error)
