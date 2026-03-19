@@ -40,6 +40,13 @@ if ! command -v docker compose > /dev/null 2>&1 && ! command -v docker-compose >
     exit 1
 fi
 
+# Pick the right compose command once
+if docker compose version > /dev/null 2>&1; then
+    COMPOSE="docker compose"
+else
+    COMPOSE="docker-compose"
+fi
+
 INSTALL_DIR="$HOME/.coder-node"
 echo "Setting up coder-node at $INSTALL_DIR..."
 
@@ -51,7 +58,8 @@ if [ -f "infrastructure/docker-compose.yml" ]; then
 else
     # Fallback url when run remotely
     echo "Downloading docker-compose.yml..."
-    curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/infrastructure/docker-compose.yml -o "$INSTALL_DIR/docker-compose.yml"
+    curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/infrastructure/docker-compose.yml \
+        -o "$INSTALL_DIR/docker-compose.yml"
 fi
 
 # Write .env file so docker compose picks up SECURE_MODE
@@ -71,14 +79,78 @@ if [ "$SECURE_MODE" = "true" ]; then
     echo ""
 fi
 
+# ─── Bring up services ───────────────────────────────────────────────────────
 echo "Bringing up coder-node, postgres, and ollama..."
-# Use docker compose if available, otherwise docker-compose
-if docker compose version > /dev/null 2>&1; then
-    docker compose up -d
-else
-    docker-compose up -d
+echo "(First run may take 2–3 minutes while pulling images and initialising the database)"
+echo ""
+
+# Don't exit immediately if compose fails — capture exit code so we can print
+# a helpful diagnostic instead of a bare "set -e" crash.
+set +e
+$COMPOSE up -d 2>&1
+COMPOSE_EXIT=$?
+set -e
+
+if [ $COMPOSE_EXIT -ne 0 ]; then
+    echo ""
+    echo "ERROR: docker compose exited with code $COMPOSE_EXIT."
+    echo ""
+    echo "Possible causes:"
+    echo "  • postgres healthcheck timed out — the DB may still be initialising."
+    echo "    Wait 30 s and try: $COMPOSE -f $INSTALL_DIR/docker-compose.yml up -d"
+    echo "  • Port conflict (50051 or 8080 already in use)."
+    echo "    Check: ss -tlnp | grep -E '50051|8080'"
+    echo "  • Insufficient disk space / Docker daemon not running."
+    echo ""
+    echo "Container status:"
+    $COMPOSE ps 2>/dev/null || true
+    echo ""
+    echo "pgvector_db logs (last 30 lines):"
+    docker logs pgvector_db --tail 30 2>/dev/null || true
+    echo ""
+    exit $COMPOSE_EXIT
 fi
 
+# ─── Wait for postgres to actually be healthy ────────────────────────────────
+echo "Waiting for postgres to be healthy..."
+MAX_WAIT=120   # seconds
+WAITED=0
+INTERVAL=5
+
+while true; do
+    STATUS=$(docker inspect --format='{{.State.Health.Status}}' pgvector_db 2>/dev/null || echo "missing")
+    if [ "$STATUS" = "healthy" ]; then
+        echo "  postgres is healthy."
+        break
+    fi
+    if [ "$STATUS" = "unhealthy" ]; then
+        echo ""
+        echo "ERROR: pgvector_db is unhealthy after ${WAITED}s."
+        echo ""
+        echo "pgvector_db logs (last 40 lines):"
+        docker logs pgvector_db --tail 40 2>/dev/null || true
+        echo ""
+        echo "Troubleshooting tips:"
+        echo "  1. Retry (sometimes a cold disk just needs more time):"
+        echo "       $COMPOSE -f $INSTALL_DIR/docker-compose.yml up -d"
+        echo "  2. Inspect container:"
+        echo "       docker inspect pgvector_db | grep -A10 Health"
+        echo "  3. Run postgres manually to see startup errors:"
+        echo "       docker run --rm pgvector/pgvector:pg16 postgres --version"
+        exit 1
+    fi
+    if [ $WAITED -ge $MAX_WAIT ]; then
+        echo ""
+        echo "ERROR: postgres did not become healthy within ${MAX_WAIT}s (status: $STATUS)."
+        docker logs pgvector_db --tail 40 2>/dev/null || true
+        exit 1
+    fi
+    printf "  still waiting (%ds, status: %s)...\r" "$WAITED" "$STATUS"
+    sleep $INTERVAL
+    WAITED=$((WAITED + INTERVAL))
+done
+
+# ─── Summary ─────────────────────────────────────────────────────────────────
 echo "====================================="
 echo " coder-node installed successfully!"
 echo " It is now running on:"

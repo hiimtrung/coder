@@ -10,11 +10,14 @@ services:
       POSTGRES_DB: coder
     volumes:
       - pg_data:/var/lib/postgresql/data
+    # start_period gives postgres time to initialise the data directory on first run
+    # (especially important on Debian/Linux x86 where cold init can take 60–90s).
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U coder -d coder"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 12
+      start_period: 60s
 
   ollama:
     # ollama/ollama supports linux/amd64 + linux/arm64
