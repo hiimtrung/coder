@@ -63,6 +63,7 @@ func globalManifestPath() (string, error) {
 //   - ~/.claude/CLAUDE.md                    — Claude Code global instructions (merged with markers)
 //   - ~/.gemini/antigravity/global_workflows/ — Gemini CLI global workflows
 //   - ~/.gemini/GEMINI.md                    — Gemini CLI global rules (merged with markers)
+//   - ~/.codex/AGENTS.md                     — OpenAI Codex global agent guidance (merged with markers)
 func InstallGlobal(srcFS FileSystem, profile profiles.Profile, opts Options) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -144,6 +145,16 @@ func InstallGlobal(srcFS FileSystem, profile profiles.Profile, opts Options) err
 	}
 	if !opts.DryRun {
 		merged = append(merged, geminiMDPath)
+	}
+
+	// OpenAI Codex AGENTS.md — merged with section markers
+	agentsMDPath := filepath.Join(home, ".codex", "AGENTS.md")
+	fmt.Println("  Merging → ~/.codex/AGENTS.md")
+	if err := mergeGlobalAgentsMD(srcFS, profile, agentsMDPath, opts, result); err != nil {
+		return err
+	}
+	if !opts.DryRun {
+		merged = append(merged, agentsMDPath)
 	}
 
 	if !opts.DryRun {
@@ -370,6 +381,64 @@ func mergeGlobalClaudeMD(srcFS FileSystem, profile profiles.Profile, dstPath str
 	data, err := srcFS.ReadFile(".agents/rules/general.instructions.md")
 	if err != nil {
 		return nil // skip if source not found
+	}
+	content := stripFrontmatter(string(data))
+
+	section := fmt.Sprintf("%s profile=%s version=%s -->\n%s\n%s",
+		coderBeginPrefix, profile.Name, version.Version, content, coderEndMarker)
+
+	display := tildePath(dstPath)
+
+	if opts.DryRun {
+		if _, statErr := os.Stat(dstPath); statErr == nil {
+			fmt.Printf("    ~ %s (update coder section)\n", display)
+			result.Updated = append(result.Updated, display)
+		} else {
+			fmt.Printf("    + %s\n", display)
+			result.Created = append(result.Created, display)
+		}
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
+		return err
+	}
+
+	existing, err := os.ReadFile(dstPath)
+	if err != nil {
+		// File doesn't exist: create with just the coder section
+		if err := os.WriteFile(dstPath, []byte(section+"\n"), 0o644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", dstPath, err)
+		}
+		fmt.Printf("    + %s\n", display)
+		result.Created = append(result.Created, display)
+		return nil
+	}
+
+	updated := replaceOrAppendCoderSection(string(existing), section)
+	if err := os.WriteFile(dstPath, []byte(updated), 0o644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", dstPath, err)
+	}
+	fmt.Printf("    ~ %s\n", display)
+	result.Updated = append(result.Updated, display)
+	return nil
+}
+
+// mergeGlobalAgentsMD injects or updates the coder-managed section in ~/.codex/AGENTS.md.
+// It reads the profile's agent file (.github/agents/<agentFile>), strips YAML frontmatter,
+// and wraps the content with <!-- coder:begin ... --> / <!-- coder:end --> markers so that
+// future `coder update global` calls can precisely locate and refresh the section, and
+// `coder remove global` can cleanly strip it.
+func mergeGlobalAgentsMD(srcFS FileSystem, profile profiles.Profile, dstPath string, opts Options, result *Result) error {
+	agentFile := profile.AgentFile
+	if agentFile == "" {
+		agentFile = "coder.agent.md"
+	}
+	srcPath := ".github/agents/" + agentFile
+
+	data, err := srcFS.ReadFile(srcPath)
+	if err != nil {
+		return nil // source not found — skip silently
 	}
 	content := stripFrontmatter(string(data))
 

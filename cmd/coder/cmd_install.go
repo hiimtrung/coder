@@ -87,6 +87,7 @@ func runInstallGlobal(args []string) {
 		fmt.Fprintln(os.Stderr, "  ~/.claude/CLAUDE.md                      Claude Code global instructions")
 		fmt.Fprintln(os.Stderr, "  ~/.gemini/antigravity/global_workflows/  Gemini CLI global workflows")
 		fmt.Fprintln(os.Stderr, "  ~/.gemini/GEMINI.md                      Gemini CLI global rules")
+		fmt.Fprintln(os.Stderr, "  ~/.codex/AGENTS.md                       OpenAI Codex global agent guidance")
 		fmt.Fprintln(os.Stderr, "")
 		fs.PrintDefaults()
 	}
@@ -185,6 +186,7 @@ func runUpdate(args []string) {
 		fmt.Fprintln(os.Stderr, "  ~/.claude/CLAUDE.md                      Claude Code global instructions")
 		fmt.Fprintln(os.Stderr, "  ~/.gemini/antigravity/global_workflows/  Gemini CLI global workflows")
 		fmt.Fprintln(os.Stderr, "  ~/.gemini/GEMINI.md                      Gemini CLI global rules")
+		fmt.Fprintln(os.Stderr, "  ~/.codex/AGENTS.md                       OpenAI Codex global agent guidance")
 		fmt.Fprintln(os.Stderr, "")
 		fs.PrintDefaults()
 	}
