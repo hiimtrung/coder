@@ -6,6 +6,7 @@ import (
 
 	"github.com/trungtran/coder/api/grpc/skillpb"
 	skilldomain "github.com/trungtran/coder/internal/domain/skill"
+	"github.com/trungtran/coder/internal/transport/grpc/credential"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -16,9 +17,14 @@ type skillClient struct {
 }
 
 // NewSkillClient creates a new gRPC client for the skill service.
-// It implements skilldomain.SkillClient.
-func NewSkillClient(addr string) (skilldomain.SkillClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+// accessToken is the raw Bearer token obtained via `coder login`.
+// Pass an empty string for open-mode servers that do not require authentication.
+func NewSkillClient(addr, accessToken string) (skilldomain.SkillClient, error) {
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(credential.BearerToken{Token: accessToken}),
+	}
+	conn, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to skill service: %w", err)
 	}

@@ -1,127 +1,244 @@
-# 📥 Installation & Setup
+# Installation & Setup
 
-This guide covers how to set up the **coder** CLI and its backend infrastructure (`coder-node`).
+> **TL;DR**: Install the CLI → start coder-node → run `coder login`
 
-## 🖥️ Coder CLI (Client)
+---
 
-The CLI is a single binary (~7MB) and requires no dependencies.
+## Table of contents
 
-### Automatic Installation
+1. [CLI (client)](#1-cli-client)
+2. [coder-node (infrastructure)](#2-coder-node-infrastructure)
+3. [Secure mode](#3-secure-mode)
+4. [Connect the CLI (`coder login`)](#4-connect-the-cli-coder-login)
+5. [Verify](#5-verify)
+6. [Updates](#6-updates)
+7. [Uninstall](#7-uninstall)
 
-#### macOS / Linux
-The installer is interactive and will help you verify your `coder-node` connection.
+---
+
+## 1. CLI (client)
+
+Single binary, ~7 MB, no runtime dependencies.
+
+### macOS / Linux
+
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)"
 ```
 
-#### Windows (PowerShell)
+The installer downloads the correct binary for your platform, installs it to `/usr/local/bin`, and launches the interactive `coder login` setup wizard.
+
+**Options**
+
+| Flag | Description |
+|------|-------------|
+| `--version v0.x.y` | Install a specific version instead of latest |
+| `--skip-login` | Skip the setup wizard (useful in CI/automated environments) |
+
+```bash
+# Install specific version
+/bin/bash -c "$(curl -fsSL .../install.sh)" -- --version v0.3.5
+
+# CI — install only, no wizard
+/bin/bash -c "$(curl -fsSL .../install.sh)" -- --skip-login
+```
+
+### Windows (PowerShell)
+
 ```powershell
 irm https://raw.githubusercontent.com/hiimtrung/coder/main/install.ps1 | iex
 ```
 
-### Manual Installation
+### Manual
+
 1. Go to [GitHub Releases](https://github.com/hiimtrung/coder/releases).
-2. Download the binary for your platform (e.g., `coder-darwin-arm64` for Apple Silicon).
-3. Rename to `coder` (or `coder.exe`) and add to your `PATH`.
+2. Download the binary for your platform:
+
+| Platform | File |
+|----------|------|
+| macOS (Apple Silicon) | `coder-darwin-arm64` |
+| macOS (Intel) | `coder-darwin-amd64` |
+| Linux x86-64 | `coder-linux-amd64` |
+| Linux ARM64 | `coder-linux-arm64` |
+| Windows x86-64 | `coder-windows-amd64.exe` |
+
+3. Rename to `coder` (or `coder.exe`) and place in your `PATH`.
 
 ---
 
-## 🐳 Coder Node (Infrastructure)
+## 2. coder-node (infrastructure)
 
-The `coder-node` handles vector embeddings and database management. It is best run via Docker.
+`coder-node` is the backend: vector embeddings, semantic search, and auth. It runs as a Docker stack.
 
-### Requirements
-- **Docker** and **Docker Compose**.
-- **PostgreSQL** (included in Compose, or use external).
-- **Ollama** (for local embeddings) OR **OpenAI API Key**.
+**Requirements**: Docker ≥ 24 · Docker Compose · ~4 GB RAM (for the Ollama embedding model)
 
-### Quick Self-Hosted Setup
+### Start (open mode)
 
-We provide a one-command installer for the infrastructure:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install-node.sh | sh
 ```
 
-This creates a `~/.coder-node/` directory and starts:
-1. **`postgres`**: With `pgvector` enabled for embedding storage.
-2. **`ollama`**: Pre-configured to pull the `mxbai-embed-large` model.
-3. **`coder-node`**: The gRPC/HTTP service layer.
+Creates `~/.coder-node/` and starts three containers:
 
-### Secure Mode (Authentication)
+| Container | Port | Role |
+|-----------|------|------|
+| `postgres` | — | Vector store (pgvector + full-text search) |
+| `ollama` | — | Local embeddings — auto-pulls `mxbai-embed-large` (~700 MB) |
+| `coder-node` | 50051 (gRPC) · 8080 (HTTP) | API layer + auth |
 
-By default, `coder-node` runs in **open mode** — any client can connect without authentication. To restrict access to registered developers only, start with `--secure`:
-
-```bash
-# Install with authentication enabled
-curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install-node.sh | sh -s -- --secure
-```
-
-On first startup, the server prints a **one-time bootstrap token**:
-
-```bash
-docker logs coder_node 2>&1 | grep 'BOOTSTRAP TOKEN'
-# BOOTSTRAP TOKEN (shown once): a3f9c2e1d4b87f...
-#    Share this with clients so they can run: coder login
-```
-
-Share this token with each developer. Each person runs `coder login` and enters the token to register their machine. After registration, all `coder memory` and `coder skill` commands automatically include an `Authorization: Bearer` header.
-
-To enable or disable secure mode after installation, edit `~/.coder-node/.env`:
-
-```bash
-echo "SECURE_MODE=true" > ~/.coder-node/.env && docker compose -f ~/.coder-node/docker-compose.yml up -d
-```
-
-### Manual Configuration
-
-You can configure the service via environment variables in `docker-compose.yml`:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `POSTGRES_DSN` | Connection string for Postgres | Requirements: `sslmode=disable` |
-| `OLLAMA_BASE_URL` | URL for Ollama server | `http://ollama:11434` |
-| `OLLAMA_EMBEDDING_MODEL` | Model used for vectors | `mxbai-embed-large` |
-| `GRPC_PORT` | Port for gRPC service | `50051` |
-| `HTTP_PORT` | Port for HTTP service | `8080` |
-| `SECURE_MODE` | Require client auth tokens | `false` |
+> First start takes 3–5 minutes while Ollama downloads the model.
 
 ---
 
-## 🔐 Client Configuration
+## 3. Secure mode
 
-Once the node is running, link your CLI to it:
+By default coder-node runs in **open mode** — anyone with network access can call it.
+
+**Secure mode** requires every developer to register their machine before using the node.
+
+### Start with authentication enabled
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install-node.sh | sh -s -- --secure
+```
+
+This writes `SECURE_MODE=true` to `~/.coder-node/.env` before starting the stack.
+
+### Retrieve the bootstrap token
+
+On first startup the server generates a cryptographically random token, prints it once, and stores only its SHA-256 hash — the plaintext is never persisted.
+
+```bash
+docker logs coder_node 2>&1 | grep 'BOOTSTRAP TOKEN'
+# BOOTSTRAP TOKEN (shown once): a3f9c2e1d4b87f6a2c…
+#    Share this with clients so they can run: coder login
+```
+
+Share this token with developers via a secure channel (Slack DM, 1Password, etc.).
+
+### Toggle secure mode after installation
+
+```bash
+# Enable
+echo "SECURE_MODE=true"  > ~/.coder-node/.env
+docker compose -f ~/.coder-node/docker-compose.yml up -d
+
+# Disable
+echo "SECURE_MODE=false" > ~/.coder-node/.env
+docker compose -f ~/.coder-node/docker-compose.yml up -d
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POSTGRES_DSN` | _(compose internal)_ | PostgreSQL connection string (`sslmode=disable` required) |
+| `OLLAMA_BASE_URL` | `http://ollama:11434` | Ollama endpoint |
+| `OLLAMA_EMBEDDING_MODEL` | `mxbai-embed-large` | Embedding model name |
+| `GRPC_PORT` | `50051` | gRPC service port |
+| `HTTP_PORT` | `8080` | HTTP service port |
+| `SECURE_MODE` | `false` | `true` to require Bearer token auth on all calls |
+
+---
+
+## 4. Connect the CLI (`coder login`)
+
+Run on each developer machine after the node is up:
 
 ```bash
 coder login
 ```
 
-Choose your protocol (**gRPC** is recommended for speed) and enter the URL (e.g., `localhost:50051`).
+**Open mode server** — answer `N` to the auth question:
 
-If the server is running in **secure mode**, answer `y` when prompted for authentication and enter the bootstrap token provided by your server admin. Your access token is stored in `~/.coder/config.json` and used automatically on every subsequent command.
+```
+Choose protocol:
+  1) gRPC  — recommended
+  2) HTTP  — use this when the server runs --secure
+Selection [1]: 1
+
+Enter coder-node grpc URL [localhost:50051]: 192.168.1.10:50051
+
+Requires authentication? (y/N): N
+
+Configuration saved.
+✓ Connection successful.
+```
+
+**Secure mode server** — answer `y`, enter the bootstrap token:
+
+```
+Choose protocol:
+  1) gRPC  — recommended
+  2) HTTP  — use this when the server runs --secure
+Selection [1]: 2
+
+Enter coder-node http URL [localhost:8080]: 192.168.1.10:8080
+
+Requires authentication? (y/N): y
+Enter bootstrap token: a3f9c2e1d4b87f…
+
+Registering client as dev@company.com...
+✓ Registered — access token saved to ~/.coder/config.json
+
+✓ Connection successful.
+```
+
+> **Protocol note**: when registering with a secure-mode server, use **HTTP** (port 8080) because the registration endpoint is HTTP-only. For everyday `skill search` / `memory store` commands you can switch back to gRPC — the access token is injected automatically into gRPC metadata.
+
+The token is stored in `~/.coder/config.json` and attached to every future call with no extra steps required.
 
 ---
 
-## 🧪 Verifying the Setup
-
-Check that everything is working by querying the memory:
+## 5. Verify
 
 ```bash
-# Returns an empty list [] if working, or a connection error if not.
+# Should return [] or a list — not a connection error
 coder memory list --limit 1
+
+# Health check (shows whether secure mode is active)
+curl http://your-server:8080/health
+# {"status":"ok","secure_mode":true}
 ```
 
 ---
 
-## 🔄 Updates
+## 6. Updates
 
 ### Update the CLI
+
 ```bash
 coder self-update
 ```
 
-### Update the Node
+### Update coder-node
+
 ```bash
-cd ~/.coder-node
-docker compose pull
-docker compose up -d
+curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/update-node.sh | sh
+# or manually:
+cd ~/.coder-node && docker compose pull && docker compose up -d
+```
+
+---
+
+## 7. Uninstall
+
+### CLI
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/uninstall.sh | sh -s -- --clear-data
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/hiimtrung/coder/main/uninstall.ps1 | iex -Arguments "-ClearData"
+```
+
+### coder-node
+
+```bash
+# Stop containers, keep database volumes
+curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/uninstall-node.sh | sh
+
+# Stop containers AND delete all data (irreversible)
+curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/uninstall-node.sh | sh -s -- --clear-data
 ```

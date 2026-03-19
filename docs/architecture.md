@@ -1,89 +1,161 @@
-# 🏗️ System Architecture
+# System Architecture
 
-This document describes the high-level architecture of the **coder** system, detailing the relationship between the CLI, the Node service, and the external AI ecosystems.
+---
 
-## 🌉 High-Level Overview
+## Overview
 
-`coder` follows a client-server architecture where the CLI acts as the front door for developers and AI agents, while `coder-node` provides the heavy lifting for vector embeddings and persistence.
+`coder` is a client-server system. The CLI is the thin front door for developers and AI agents; `coder-node` is the stateful backend that handles embeddings, vector search, and authentication.
 
-```mermaid
-graph TD
-    subgraph "External AI Suite"
-        CP[GitHub Copilot]
-        AG[Antigravity Agent]
-    end
-
-    subgraph "Local Project"
-        MD[.agents/ manifest]
-        SK[.agents/skills/]
-        WF[.agents/workflows/]
-    end
-
-    subgraph "Coder CLI (Go)"
-        CMD[Command Router]
-        INST[Installer]
-        GRPC[gRPC Client]
-        HTTP[HTTP Client]
-    end
-
-    subgraph "Coder Node (Go Docker)"
-        NODE[Service Orchestrator]
-        ING[Skill Ingestor]
-        MEM[Memory Manager]
-    end
-
-    subgraph "Infrastructure"
-        PG[(PostgreSQL + pgvector)]
-        OL[Ollama / OpenAI]
-    end
-
-    %% Interactions
-    CP & AG -->|Reads| SK & WF
-    MD -.->|Manages| SK & WF
-    
-    CMD --> INST
-    INST -->|Writes| Local\ Project
-    
-    CMD --> GRPC & HTTP
-    GRPC & HTTP -->|Protocol| NODE
-    
-    NODE --> ING & MEM
-    ING & MEM -->|Embeddings| OL
-    ING & MEM -->|Persistence| PG
+```
+  Developer / AI Agent
+        │
+        │  coder CLI  (single binary)
+        │  ├─ coder skill search …
+        │  ├─ coder memory store …
+        │  └─ coder login / self-update / install …
+        │
+        │  Bearer token (gRPC metadata / HTTP header)
+        ▼
+  ┌─────────────────────────────────────┐
+  │          coder-node (Docker)        │
+  │                                     │
+  │  ┌─────────────┐  ┌──────────────┐  │
+  │  │  gRPC :50051│  │  HTTP :8080  │  │
+  │  └──────┬──────┘  └──────┬───────┘  │
+  │         │  Auth intercept│ors        │
+  │         └────────┬───────┘           │
+  │                  ▼                   │
+  │  ┌───────────────────────────────┐   │
+  │  │   Use-case layer              │   │
+  │  │   SkillFacade · MemoryManager │   │
+  │  │   AuthManager                 │   │
+  │  └───────────────────────────────┘   │
+  │                  │                   │
+  │  ┌───────────────▼───────────────┐   │
+  │  │   Infrastructure              │   │
+  │  │   PostgreSQL + pgvector       │   │
+  │  │   Ollama (local embeddings)   │   │
+  │  └───────────────────────────────┘   │
+  └─────────────────────────────────────┘
 ```
 
 ---
 
-## ⚙️ Core Components
+## Clean Architecture layers
 
-### 1. Coder CLI (`cmd/coder`)
-- **Distribution**: Single binary for Windows, Linux, and macOS.
-- **Responsibility**:
-    - **Installation**: Project-level distribution of skills, rules, and workflows.
-    - **Self-Update**: Auto-upgrade mechanism via GitHub Releases.
-    - **RAG Interface**: Gateway to the Skill and Memory vector databases.
-- **Technology**: Built in Go using standard library and minimal dependencies for speed and cross-platform compatibility.
+```
+cmd/coder          cmd/coder-node
+      │                   │
+      ▼                   ▼
+internal/transport/{grpc,http}/{client,server,interceptor,middleware}
+      │                   │
+      ▼                   ▼
+internal/usecase/{memory,skill,auth}
+      │                   │
+      ▼                   ▼
+internal/domain/{memory,skill,auth}   ← zero framework dependencies
+      ▲                   ▲
+      │                   │
+internal/infra/{postgres,embedding,github}
+```
 
-### 2. Coder Node (`cmd/coder-node`)
-- **Distribution**: Dockerized microservice.
-- **Responsibility**:
-    - **Vectorization**: Interfacing with Ollama (local) or OpenAI to generate embeddings.
-    - **Skill RAG**: Ingesting, chunking, and searching AI rules-of-engagement.
-    - **Semantic Memory**: Storing and retrieving factual/contextual project data.
-- **Protocols**: Dual-stack support (gRPC for performance, HTTP for compatibility).
-
-### 3. Vector Knowledge Base (PostgreSQL)
-- **Engine**: PostgreSQL with the `pgvector` extension.
-- **Tables**:
-    - `knowledge`: Stores semantic memory chunks.
-    - `skills`: Metadata about ingested skill sets (source, version, repo).
-    - `skill_chunks`: The actual vector embeddings of rules and instructions.
+Dependencies point **inward only**. The domain layer knows nothing about gRPC, HTTP, or PostgreSQL.
 
 ---
 
-## 🏎️ Data Flow: Skill Ingestion (RAG)
+## Authentication architecture
 
-When you run `coder skill ingest`, the system performs an intelligent synchronization:
+### Token lifecycle
+
+```mermaid
+sequenceDiagram
+    participant ADM as Server Admin
+    participant SRV as coder-node
+    participant DB  as PostgreSQL
+    participant CLI as Developer CLI
+
+    ADM->>SRV: docker run SECURE_MODE=true
+    SRV->>DB: first startup — no bootstrap hash found
+    SRV->>SRV: crypto/rand → raw token (32 bytes hex)
+    SRV->>DB: store SHA-256(raw token)
+    SRV-->>ADM: print "BOOTSTRAP TOKEN: <raw>" (once)
+
+    ADM-->>CLI: share raw token out-of-band
+
+    CLI->>SRV: POST /v1/auth/register-client\n{bootstrap_token, git_name, git_email}
+    SRV->>DB: verify SHA-256(bootstrap_token)
+    SRV->>SRV: crypto/rand → raw access token
+    SRV->>DB: store SHA-256(access token) in coder_clients
+    SRV-->>CLI: {access_token: "<raw>"}
+    CLI->>CLI: save to ~/.coder/config.json
+
+    loop Every command
+        CLI->>SRV: gRPC metadata: authorization=Bearer <raw>\nHTTP header: Authorization: Bearer <raw>
+        SRV->>DB: validate SHA-256(raw) in coder_clients
+        SRV->>SRV: attach *Client to context
+        SRV-->>CLI: response
+    end
+```
+
+### gRPC auth path
+
+```
+grpc.NewServer(
+    grpc.ChainUnaryInterceptor(interceptor.UnaryAuth(authMgr)),
+    grpc.ChainStreamInterceptor(interceptor.StreamAuth(authMgr)),
+)
+    │
+    ▼
+interceptor.validateToken(ctx)
+    │  metadata.FromIncomingContext(ctx) → "authorization"
+    │  strings.CutPrefix("Bearer ")
+    │  authMgr.ValidateToken(ctx, raw)
+    ▼
+authdomain.WithClient(ctx, client)  →  handler(ctx, req)
+```
+
+Client side — `credential.BearerToken` implements `credentials.PerRPCCredentials`:
+```go
+grpc.WithPerRPCCredentials(credential.BearerToken{Token: accessToken})
+// injects: authorization: Bearer <token>  on every RPC
+```
+
+### HTTP auth path
+
+```
+httpmiddleware.Auth(authMgr)(httpMux)
+    │
+    ▼
+r.Header.Get("Authorization")  →  "Bearer <raw>"
+authMgr.ValidateToken(ctx, raw)
+authdomain.WithClient(r.Context(), client)
+```
+
+Public paths (never gated): `/health`, `/v1/auth/register-client`
+
+---
+
+## Hybrid search (RRF)
+
+Every `skill search` and `memory search` runs two queries in parallel and fuses the rankings:
+
+```
+Query
+  ├─ pgvector cosine similarity  →  semantic_rank
+  └─ tsvector full-text search   →  keyword_rank
+             │
+             ▼
+  rrf_score = 1/(60 + semantic_rank) + 1/(60 + keyword_rank)
+             │
+             ▼
+  ORDER BY rrf_score DESC LIMIT n
+```
+
+Benefit: exact-match and short queries that confuse pure embedding search still rank correctly because of the full-text component.
+
+---
+
+## Data flow: skill ingestion
 
 ```mermaid
 sequenceDiagram
@@ -92,47 +164,71 @@ sequenceDiagram
     participant OL as Ollama / OpenAI
     participant PG as PostgreSQL
 
-    CLI->>CLI: Read local files or Fetch from GitHub
-    CLI->>NODE: Send content + metadata
-    
-    NODE->>PG: Fetch existing content hashes
-    NODE->>NODE: Compute new hashes & Diff
-    
-    Note over NODE, PG: Deduplication Check
-    
-    alt Content Changed
-        NODE->>OL: Generate Embedding (Vector)
-        NODE->>PG: Store Chunks & Vector
-    else Content Unchanged
-        NODE->>NODE: Skip (0 API calls)
+    CLI->>CLI: read local files or fetch from GitHub
+    CLI->>NODE: IngestSkill(name, markdown, rules[])
+
+    NODE->>PG: fetch existing content hashes
+    NODE->>NODE: diff — which chunks changed?
+
+    alt Content changed / new
+        NODE->>OL: embed(content) → float32[1024]
+        NODE->>PG: upsert chunk + vector + tsvector
+    else Unchanged
+        NODE->>NODE: skip (zero embedding API calls)
     end
-    
-    NODE-->>CLI: Return Ingest Result (New/Skipped/Total)
+
+    NODE-->>CLI: {chunks_total, chunks_new}
 ```
 
 ---
 
-## 🧠 Data Flow: Agent Reasoning (The 3-Gate Loop)
-
-The system enforces a "Thinking Loop" for AI agents via [workflows](workflows.md), ensuring they always act with full context.
+## Data flow: agent reasoning (3-Gate Loop)
 
 ```mermaid
 graph LR
-    subgraph "Gate System"
-        G1[1. Skill Retrieval]
-        G2[2. Memory Retrieval]
-        G3[3. Knowledge Capture]
+    T[User task] --> G1
+
+    subgraph Gates
+        G1["GATE 1\ncoder skill search"]
+        G2["GATE 2\ncoder memory search"]
+        G3["GATE 3\ncoder memory store"]
     end
 
-    Task[User Task] --> G1
-    G1 -->|RAG Search| DB[(Skill DB)]
+    G1 -->|retrieve rules| SK[(Skill DB)]
     G1 --> G2
-    G2 -->|Semantic Search| Mem[(Memory DB)]
-    G2 --> Work[Actual Work]
-    Work --> G3
-    G3 -->|Store| Mem
+    G2 -->|retrieve history| MEM[(Memory DB)]
+    G2 --> WORK[Actual work]
+    WORK --> G3
+    G3 -->|persist new knowledge| MEM
 ```
 
-1. **Skill Gait**: Agent checks the vector DB for "How should I do this?" (e.g., NestJS error patterns).
-2. **Memory Gait**: Agent checks the project history for "What have we done here before?".
-3. **Knowledge Capture**: After completion, the agent stores the experience back into the system.
+1. **Skill retrieval** — "How should I approach this?" (architecture patterns, language idioms)
+2. **Memory retrieval** — "What have we done here before?" (project decisions, past fixes)
+3. **Knowledge capture** — "What did I learn?" (store so the next agent benefits)
+
+---
+
+## Component inventory
+
+| Path | Responsibility |
+|------|----------------|
+| `cmd/coder` | CLI entry point, command handlers |
+| `cmd/coder-node` | Server main: wire auth, gRPC, HTTP |
+| `internal/domain/auth` | `Client`, `Activity` entities; `AuthManager` / `AuthRepository` interfaces; context helpers |
+| `internal/domain/memory` | `Knowledge`, `MemoryManager`, `MemoryRepository` |
+| `internal/domain/skill` | `Skill`, `SkillChunk`, `SkillUseCase`, `SkillClient` |
+| `internal/usecase/auth` | Bootstrap token lifecycle, token validation, activity logging |
+| `internal/usecase/memory` | Store, search (RRF), list, delete, compact, revector |
+| `internal/usecase/skill` | Ingest (diff + embed), search (RRF), list, get, delete |
+| `internal/infra/postgres` | Repository implementations (pgvector + tsvector) |
+| `internal/infra/embedding` | Ollama + OpenAI embedding providers |
+| `internal/infra/github` | GitHub API fetcher for remote skill ingestion |
+| `internal/transport/grpc/server` | gRPC service handlers |
+| `internal/transport/grpc/client` | gRPC client (memory + skill) |
+| `internal/transport/grpc/interceptor` | `UnaryAuth`, `StreamAuth` server interceptors |
+| `internal/transport/grpc/credential` | `BearerToken` PerRPCCredentials |
+| `internal/transport/http/server` | HTTP REST handlers (memory, skill, auth) |
+| `internal/transport/http/client` | HTTP client (memory + skill) |
+| `internal/transport/http/middleware` | `Auth` middleware |
+| `api/proto` | Protobuf definitions |
+| `api/grpc/{memorypb,skillpb}` | Generated Go gRPC code |

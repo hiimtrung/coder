@@ -1,96 +1,182 @@
-# ⌨️ CLI Command Reference
+# CLI Command Reference
 
-This document provides a detailed reference for all `coder` commands.
+> Run `coder --help` or `coder <command> --help` for inline help at any time.
 
-## 📦 Project Skills Management
+---
 
-### `coder install <profile|skill>`
-Installs the **Agent Engine** (workflows, rules, and agent definitions) into a project.
+## Project setup
 
-> [!NOTE]
-> **Skills** (NestJS, Go, etc.) are NOT installed as local files. They are managed via the **Skill RAG (Vector DB)**. Use this command to scaffold the local agent infrastructure so it can perform searches.
+### `coder install <profile>`
 
-- **Arguments**:
-    - `profile`: `be`, `fe`, `fullstack`, or `all`.
-    - `skill`: Individual skill name (e.g., `nestjs`).
-- **Flags**:
-    - `-t, --target <dir>`: Target directory (default: `.`).
-    - `-f, --force`: Overwrite existing files.
-    - `--dry-run`: Preview changes without writing.
+Scaffolds the **agent engine** (workflows, rules, agent definitions) into the current project.
+
+```bash
+coder install fullstack          # backend + frontend profiles
+coder install be                 # backend only
+coder install fe                 # frontend only
+coder install all                # every available profile
+```
+
+> Skills (NestJS, Go, Java, …) are **not** installed as local files. They live in the vector DB on coder-node and are queried via `coder skill search`. This command installs only the local `.agents/` scaffolding that tells agents *how* to use those skills.
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `-t, --target <dir>` | Target directory (default: `.`) |
+| `-f, --force` | Overwrite existing files |
+| `--dry-run` | Preview changes without writing |
+
+---
 
 ### `coder update [profile]`
-Re-syncs local workflows/rules and **automatically triggers a skill ingestion** to ensure your Vector DB is up to date with the embedded knowledge.
+
+Re-syncs local workflows and rules, then triggers a skill ingestion to keep the vector DB current.
+
+```bash
+coder update             # update everything
+coder update be          # update backend profile only
+coder update global      # install/update agent files in global user directories
+                         # (~/.claude/agents/, ~/.config/github-copilot/, etc.)
+```
+
+---
 
 ### `coder list [profile]`
-Lists available profiles and skills.
-- `coder list`: Show summary of all profiles.
-- `coder list be`: Show detailed skills inside the `be` profile.
+
+```bash
+coder list               # summary of all profiles
+coder list be            # skills inside the backend profile
+```
 
 ---
 
-## 🧠 Skill RAG (Vector DB)
-
-Commands to manage the centralized intelligence database.
+## Skill RAG
 
 ### `coder skill ingest`
-Imports skill data into the vector database for semantic search.
-- `--source local`: Ingests the 20+ built-in skills.
-- `--source github --repo <user/repo>`: Ingests skills directly from a remote GitHub repository.
+
+Imports skill knowledge into the vector database.
+
+```bash
+coder skill ingest --source local                        # 20+ built-in skills
+coder skill ingest --source github --repo org/repo       # from a GitHub repo
+coder skill ingest --source local --filter nestjs,go     # specific skills only
+```
 
 ### `coder skill search <query>`
-Performs a semantic similarity search across all ingested skills.
-- `--limit <n>`: Number of results (default: 5).
+
+Hybrid semantic + full-text search (RRF fusion) across all ingested skills.
+
+```bash
+coder skill search "NestJS error handling"
+coder skill search "database migration patterns" --limit 10
+```
+
+**Flags**: `--limit <n>` (default: 5)
 
 ### `coder skill list`
-Shows all skills currently stored in the vector database.
+
+Lists all skills currently in the vector DB with chunk counts and metadata.
 
 ### `coder skill info <name>`
-Shows metadata and chunk statistics for a specific skill.
+
+Detailed metadata and chunk breakdown for a single skill.
 
 ### `coder skill delete <name>`
-Removes a skill from the vector database.
+
+Removes a skill and all its chunks from the DB.
 
 ---
 
-## 💾 Semantic Memory
-
-Manage cross-project contextual knowledge.
+## Semantic memory
 
 ### `coder memory store <title> <content>`
-Stores a piece of knowledge.
-- `--tags <t1,t2>`: Categorize for better retrieval.
-- `--type <type>`: (e.g., `rule`, `pattern`, `fact`).
+
+Stores a knowledge snippet in the semantic memory.
+
+```bash
+coder memory store "Auth pattern" "We use SHA-256 hashed tokens in coder_clients table"
+coder memory store "DB migration rule" "Always use reversible migrations" \
+  --tags "database,migrations" --type rule
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--tags <t1,t2>` | Comma-separated tags for categorisation |
+| `--type <type>` | `rule`, `pattern`, `fact`, `decision`, … |
 
 ### `coder memory search <query>`
-Retrieves relevant knowledge using vector similarity.
+
+Hybrid semantic + full-text search across all stored memories.
+
+```bash
+coder memory search "how do we handle authentication"
+coder memory search "postgres connection" --limit 3
+```
 
 ### `coder memory list`
-Shows the most recent entries in memory.
+
+Shows the most recent memory entries.
+
+```bash
+coder memory list
+coder memory list --limit 20 --offset 40
+```
 
 ### `coder memory delete <id>`
-Removes a specific entry.
+
+Removes a single memory entry by ID.
 
 ---
 
-## 🛠️ System Commands
-
-### `coder version`
-Displays CLI version, commit hash, and build date.
+## System commands
 
 ### `coder login`
-Interactive setup to configure your `coder-node` connection and (optionally) register as an authenticated client.
 
-The wizard will ask for:
-1. **Protocol** — gRPC (recommended) or HTTP.
-2. **Server URL** — e.g., `localhost:50051` (gRPC) or `192.168.1.100:8080` (HTTP).
-3. **Authentication** — if the server runs in secure mode, enter `y` and provide the bootstrap token given by your admin.
+Interactive wizard to connect the CLI to a coder-node instance and (optionally) register as an authenticated client.
 
-On successful registration, an access token is saved to `~/.coder/config.json`. Every subsequent `coder memory` and `coder skill` command will include this token automatically.
+**What it asks:**
 
-> **Note for secure mode servers**: use HTTP protocol during `coder login` (token exchange happens over HTTP). After registration, switch to gRPC for daily use if preferred by re-running `coder login` without the auth step.
+1. **Protocol** — `gRPC` (recommended, lower overhead) or `HTTP` (required for initial registration on secure-mode servers)
+2. **Server URL** — e.g. `localhost:50051` (gRPC) or `192.168.1.10:8080` (HTTP)
+3. **Authentication** — `y` if the server runs `--secure`; enter the bootstrap token provided by your admin
+
+**On success:** an access token is saved to `~/.coder/config.json`. All future `coder memory` and `coder skill` commands attach the token automatically — injected into gRPC metadata (`authorization: Bearer …`) and HTTP headers (`Authorization: Bearer …`).
+
+**Error recovery:** if the connection test fails, `coder login` presents a menu:
+```
+  1) Retry with a different URL / protocol
+  2) Re-enter authentication token
+  3) Skip verification and continue anyway
+  4) Exit
+```
+
+> **Tip**: register using HTTP on port 8080 first (token exchange is HTTP-only), then re-run `coder login` and switch to gRPC for daily use.
+
+---
+
+### `coder version`
+
+Displays CLI version, Git commit hash, and build timestamp.
 
 ### `coder check-update`
-Checks if a newer version of the CLI is available on GitHub.
+
+Checks GitHub Releases for a newer version.
 
 ### `coder self-update`
-Automatically downloads and replaces the current binary with the latest released version.
+
+Downloads and replaces the current binary with the latest release.
+
+---
+
+## Authentication reference
+
+| Scenario | Action |
+|----------|--------|
+| Open-mode server | No token needed — leave auth prompt as `N` |
+| Secure-mode server (first time) | `coder login` → `y` → enter bootstrap token |
+| Lost access token | Re-run `coder login` → `y` → enter bootstrap token again (creates a new client record) |
+| Bootstrap token lost | Admin must clear `coder_server_config` in DB and restart the node |
+| Switch protocol (gRPC ↔ HTTP) | Re-run `coder login`, answer `N` to auth (token is already saved) |

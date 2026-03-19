@@ -6,6 +6,7 @@ import (
 
 	"github.com/trungtran/coder/api/grpc/memorypb"
 	memdomain "github.com/trungtran/coder/internal/domain/memory"
+	"github.com/trungtran/coder/internal/transport/grpc/credential"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -16,8 +17,15 @@ type Client struct {
 	c    memorypb.MemoryServiceClient
 }
 
-func NewClient(target string) (*Client, error) {
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+// NewClient dials the coder-node gRPC endpoint.
+// accessToken is the raw Bearer token obtained via `coder login`.
+// Pass an empty string for open-mode servers that do not require authentication.
+func NewClient(target, accessToken string) (*Client, error) {
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(credential.BearerToken{Token: accessToken}),
+	}
+	conn, err := grpc.NewClient(target, opts...)
 	if err != nil {
 		return nil, err
 	}

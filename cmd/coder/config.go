@@ -82,7 +82,7 @@ func getMemoryManager() memdomain.MemoryManager {
 		}
 
 		if protocol == "grpc" {
-			client, err := grpcclient.NewClient(baseURL)
+			client, err := grpcclient.NewClient(baseURL, cfg.Auth.AccessToken)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node (gRPC): %v\n", err)
 				os.Exit(1)
@@ -198,7 +198,7 @@ func getSkillClient() skilldomain.SkillClient {
 	}
 
 	if protocol == "grpc" {
-		client, err := grpcclient.NewSkillClient(baseURL)
+		client, err := grpcclient.NewSkillClient(baseURL, cfg.Auth.AccessToken)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: failed to connect to coder-node skill service (gRPC): %v\n", err)
 			os.Exit(1)

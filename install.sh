@@ -3,7 +3,8 @@
 #
 # Usage:
 #   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)"
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)" -- --version v0.1.0
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)" -- --version v0.3.5
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/hiimtrung/coder/main/install.sh)" -- --skip-login
 
 set -e
 
@@ -11,13 +12,15 @@ REPO="hiimtrung/coder"
 BINARY="coder"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 VERSION=""
+SKIP_LOGIN=false
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --version) VERSION="$2"; shift 2 ;;
-    *) shift ;;
+    --version)    VERSION="$2"; shift 2 ;;
+    --skip-login) SKIP_LOGIN=true; shift ;;
+    *)            shift ;;
   esac
 done
 
@@ -69,7 +72,7 @@ if [ -z "$VERSION" ]; then
     echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh)\""
     echo ""
     echo "Or install a specific version directly:"
-    echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh)\" -- --version v0.2.8"
+    echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh)\" -- --version v0.3.5"
     exit 1
   fi
 fi
@@ -95,14 +98,11 @@ chmod +x "$TMP_FILE"
 
 DEST="${INSTALL_DIR}/${BINARY}"
 
-# Ensure INSTALL_DIR exists
 mkdir -p "$INSTALL_DIR" 2>/dev/null || true
 
-# Try to move to destination; use sudo if needed
 if mv "$TMP_FILE" "$DEST" 2>/dev/null; then
   :
 else
-  # No permission; try with sudo
   echo "Installing to $INSTALL_DIR requires elevated permissions..."
   sudo mv "$TMP_FILE" "$DEST"
 fi
@@ -111,72 +111,43 @@ echo ""
 echo "✓ Installed: ${DEST}"
 echo ""
 
-# ── Initialize Config ─────────────────────────────────────────────────────────
+# ── Configure connection to coder-node ───────────────────────────────────────
 
 CONFIG_DIR="$HOME/.coder"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 
-if [ ! -d "$CONFIG_DIR" ]; then
-  mkdir -p "$CONFIG_DIR"
+mkdir -p "$CONFIG_DIR"
+
+if [ -f "$CONFIG_FILE" ] && [ "$SKIP_LOGIN" = "false" ]; then
+  echo "Existing configuration found at $CONFIG_FILE."
+  printf "Reconfigure connection? [y/N]: "
+  read -r RECONFIGURE < /dev/tty || RECONFIGURE="n"
+  case "$RECONFIGURE" in
+    y|Y) rm -f "$CONFIG_FILE" ;;
+    *)   SKIP_LOGIN=true ;;
+  esac
 fi
 
-if [ ! -f "$CONFIG_FILE" ]; then
-  echo "Initializing configuration..."
-  
-  # Prompt for coder-node protocol and URL
-  while true; do
-    echo ""
-    echo "Choose coder-node protocol:"
-    echo "  1) gRPC (recommended for performance)"
-    echo "  2) HTTP (easier for some firewalls/proxies)"
-    printf "Selection [1]: "
-    read -r PROTO_CHOICE < /dev/tty || break
-    
-    PROTOCOL="grpc"
-    DEFAULT_URL="localhost:50051"
-    if [ "$PROTO_CHOICE" = "2" ]; then
-      PROTOCOL="http"
-      DEFAULT_URL="localhost:8080"
-    fi
-
-    printf "Enter coder-node $PROTOCOL URL [$DEFAULT_URL]: "
-    read -r NODE_URL < /dev/tty || break
-    NODE_URL=${NODE_URL:-$DEFAULT_URL}
-    
-    echo "Verifying connection to coder-node ($PROTOCOL) at $NODE_URL..."
-    
-    # Create temporary config to test connection
-    cat <<EOF > "$CONFIG_FILE"
-{
-  "memory": {
-    "provider": "remote",
-    "protocol": "$PROTOCOL",
-    "base_url": "$NODE_URL"
-  }
-}
-EOF
-
-    # Test connection using the installed binary
-    if "$DEST" memory list --limit 1 >/dev/null 2> "$CONFIG_DIR/nodecheck.err"; then
-      echo "✓ connection to coder-node successful."
-      rm -f "$CONFIG_DIR/nodecheck.err"
-      break
-    else
-      echo "⚠ Failed to connect to coder-node ($PROTOCOL). Error details:"
-      cat "$CONFIG_DIR/nodecheck.err"
-      rm -f "$CONFIG_DIR/nodecheck.err"
-      printf "Do you want to re-enter the configuration? [Y/n]: "
-      read -r choice < /dev/tty || break
-      case "$choice" in 
-        n|N ) break;;
-        * ) ;;
-      esac
-    fi
-  done
+if [ "$SKIP_LOGIN" = "false" ]; then
+  echo "┌─────────────────────────────────────────────────────┐"
+  echo "│  Connect to coder-node                              │"
+  echo "│                                                     │"
+  echo "│  You will be asked for:                             │"
+  echo "│   • Protocol  — gRPC (fast) or HTTP                 │"
+  echo "│   • Server URL                                      │"
+  echo "│   • Auth token (only if your node runs --secure)    │"
+  echo "│                                                     │"
+  echo "│  No coder-node yet? Skip with Ctrl-C, then run:     │"
+  echo "│    curl -fsSL .../install-node.sh | sh              │"
+  echo "│  Re-run setup anytime with: coder login             │"
+  echo "└─────────────────────────────────────────────────────┘"
+  echo ""
+  "$DEST" login
 fi
 
-# ── Verify ────────────────────────────────────────────────────────────────────
+# ── Print version + quick-start ───────────────────────────────────────────────
 
+echo ""
 if command -v "$BINARY" >/dev/null 2>&1; then
   "$BINARY" version
 else
@@ -187,8 +158,8 @@ fi
 
 echo ""
 echo "Get started:"
-echo "  ${BINARY} install be        # backend project"
-echo "  ${BINARY} install fe        # frontend project"
-echo "  ${BINARY} install fullstack # full-stack project"
-echo "  ${BINARY} skill ingest --source local  # ingest skills into vector DB"
-echo "  ${BINARY} list              # see all options"
+echo "  ${BINARY} install fullstack            # scaffold agent engine into a project"
+echo "  ${BINARY} skill ingest --source local  # load built-in skills into vector DB"
+echo "  ${BINARY} skill search \"topic\"         # semantic skill search"
+echo "  ${BINARY} memory store \"title\" \"data\"  # save a knowledge snippet"
+echo "  ${BINARY} list                         # see all options"

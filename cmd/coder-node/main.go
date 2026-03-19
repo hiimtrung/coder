@@ -13,6 +13,7 @@ import (
 	authdomain "github.com/trungtran/coder/internal/domain/auth"
 	"github.com/trungtran/coder/internal/infra/embedding"
 	"github.com/trungtran/coder/internal/infra/postgres"
+	grpcinterceptor "github.com/trungtran/coder/internal/transport/grpc/interceptor"
 	grpcserver "github.com/trungtran/coder/internal/transport/grpc/server"
 	httpmiddleware "github.com/trungtran/coder/internal/transport/http/middleware"
 	httpserver "github.com/trungtran/coder/internal/transport/http/server"
@@ -107,7 +108,10 @@ func main() {
 		log.Fatalf("failed to listen on gRPC port: %v", err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(grpcinterceptor.UnaryAuth(authMgr)),
+		grpc.ChainStreamInterceptor(grpcinterceptor.StreamAuth(authMgr)),
+	)
 	memoryServer := grpcserver.NewMemoryServer(mgr)
 	memorypb.RegisterMemoryServiceServer(grpcServer, memoryServer)
 

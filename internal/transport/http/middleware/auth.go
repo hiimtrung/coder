@@ -1,24 +1,18 @@
 package httpmiddleware
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
 	authdomain "github.com/trungtran/coder/internal/domain/auth"
 )
 
-type contextKey string
-
-const ClientContextKey contextKey = "auth_client"
-
 // Auth returns an HTTP middleware that enforces Bearer token authentication
 // when the AuthManager is in secure mode. Unauthenticated requests get 401.
-// The following paths are always public: /v1/auth/register-client, /health.
+// Public paths: /v1/auth/register-client, /health
 func Auth(mgr authdomain.AuthManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Public endpoints — always allowed
 			if !mgr.IsSecureMode() || isPublicPath(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
@@ -37,17 +31,16 @@ func Auth(mgr authdomain.AuthManager) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Attach client to request context
-			ctx := context.WithValue(r.Context(), ClientContextKey, client)
+			ctx := authdomain.WithClient(r.Context(), client)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-// ClientFromContext retrieves the authenticated client from the request context.
-func ClientFromContext(ctx context.Context) *authdomain.Client {
-	c, _ := ctx.Value(ClientContextKey).(*authdomain.Client)
-	return c
+// ClientFromContext retrieves the authenticated client from an HTTP request context.
+// Delegates to the domain-level helper so callers need not import the domain package.
+func ClientFromContext(r *http.Request) *authdomain.Client {
+	return authdomain.ClientFromContext(r.Context())
 }
 
 func isPublicPath(path string) bool {
