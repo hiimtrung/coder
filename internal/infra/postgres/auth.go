@@ -245,7 +245,15 @@ func (a *postgresAuth) GetActivityStats(ctx context.Context, days int) (authdoma
 		return stats, fmt.Errorf("active today: %w", err)
 	}
 
-	// 4. Unique repos (non-empty, last N days)
+	// 4. Active this week (distinct client_id, last 7 days)
+	if err := a.db.QueryRowContext(ctx,
+		`SELECT COUNT(DISTINCT client_id) FROM coder_client_activity
+		 WHERE timestamp >= NOW() - INTERVAL '7 days'`,
+	).Scan(&stats.ActiveThisWeek); err != nil {
+		return stats, fmt.Errorf("active this week: %w", err)
+	}
+
+	// 5. Unique repos (non-empty, last N days)
 	if err := a.db.QueryRowContext(ctx,
 		`SELECT COUNT(DISTINCT repo) FROM coder_client_activity
 		 WHERE repo <> '' AND timestamp >= NOW() - ($1 || ' days')::INTERVAL`,
@@ -254,7 +262,26 @@ func (a *postgresAuth) GetActivityStats(ctx context.Context, days int) (authdoma
 		return stats, fmt.Errorf("unique repos: %w", err)
 	}
 
-	// 5. Commands per day (last N days)
+	// 6. Commands growth: compare current N days vs previous N days
+	var prevCommands int
+	if err := a.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM coder_client_activity
+		 WHERE timestamp >= NOW() - ($1 || ' days')::INTERVAL * 2
+		   AND timestamp <  NOW() - ($1 || ' days')::INTERVAL`,
+		days,
+	).Scan(&prevCommands); err != nil {
+		return stats, fmt.Errorf("commands growth: %w", err)
+	}
+	if prevCommands > 0 {
+		stats.CommandsGrowth = float64(stats.TotalCommands-prevCommands) / float64(prevCommands) * 100
+	}
+
+	// 7. Avg commands per day
+	if days > 0 {
+		stats.AvgCommandsPerDay = float64(stats.TotalCommands) / float64(days)
+	}
+
+	// 8. Commands per day (last N days)
 	rows, err := a.db.QueryContext(ctx,
 		`SELECT TO_CHAR(DATE_TRUNC('day', timestamp), 'YYYY-MM-DD'), COUNT(*)
 		 FROM coder_client_activity
@@ -276,14 +303,36 @@ func (a *postgresAuth) GetActivityStats(ctx context.Context, days int) (authdoma
 	}
 	rows.Close()
 
-	// 6. Top commands (last N days)
+	// 9. Distinct active clients per day (last N days)
+	clientRows, err := a.db.QueryContext(ctx,
+		`SELECT TO_CHAR(DATE_TRUNC('day', timestamp), 'YYYY-MM-DD'), COUNT(DISTINCT client_id)
+		 FROM coder_client_activity
+		 WHERE timestamp >= NOW() - ($1 || ' days')::INTERVAL
+		 GROUP BY DATE_TRUNC('day', timestamp)
+		 ORDER BY DATE_TRUNC('day', timestamp)`,
+		days,
+	)
+	if err != nil {
+		return stats, fmt.Errorf("clients per day: %w", err)
+	}
+	defer clientRows.Close()
+	for clientRows.Next() {
+		var dc authdomain.DailyCount
+		if err := clientRows.Scan(&dc.Date, &dc.Count); err != nil {
+			return stats, err
+		}
+		stats.ClientsPerDay = append(stats.ClientsPerDay, dc)
+	}
+	clientRows.Close()
+
+	// 10. Top commands (last N days)
 	cmdRows, err := a.db.QueryContext(ctx,
 		`SELECT command, COUNT(*) AS cnt
 		 FROM coder_client_activity
 		 WHERE timestamp >= NOW() - ($1 || ' days')::INTERVAL
 		 GROUP BY command
 		 ORDER BY cnt DESC
-		 LIMIT 10`,
+		 LIMIT 8`,
 		days,
 	)
 	if err != nil {
@@ -300,14 +349,58 @@ func (a *postgresAuth) GetActivityStats(ctx context.Context, days int) (authdoma
 		stats.TopCommands = append(stats.TopCommands, cc)
 	}
 	cmdRows.Close()
-	// Calculate percentages
 	if totalCmds > 0 {
 		for i := range stats.TopCommands {
 			stats.TopCommands[i].Percent = float64(stats.TopCommands[i].Count) / float64(totalCmds) * 100
 		}
 	}
 
-	// 7. Recent activity (last 10 rows with git_email)
+	// 11. Top repos by command count (last N days)
+	repoRows, err := a.db.QueryContext(ctx,
+		`SELECT COALESCE(repo,''), COUNT(*) AS cnt
+		 FROM coder_client_activity
+		 WHERE repo <> '' AND timestamp >= NOW() - ($1 || ' days')::INTERVAL
+		 GROUP BY repo
+		 ORDER BY cnt DESC
+		 LIMIT 6`,
+		days,
+	)
+	if err != nil {
+		return stats, fmt.Errorf("top repos: %w", err)
+	}
+	defer repoRows.Close()
+	for repoRows.Next() {
+		var rc authdomain.RepoCount
+		if err := repoRows.Scan(&rc.Repo, &rc.Count); err != nil {
+			return stats, err
+		}
+		stats.TopRepos = append(stats.TopRepos, rc)
+	}
+	repoRows.Close()
+
+	// 12. Activity by hour of day 0–23 (last N days)
+	hourRows, err := a.db.QueryContext(ctx,
+		`SELECT EXTRACT(HOUR FROM timestamp)::INT, COUNT(*)
+		 FROM coder_client_activity
+		 WHERE timestamp >= NOW() - ($1 || ' days')::INTERVAL
+		 GROUP BY EXTRACT(HOUR FROM timestamp)
+		 ORDER BY 1`,
+		days,
+	)
+	if err != nil {
+		return stats, fmt.Errorf("activity by hour: %w", err)
+	}
+	defer hourRows.Close()
+	for hourRows.Next() {
+		var hc authdomain.HourCount
+		if err := hourRows.Scan(&hc.Hour, &hc.Count); err != nil {
+			return stats, err
+		}
+		stats.ActivityByHour = append(stats.ActivityByHour, hc)
+	}
+	hourRows.Close()
+
+	// 13. Recent activity (last 10 rows with git_email)
 	recentRows, err := a.db.QueryContext(ctx,
 		`SELECT a.id, a.client_id, a.command, COALESCE(a.repo,''), COALESCE(a.branch,''), a.timestamp, c.git_email
 		 FROM coder_client_activity a

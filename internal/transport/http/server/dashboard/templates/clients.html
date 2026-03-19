@@ -1,35 +1,45 @@
 {{define "clients.html"}}
-{{template "layout" .}}
-{{end}}
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>{{template "head" .}}</head>
+<body class="bg-gray-950 text-gray-100 flex dark">
+  {{template "nav" .}}
+  <main class="ml-64 flex-1 min-h-screen p-8">
 
-{{define "content"}}
-<h1 class="text-2xl font-bold mb-6 text-white">
-  Clients <span class="text-gray-500 text-lg font-normal">({{len .Clients}})</span>
-</h1>
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-white">
+        Clients
+        <span class="text-gray-500 text-lg font-normal ml-1">({{len .Clients}})</span>
+      </h1>
+    </div>
 
-<!-- Activity drawer target -->
-<div id="drawer"></div>
+    <!-- Activity drawer target (rendered by HTMX) -->
+    <div id="drawer" class="mb-4"></div>
 
-<div class="bg-gray-900 rounded-xl border border-gray-800 overflow-x-auto">
-  <table class="w-full text-sm" id="clients-table">
-    <thead class="text-gray-400 border-b border-gray-800 text-left">
-      <tr>
-        <th class="p-3">Name</th>
-        <th class="p-3">Email</th>
-        <th class="p-3">Registered</th>
-        <th class="p-3">Last Seen</th>
-        <th class="p-3">Actions</th>
-      </tr>
-    </thead>
-    <tbody id="clients-tbody">
-      {{range .Clients}}
-      {{template "client_row" .}}
-      {{else}}
-      <tr>
-        <td colspan="5" class="p-6 text-center text-gray-600">No clients registered yet.</td>
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
-</div>
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-x-auto">
+      <table class="w-full text-sm" id="clients-table">
+        <thead class="text-gray-500 border-b border-gray-800 text-xs uppercase tracking-wide text-left">
+          <tr>
+            <th class="p-3">Name</th>
+            <th class="p-3">Email</th>
+            <th class="p-3">Registered</th>
+            <th class="p-3">Last Seen</th>
+            <th class="p-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="clients-tbody">
+          {{range .Clients}}
+          {{template "client_row" .}}
+          {{else}}
+          <tr>
+            <td colspan="5" class="p-8 text-center text-gray-600">No clients registered yet.</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</body>
+</html>
 {{end}}

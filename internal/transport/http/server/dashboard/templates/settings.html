@@ -1,50 +1,94 @@
 {{define "settings.html"}}
-{{template "layout" .}}
-{{end}}
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>{{template "head" .}}</head>
+<body class="bg-gray-950 text-gray-100 flex dark">
+  {{template "nav" .}}
+  <main class="ml-64 flex-1 min-h-screen p-8">
 
-{{define "content"}}
-<h1 class="text-2xl font-bold mb-6 text-white">Settings</h1>
+    <h1 class="text-2xl font-bold mb-6 text-white">Settings</h1>
 
-<!-- Bootstrap token card -->
-<div class="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
-  <h2 class="text-lg font-semibold text-white mb-1">Bootstrap Token</h2>
-  <p class="text-sm text-gray-400 mb-4">
-    Used by new developers to register with <code class="text-indigo-300 bg-gray-800 px-1 rounded">coder login</code>.
-    Rotating generates a new token — existing client access tokens are unaffected.
-  </p>
+    <!-- Bootstrap token card -->
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h2 class="text-base font-semibold text-white mb-1">Bootstrap Token</h2>
+          <p class="text-sm text-gray-400 max-w-lg">
+            Used by new developers to register with
+            <code class="text-indigo-300 bg-gray-800 px-1 rounded">coder login</code>.
+            Rotating generates a new token — existing client access tokens are unaffected.
+          </p>
+        </div>
+        {{if .BootstrapConfigured}}
+        <span class="shrink-0 inline-flex items-center gap-1.5 bg-green-900/30 text-green-400 px-3 py-1 rounded-full text-xs border border-green-700/30 ml-4">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414L8.414 15 3.293 9.879a1 1 0 011.414-1.414L8.414 12.172l6.879-6.879a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+          Configured
+        </span>
+        {{else}}
+        <span class="shrink-0 inline-flex items-center gap-1.5 bg-yellow-900/30 text-yellow-400 px-3 py-1 rounded-full text-xs border border-yellow-700/30 ml-4">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+          Not configured
+        </span>
+        {{end}}
+      </div>
 
-  <div class="flex items-center gap-3 mb-5">
-    {{if .BootstrapConfigured}}
-    <span class="inline-flex items-center gap-1.5 bg-green-900/40 text-green-400 px-3 py-1 rounded-full text-sm border border-green-700/30">
-      Configured
-    </span>
-    {{else}}
-    <span class="inline-flex items-center gap-1.5 bg-yellow-900/40 text-yellow-400 px-3 py-1 rounded-full text-sm border border-yellow-700/30">
-      Not configured
-    </span>
-    {{end}}
-  </div>
+      <button
+        hx-post="/dashboard/settings/regenerate"
+        hx-target="#token-result"
+        hx-swap="innerHTML"
+        hx-confirm="Rotate the bootstrap token? The old token will stop working immediately."
+        class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Regenerate Bootstrap Token
+      </button>
 
-  <button
-    hx-post="/dashboard/settings/regenerate"
-    hx-target="#token-result"
-    hx-swap="innerHTML"
-    hx-confirm="Rotate the bootstrap token? The old token will stop working immediately."
-    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-    Regenerate Bootstrap Token
-  </button>
+      <div id="token-result" class="mt-4"></div>
+    </div>
 
-  <div id="token-result" class="mt-4"></div>
-</div>
+    <!-- Server info card -->
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
+      <h2 class="text-base font-semibold text-white mb-4">Server Info</h2>
+      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-8 text-sm">
+        <div class="flex justify-between sm:block">
+          <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Version</dt>
+          <dd class="text-gray-100 font-mono">{{.Version}}</dd>
+        </div>
+        <div class="flex justify-between sm:block">
+          <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Secure Mode</dt>
+          <dd>
+            {{if .SecureMode}}
+            <span class="inline-flex items-center gap-1 text-green-400 text-sm">
+              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+              Enabled
+            </span>
+            {{else}}
+            <span class="inline-flex items-center gap-1 text-gray-400 text-sm">
+              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/></svg>
+              Disabled (open mode)
+            </span>
+            {{end}}
+          </dd>
+        </div>
+      </dl>
+    </div>
 
-<!-- Server info -->
-<div class="bg-gray-900 rounded-xl border border-gray-800 p-6">
-  <h2 class="text-lg font-semibold text-white mb-4">Server Info</h2>
-  <dl class="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
-    <dt class="text-gray-400">Version</dt>
-    <dd class="text-gray-100">{{.Version}}</dd>
-    <dt class="text-gray-400">Secure Mode</dt>
-    <dd class="text-gray-100">{{.SecureMode}}</dd>
-  </dl>
-</div>
+    <!-- Danger zone card -->
+    <div class="bg-gray-900 rounded-xl border border-red-900/40 p-6">
+      <h2 class="text-base font-semibold text-red-400 mb-4">Danger Zone</h2>
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-white font-medium">Sign out of dashboard</p>
+          <p class="text-xs text-gray-500 mt-0.5">Clears your session cookie. You will need your token to sign back in.</p>
+        </div>
+        <a
+          href="/dashboard/logout"
+          class="shrink-0 ml-4 border border-red-700/50 text-red-400 hover:bg-red-900/30 px-4 py-2 rounded-lg text-sm transition-colors">
+          Sign out
+        </a>
+      </div>
+    </div>
+
+  </main>
+</body>
+</html>
 {{end}}

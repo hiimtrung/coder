@@ -12,6 +12,19 @@ import (
 //go:embed templates static
 var embeddedFS embed.FS
 
+// templateFuncs provides math helpers used by overview charts.
+var templateFuncs = template.FuncMap{
+	// mulf multiplies two numbers and returns float64.
+	"mulf": func(a, b float64) float64 { return a * b },
+	// divf divides a by b; returns 0 if b is zero.
+	"divf": func(a, b float64) float64 {
+		if b == 0 {
+			return 0
+		}
+		return a / b
+	},
+}
+
 // DashboardServer serves the web dashboard UI.
 type DashboardServer struct {
 	mgr     authdomain.AuthManager
@@ -21,10 +34,12 @@ type DashboardServer struct {
 
 // NewDashboardServer creates a new DashboardServer.
 func NewDashboardServer(mgr authdomain.AuthManager, version string) *DashboardServer {
-	tmpl := template.Must(template.New("").ParseFS(embeddedFS,
-		"templates/*.html",
-		"templates/partials/*.html",
-	))
+	tmpl := template.Must(
+		template.New("").Funcs(templateFuncs).ParseFS(embeddedFS,
+			"templates/*.html",
+			"templates/partials/*.html",
+		),
+	)
 	return &DashboardServer{mgr: mgr, version: version, tmpl: tmpl}
 }
 

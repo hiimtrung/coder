@@ -32,7 +32,7 @@ type ActivityFilter struct {
 	Offset   int
 }
 
-// DailyCount is one point for commands-per-day chart.
+// DailyCount is one point for a time-series chart (commands or clients per day).
 type DailyCount struct {
 	Date  string `json:"date"`
 	Count int    `json:"count"`
@@ -45,13 +45,38 @@ type CommandCount struct {
 	Percent float64 `json:"percent"`
 }
 
+// RepoCount is one bar in the top-repos chart.
+type RepoCount struct {
+	Repo  string `json:"repo"`
+	Count int    `json:"count"`
+}
+
+// HourCount is one bucket in the activity-by-hour bar chart (0–23).
+type HourCount struct {
+	Hour  int `json:"hour"`
+	Count int `json:"count"`
+}
+
 // ActivityStats bundles all dashboard overview data.
 type ActivityStats struct {
-	TotalClients   int            `json:"total_clients"`
-	TotalCommands  int            `json:"total_commands"`
-	ActiveToday    int            `json:"active_today"`
-	UniqueRepos    int            `json:"unique_repos"`
-	CommandsPerDay []DailyCount   `json:"commands_per_day"`
+	// KPI cards
+	TotalClients      int     `json:"total_clients"`
+	TotalCommands     int     `json:"total_commands"`
+	ActiveToday       int     `json:"active_today"`
+	ActiveThisWeek    int     `json:"active_this_week"`
+	UniqueRepos       int     `json:"unique_repos"`
+	AvgCommandsPerDay float64 `json:"avg_commands_per_day"`
+	CommandsGrowth    float64 `json:"commands_growth"` // % change vs previous period
+
+	// Time-series charts
+	CommandsPerDay []DailyCount `json:"commands_per_day"`
+	ClientsPerDay  []DailyCount `json:"clients_per_day"`
+
+	// Distribution charts
 	TopCommands    []CommandCount `json:"top_commands"`
-	RecentActivity []Activity     `json:"recent_activity"`
+	TopRepos       []RepoCount    `json:"top_repos"`
+	ActivityByHour []HourCount    `json:"activity_by_hour"`
+
+	// Table
+	RecentActivity []Activity `json:"recent_activity"`
 }
