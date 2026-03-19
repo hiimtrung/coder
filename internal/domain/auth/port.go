@@ -29,6 +29,7 @@ type AuthRepository interface {
 	// Dashboard queries
 	GetAllActivities(ctx context.Context, filter ActivityFilter) ([]Activity, int, error)
 	GetActivityStats(ctx context.Context, days int) (ActivityStats, error)
+	GetActivityChartStats(ctx context.Context, filter ActivityFilter, days int) (ActivityChartStats, error)
 }
 
 // AuthManager is the application-level service for auth operations.
@@ -72,4 +73,8 @@ type AuthManager interface {
 
 	// GetActivityStats returns aggregated stats for the dashboard overview.
 	GetActivityStats(ctx context.Context, days int) (ActivityStats, error)
+
+	// GetActivityChartStats returns chart-ready aggregated data for the activity page,
+	// optionally filtered by client_id and/or command.
+	GetActivityChartStats(ctx context.Context, filter ActivityFilter, days int) (ActivityChartStats, error)
 }

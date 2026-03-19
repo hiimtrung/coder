@@ -177,6 +177,95 @@ func (a *postgresAuth) GetActivities(ctx context.Context, clientID string, limit
 	return acts, nil
 }
 
+func (a *postgresAuth) GetActivityChartStats(ctx context.Context, filter authdomain.ActivityFilter, days int) (authdomain.ActivityChartStats, error) {
+	var stats authdomain.ActivityChartStats
+
+	// Build optional WHERE clause for client/command filters on top of the N-day window.
+	args := []any{days}
+	where := `timestamp >= NOW() - ($1 || ' days')::INTERVAL`
+
+	if filter.ClientID != "" {
+		args = append(args, filter.ClientID)
+		where += fmt.Sprintf(` AND client_id = $%d`, len(args))
+	}
+	if filter.Command != "" {
+		args = append(args, filter.Command)
+		where += fmt.Sprintf(` AND command = $%d`, len(args))
+	}
+
+	// 1. Total matching rows
+	if err := a.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM coder_client_activity WHERE `+where, args...,
+	).Scan(&stats.Total); err != nil {
+		return stats, fmt.Errorf("chart total: %w", err)
+	}
+
+	// 2. Commands per day
+	dayRows, err := a.db.QueryContext(ctx,
+		`SELECT TO_CHAR(DATE_TRUNC('day', timestamp), 'YYYY-MM-DD'), COUNT(*)
+		 FROM coder_client_activity WHERE `+where+`
+		 GROUP BY DATE_TRUNC('day', timestamp)
+		 ORDER BY DATE_TRUNC('day', timestamp)`, args...,
+	)
+	if err != nil {
+		return stats, fmt.Errorf("chart commands per day: %w", err)
+	}
+	defer dayRows.Close()
+	for dayRows.Next() {
+		var dc authdomain.DailyCount
+		if err := dayRows.Scan(&dc.Date, &dc.Count); err != nil {
+			return stats, err
+		}
+		stats.CommandsPerDay = append(stats.CommandsPerDay, dc)
+	}
+	dayRows.Close()
+
+	// 3. Top commands by count
+	cmdRows, err := a.db.QueryContext(ctx,
+		`SELECT command, COUNT(*) AS cnt FROM coder_client_activity WHERE `+where+`
+		 GROUP BY command ORDER BY cnt DESC LIMIT 8`, args...,
+	)
+	if err != nil {
+		return stats, fmt.Errorf("chart top commands: %w", err)
+	}
+	defer cmdRows.Close()
+	var totalCmds int
+	for cmdRows.Next() {
+		var cc authdomain.CommandCount
+		if err := cmdRows.Scan(&cc.Command, &cc.Count); err != nil {
+			return stats, err
+		}
+		totalCmds += cc.Count
+		stats.TopCommands = append(stats.TopCommands, cc)
+	}
+	cmdRows.Close()
+	if totalCmds > 0 {
+		for i := range stats.TopCommands {
+			stats.TopCommands[i].Percent = float64(stats.TopCommands[i].Count) / float64(totalCmds) * 100
+		}
+	}
+
+	// 4. Activity by hour of day 0-23
+	hourRows, err := a.db.QueryContext(ctx,
+		`SELECT EXTRACT(HOUR FROM timestamp)::INT, COUNT(*)
+		 FROM coder_client_activity WHERE `+where+`
+		 GROUP BY EXTRACT(HOUR FROM timestamp) ORDER BY 1`, args...,
+	)
+	if err != nil {
+		return stats, fmt.Errorf("chart activity by hour: %w", err)
+	}
+	defer hourRows.Close()
+	for hourRows.Next() {
+		var hc authdomain.HourCount
+		if err := hourRows.Scan(&hc.Hour, &hc.Count); err != nil {
+			return stats, err
+		}
+		stats.ActivityByHour = append(stats.ActivityByHour, hc)
+	}
+
+	return stats, nil
+}
+
 func (a *postgresAuth) GetAllActivities(ctx context.Context, filter authdomain.ActivityFilter) ([]authdomain.Activity, int, error) {
 	// Count query
 	var total int

@@ -57,6 +57,15 @@ type HourCount struct {
 	Count int `json:"count"`
 }
 
+// ActivityChartStats holds aggregated chart data for the activity log page,
+// optionally filtered by client and/or command.
+type ActivityChartStats struct {
+	Total          int            `json:"total"`
+	CommandsPerDay []DailyCount   `json:"commands_per_day"`
+	TopCommands    []CommandCount `json:"top_commands"`
+	ActivityByHour []HourCount    `json:"activity_by_hour"`
+}
+
 // ActivityStats bundles all dashboard overview data.
 type ActivityStats struct {
 	// KPI cards

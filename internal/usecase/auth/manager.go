@@ -211,6 +211,13 @@ func (m *Manager) GetActivityStats(ctx context.Context, days int) (authdomain.Ac
 	return m.repo.GetActivityStats(ctx, days)
 }
 
+func (m *Manager) GetActivityChartStats(ctx context.Context, filter authdomain.ActivityFilter, days int) (authdomain.ActivityChartStats, error) {
+	if m.repo == nil {
+		return authdomain.ActivityChartStats{}, nil
+	}
+	return m.repo.GetActivityChartStats(ctx, filter, days)
+}
+
 // generateToken creates a cryptographically secure random 32-byte hex token.
 func generateToken() (string, error) {
 	b := make([]byte, 32)

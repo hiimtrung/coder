@@ -53,6 +53,8 @@ func runInstall(args []string) {
 
 	opts := installer.Options{DryRun: *dryRun, Force: *force}
 
+	logActivity("install " + profileName)
+
 	// Remote-first strategy: try GitHub first, fallback to embedded
 	fmt.Printf("Fetching latest engine components from GitHub (%s/%s)...\n", version.RepoOwner, version.RepoName)
 	remoteFS := installer.NewGitHubFS(version.RepoOwner+"/"+version.RepoName, "main")
@@ -261,6 +263,8 @@ func runUpdate(args []string) {
 
 	// Update always overwrites
 	opts := installer.Options{DryRun: *dryRun, Force: true}
+
+	logActivity("update " + profileName)
 
 	// Remote-first strategy: try GitHub first, fallback to embedded
 	fmt.Printf("Fetching latest engine components from GitHub (%s/%s)...\n", version.RepoOwner, version.RepoName)

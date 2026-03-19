@@ -9,27 +9,29 @@ import (
 )
 
 // logActivity sends a fire-and-forget activity log to coder-node.
-// It does not block and silently ignores all errors.
+// It collects rich git context from the working directory and posts
+// asynchronously — all errors are silently ignored so the CLI never blocks.
 func logActivity(command string) {
 	cfg, err := loadConfig()
 	if err != nil || cfg.Auth.AccessToken == "" || cfg.Memory.BaseURL == "" {
 		return
 	}
 	go func() {
-		repo := gitOutput("config", "--get", "remote.origin.url")
-		branch := gitOutput("rev-parse", "--abbrev-ref", "HEAD")
+		repo    := sanitiseRepoURL(gitOutput("config", "--get", "remote.origin.url"))
+		branch  := gitOutput("rev-parse", "--abbrev-ref", "HEAD")
+		commit  := gitOutput("rev-parse", "--short", "HEAD")
+		project := gitProjectName()
 
-		baseURL := cfg.Memory.BaseURL
-		if !strings.HasPrefix(baseURL, "http") {
-			baseURL = "http://" + baseURL
-		}
+		httpBase := toHTTPBase(cfg.Memory.BaseURL)
 
 		payload, _ := json.Marshal(map[string]string{
 			"command": command,
-			"repo":    sanitiseRepoURL(repo),
+			"repo":    repo,
 			"branch":  branch,
+			"commit":  commit,
+			"project": project,
 		})
-		req, err := http.NewRequest("POST", baseURL+"/v1/auth/log-activity", bytes.NewBuffer(payload))
+		req, err := http.NewRequest("POST", httpBase+"/v1/auth/log-activity", bytes.NewBuffer(payload))
 		if err != nil {
 			return
 		}
@@ -48,17 +50,38 @@ func gitOutput(args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// sanitiseRepoURL strips credentials from git URLs.
-func sanitiseRepoURL(url string) string {
-	// Remove git@ prefix: git@github.com:org/repo.git -> github.com/org/repo
-	if idx := strings.Index(url, "@"); idx != -1 {
-		after := url[idx+1:]
-		after = strings.ReplaceAll(after, ":", "/")
-		after = strings.TrimSuffix(after, ".git")
-		return after
+// gitProjectName returns the basename of the git repository root directory.
+// e.g. /Users/dev/my-app → "my-app". Returns "" if not in a git repo.
+func gitProjectName() string {
+	root := gitOutput("rev-parse", "--show-toplevel")
+	if root == "" {
+		return ""
 	}
-	// Remove https://user:pass@ or https:// prefix
-	url = strings.TrimPrefix(url, "https://")
-	url = strings.TrimPrefix(url, "http://")
-	return strings.TrimSuffix(url, ".git")
+	// Use path/filepath.Base-equivalent without importing path
+	for i := len(root) - 1; i >= 0; i-- {
+		if root[i] == '/' || root[i] == '\\' {
+			return root[i+1:]
+		}
+	}
+	return root
+}
+
+// sanitiseRepoURL strips credentials and normalises git remote URLs.
+//
+//	git@github.com:org/repo.git  → github.com/org/repo
+//	https://user:pass@host/repo  → host/repo
+func sanitiseRepoURL(rawURL string) string {
+	// git@ SSH format
+	if idx := strings.Index(rawURL, "@"); idx != -1 {
+		after := rawURL[idx+1:]
+		after = strings.ReplaceAll(after, ":", "/")
+		return strings.TrimSuffix(after, ".git")
+	}
+	// HTTPS — strip scheme and optional user:pass@
+	rawURL = strings.TrimPrefix(rawURL, "https://")
+	rawURL = strings.TrimPrefix(rawURL, "http://")
+	if idx := strings.Index(rawURL, "@"); idx != -1 {
+		rawURL = rawURL[idx+1:]
+	}
+	return strings.TrimSuffix(rawURL, ".git")
 }

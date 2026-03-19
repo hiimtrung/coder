@@ -6,57 +6,326 @@
   {{template "nav" .}}
   <main class="ml-64 flex-1 min-h-screen p-8">
 
-    <h1 class="text-2xl font-bold mb-6 text-white">Activity Log</h1>
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-white">Activity Log</h1>
+        <p class="text-sm text-gray-500 mt-0.5">Filtered view · last {{.Charts.Total}} matching records</p>
+      </div>
+      <!-- View toggle -->
+      <div class="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-lg p-1">
+        <button id="btn-table" onclick="switchView('table')"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors bg-indigo-600 text-white">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 6h18M3 14h18M3 18h18"/></svg>
+          Table
+        </button>
+        <button id="btn-charts" onclick="switchView('charts')"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors text-gray-400 hover:text-gray-200">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Charts
+        </button>
+      </div>
+    </div>
 
-    <!-- Filters -->
+    <!-- Filters (shared between both views) -->
     <div class="flex flex-wrap gap-3 mb-6">
       <select
+        id="filter-client"
         name="client_id"
         class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500"
         hx-get="/dashboard/activity"
         hx-trigger="change"
         hx-target="#activity-rows"
         hx-swap="innerHTML"
-        hx-include="[name='client_id'],[name='command']">
+        hx-include="[name='client_id'],[name='command']"
+        onchange="scheduleChartReload()">
         <option value="">All clients</option>
         {{range .Clients}}
         <option value="{{.ID}}" {{if eq $.Filter.ClientID .ID}}selected{{end}}>{{.GitEmail}}</option>
         {{end}}
       </select>
       <select
+        id="filter-command"
         name="command"
         class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500"
         hx-get="/dashboard/activity"
         hx-trigger="change"
         hx-target="#activity-rows"
         hx-swap="innerHTML"
-        hx-include="[name='client_id'],[name='command']">
+        hx-include="[name='client_id'],[name='command']"
+        onchange="scheduleChartReload()">
         <option value="">All commands</option>
         <option {{if eq $.Filter.Command "memory search"}}selected{{end}}>memory search</option>
         <option {{if eq $.Filter.Command "memory store"}}selected{{end}}>memory store</option>
         <option {{if eq $.Filter.Command "skill search"}}selected{{end}}>skill search</option>
         <option {{if eq $.Filter.Command "skill ingest"}}selected{{end}}>skill ingest</option>
+        <option {{if eq $.Filter.Command "install"}}selected{{end}}>install</option>
+        <option {{if eq $.Filter.Command "update"}}selected{{end}}>update</option>
       </select>
     </div>
 
-    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="text-gray-500 border-b border-gray-800 text-xs uppercase tracking-wide text-left">
-          <tr>
-            <th class="p-3">Time</th>
-            <th class="p-3">Client</th>
-            <th class="p-3">Command</th>
-            <th class="p-3">Repo</th>
-            <th class="p-3">Branch</th>
-          </tr>
-        </thead>
-        <tbody id="activity-rows">
-          {{template "activity_rows" .}}
-        </tbody>
-      </table>
+    <!-- ── TABLE VIEW ───────────────────────────────────────────────── -->
+    <div id="view-table">
+      <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="text-gray-500 border-b border-gray-800 text-xs uppercase tracking-wide text-left">
+            <tr>
+              <th class="p-3">Time</th>
+              <th class="p-3">Client</th>
+              <th class="p-3">Command</th>
+              <th class="p-3">Repo</th>
+              <th class="p-3">Branch</th>
+            </tr>
+          </thead>
+          <tbody id="activity-rows">
+            {{template "activity_rows" .}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── CHARTS VIEW ──────────────────────────────────────────────── -->
+    <div id="view-charts" class="hidden">
+
+      <!-- KPI strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Total (filtered)</div>
+          <div class="text-3xl font-bold text-white" id="kpi-total">{{.Charts.Total}}</div>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Command types</div>
+          <div class="text-3xl font-bold text-white" id="kpi-types">{{len .Charts.TopCommands}}</div>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Days tracked</div>
+          <div class="text-3xl font-bold text-white">{{len .Charts.CommandsPerDay}}</div>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">Peak hour</div>
+          <div class="text-3xl font-bold text-white" id="kpi-peak">—</div>
+        </div>
+      </div>
+
+      <!-- Row 1: Commands per day -->
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-sm font-semibold text-white">Commands per Day</h2>
+          <span class="text-xs text-gray-500">last 30 days · filtered</span>
+        </div>
+        <canvas id="actCmdPerDay" height="80"></canvas>
+      </div>
+
+      <!-- Row 2: Donut + Hour bar -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+        <!-- Command type breakdown -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+          <h2 class="text-sm font-semibold text-white mb-5">Command Breakdown</h2>
+          <div class="flex gap-6 items-start">
+            <div class="relative w-36 h-36 shrink-0">
+              <canvas id="actDonut"></canvas>
+              <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span class="text-2xl font-bold text-white" id="donut-center">{{len .Charts.TopCommands}}</span>
+                <span class="text-xs text-gray-500">types</span>
+              </div>
+            </div>
+            <ul class="flex-1 space-y-2 mt-1">
+              {{range .Charts.TopCommands}}
+              <li class="flex items-center justify-between text-xs">
+                <span class="font-mono text-indigo-300 truncate max-w-[160px]">{{.Command}}</span>
+                <div class="flex items-center gap-2">
+                  <div class="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div class="h-full bg-indigo-500 rounded-full" style="width:{{printf "%.0f" .Percent}}%"></div>
+                  </div>
+                  <span class="text-gray-400 w-6 text-right">{{.Count}}</span>
+                </div>
+              </li>
+              {{else}}
+              <li class="text-gray-600 text-xs">No data yet</li>
+              {{end}}
+            </ul>
+          </div>
+        </div>
+
+        <!-- Activity by hour -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+          <h2 class="text-sm font-semibold text-white mb-5">Activity by Hour of Day</h2>
+          <canvas id="actHourChart" height="120"></canvas>
+          <div class="flex justify-between text-xs text-gray-600 mt-1 px-0.5">
+            <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+          </div>
+        </div>
+
+      </div>
     </div>
 
   </main>
 </body>
+
+<script>
+// ── View toggle ──────────────────────────────────────────────────────
+function switchView(name) {
+  var isChart = name === "charts";
+  document.getElementById("view-table").classList.toggle("hidden", isChart);
+  document.getElementById("view-charts").classList.toggle("hidden", !isChart);
+
+  var btnTable  = document.getElementById("btn-table");
+  var btnCharts = document.getElementById("btn-charts");
+
+  btnTable.className  = "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors " +
+    (isChart ? "text-gray-400 hover:text-gray-200" : "bg-indigo-600 text-white");
+  btnCharts.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors " +
+    (isChart ? "bg-indigo-600 text-white" : "text-gray-400 hover:text-gray-200");
+
+  // Initialise charts on first reveal
+  if (isChart && !window._actChartsInited) {
+    initActivityCharts();
+    window._actChartsInited = true;
+  }
+}
+
+// ── Chart data injected by server ────────────────────────────────────
+var actCmdPerDayLabels  = [{{range .Charts.CommandsPerDay}}"{{.Date}}",{{end}}];
+var actCmdPerDayValues  = [{{range .Charts.CommandsPerDay}}{{.Count}},{{end}}];
+var actDonutLabels      = [{{range .Charts.TopCommands}}"{{.Command}}",{{end}}];
+var actDonutValues      = [{{range .Charts.TopCommands}}{{.Count}},{{end}}];
+
+var actHourMap = {};
+{{range .Charts.ActivityByHour}}actHourMap[{{.Hour}}] = {{.Count}};{{end}}
+var actHourLabels = [];
+var actHourValues = [];
+for (var h = 0; h < 24; h++) {
+  actHourLabels.push(h < 10 ? "0"+h : ""+h);
+  actHourValues.push(actHourMap[h] || 0);
+}
+
+// Set peak hour KPI
+(function(){
+  var maxVal = 0, maxH = 0;
+  for (var h = 0; h < 24; h++) {
+    if ((actHourMap[h] || 0) > maxVal) { maxVal = actHourMap[h]; maxH = h; }
+  }
+  if (maxVal > 0) {
+    var el = document.getElementById("kpi-peak");
+    if (el) el.textContent = (maxH < 10 ? "0" : "") + maxH + ":00";
+  }
+})();
+
+// ── Chart init ───────────────────────────────────────────────────────
+var indigo    = "#6366f1";
+var gridColor = "#1f2937";
+var tickColor = "#4b5563";
+var palette   = ["#6366f1","#8b5cf6","#a78bfa","#c4b5fd","#818cf8","#4f46e5","#7c3aed","#5b21b6"];
+
+function initActivityCharts() {
+
+  // 1. Commands per day line chart
+  var cpd = document.getElementById("actCmdPerDay");
+  if (cpd) {
+    new Chart(cpd, {
+      type: "line",
+      data: {
+        labels: actCmdPerDayLabels,
+        datasets: [{
+          label: "Commands",
+          data: actCmdPerDayValues,
+          borderColor: indigo,
+          backgroundColor: "rgba(99,102,241,0.10)",
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+          pointBackgroundColor: indigo
+        }]
+      },
+      options: {
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: tickColor, font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: gridColor } },
+          y: { beginAtZero: true, ticks: { color: tickColor, font: { size: 10 } }, grid: { color: gridColor } }
+        }
+      }
+    });
+  }
+
+  // 2. Command type donut
+  var donutEl = document.getElementById("actDonut");
+  if (donutEl && actDonutLabels.length) {
+    new Chart(donutEl, {
+      type: "doughnut",
+      data: {
+        labels: actDonutLabels,
+        datasets: [{ data: actDonutValues, backgroundColor: palette, borderWidth: 0 }]
+      },
+      options: {
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function(ctx){ return " " + ctx.label + ": " + ctx.raw; } } }
+        },
+        cutout: "72%"
+      }
+    });
+  }
+
+  // 3. Activity by hour bar
+  var maxHour = Math.max.apply(null, actHourValues) || 1;
+  var hourEl = document.getElementById("actHourChart");
+  if (hourEl) {
+    new Chart(hourEl, {
+      type: "bar",
+      data: {
+        labels: actHourLabels,
+        datasets: [{
+          data: actHourValues,
+          backgroundColor: actHourValues.map(function(v){
+            var alpha = 0.15 + 0.85 * (v / maxHour);
+            return "rgba(99,102,241," + alpha.toFixed(2) + ")";
+          }),
+          borderRadius: 3,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { title: function(items){ return items[0].label + ":00 – " + items[0].label + ":59"; } } }
+        },
+        scales: {
+          x: { ticks: { color: tickColor, font: { size: 9 } }, grid: { color: gridColor } },
+          y: { beginAtZero: true, ticks: { color: tickColor, font: { size: 10 } }, grid: { color: gridColor } }
+        }
+      }
+    });
+  }
+}
+
+// ── Reload charts when filters change ───────────────────────────────
+// (full page reload to re-compute chart data from server)
+var _chartReloadTimer = null;
+function scheduleChartReload() {
+  if (!window._actChartsInited) return; // chart view not visible yet
+  clearTimeout(_chartReloadTimer);
+  _chartReloadTimer = setTimeout(function() {
+    var clientId = document.getElementById("filter-client").value;
+    var command  = document.getElementById("filter-command").value;
+    var url = "/dashboard/activity?";
+    if (clientId) url += "client_id=" + encodeURIComponent(clientId) + "&";
+    if (command)  url += "command="   + encodeURIComponent(command);
+    // Full page reload preserving chart view
+    sessionStorage.setItem("activityView", "charts");
+    window.location.href = url;
+  }, 600);
+}
+
+// ── Restore view after filter-triggered page reload ──────────────────
+(function(){
+  var saved = sessionStorage.getItem("activityView");
+  if (saved === "charts") {
+    sessionStorage.removeItem("activityView");
+    switchView("charts");
+  }
+})();
+</script>
 </html>
 {{end}}
