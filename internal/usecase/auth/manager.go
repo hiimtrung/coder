@@ -167,6 +167,50 @@ func (m *Manager) ListClients(ctx context.Context) ([]authdomain.Client, error) 
 	return m.repo.ListClients(ctx)
 }
 
+// RevokeClient removes a client by ID.
+func (m *Manager) RevokeClient(ctx context.Context, clientID string) error {
+	if m.repo == nil {
+		return fmt.Errorf("auth repository not configured")
+	}
+	return m.repo.DeleteClient(ctx, clientID)
+}
+
+// RotateToken generates a new access token for the given client,
+// atomically replacing the old hash in the database.
+// The new raw token is returned once — it is never persisted in plaintext.
+func (m *Manager) RotateToken(ctx context.Context, clientID string) (string, error) {
+	if !m.secureMode {
+		return "", fmt.Errorf("server is not in secure mode")
+	}
+	if m.repo == nil {
+		return "", fmt.Errorf("auth repository not configured")
+	}
+	rawToken, err := generateToken()
+	if err != nil {
+		return "", err
+	}
+	if err := m.repo.UpdateAccessTokenHash(ctx, clientID, sha256Hex(rawToken)); err != nil {
+		return "", fmt.Errorf("failed to rotate token: %w", err)
+	}
+	return rawToken, nil
+}
+
+// GetAllActivities returns paginated activity log with client email info.
+func (m *Manager) GetAllActivities(ctx context.Context, filter authdomain.ActivityFilter) ([]authdomain.Activity, int, error) {
+	if m.repo == nil {
+		return nil, 0, nil
+	}
+	return m.repo.GetAllActivities(ctx, filter)
+}
+
+// GetActivityStats returns aggregated dashboard statistics.
+func (m *Manager) GetActivityStats(ctx context.Context, days int) (authdomain.ActivityStats, error) {
+	if m.repo == nil {
+		return authdomain.ActivityStats{}, nil
+	}
+	return m.repo.GetActivityStats(ctx, days)
+}
+
 // generateToken creates a cryptographically secure random 32-byte hex token.
 func generateToken() (string, error) {
 	b := make([]byte, 32)

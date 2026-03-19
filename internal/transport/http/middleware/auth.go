@@ -50,5 +50,10 @@ func isPublicPath(path string) bool {
 		"/health":
 		return true
 	}
+	// Dashboard routes use their own cookie-based auth middleware,
+	// so they must be excluded from the global Bearer token check.
+	if strings.HasPrefix(path, "/dashboard") {
+		return true
+	}
 	return false
 }

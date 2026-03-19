@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	authdomain "github.com/trungtran/coder/internal/domain/auth"
 )
@@ -23,6 +24,8 @@ func (s *AuthServer) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/auth/log-activity", s.handleLogActivity)
 	mux.HandleFunc("/v1/auth/bootstrap/regenerate", s.handleRegenerateBootstrap)
 	mux.HandleFunc("/v1/auth/bootstrap/status", s.handleBootstrapStatus)
+	mux.HandleFunc("/v1/auth/token/rotate", s.handleTokenRotate)
+	mux.HandleFunc("/v1/auth/me", s.handleMe)
 }
 
 // handleRegisterClient POST /v1/auth/register-client
@@ -115,6 +118,79 @@ func (s *AuthServer) handleBootstrapStatus(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(map[string]any{
 		"bootstrap_token_configured": has,
 		"secure_mode":                s.mgr.IsSecureMode(),
+	})
+}
+
+// handleTokenRotate POST /v1/auth/token/rotate  (requires valid token)
+// Generates a new access token for the calling client, invalidating the old one.
+// The new raw token is returned once — the client must save it.
+func (s *AuthServer) handleTokenRotate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract current client from context (set by auth middleware).
+	client := authdomain.ClientFromContext(r.Context())
+	if client == nil || client.ID == "anonymous" {
+		http.Error(w, `{"error":{"code":"AUTH_TOKEN_MISSING","message":"Authentication required"}}`, http.StatusUnauthorized)
+		return
+	}
+
+	newToken, err := s.mgr.RotateToken(r.Context(), client.ID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":{"code":"AUTH_ROTATE_FAILED","message":"%s"}}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"access_token": newToken,
+		"message":      "Token rotated successfully. Update your config with the new token — the old token is now invalid.",
+	})
+}
+
+// handleMe GET /v1/auth/me  (requires valid token)
+// Returns the current authenticated client's info.
+func (s *AuthServer) handleMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// In open mode there is no real client identity.
+	if !s.mgr.IsSecureMode() {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":         "anonymous",
+			"git_name":   "anonymous",
+			"git_email":  "",
+			"secure_mode": false,
+		})
+		return
+	}
+
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		http.Error(w, `{"error":{"code":"AUTH_TOKEN_MISSING","message":"Authorization header required"}}`, http.StatusUnauthorized)
+		return
+	}
+	rawToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	client, err := s.mgr.ValidateToken(r.Context(), rawToken)
+	if err != nil {
+		http.Error(w, `{"error":{"code":"AUTH_TOKEN_INVALID","message":"Invalid or expired access token"}}`, http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"id":          client.ID,
+		"git_name":    client.GitName,
+		"git_email":   client.GitEmail,
+		"created_at":  client.CreatedAt,
+		"last_seen_at": client.LastSeenAt,
+		"secure_mode": true,
 	})
 }
 

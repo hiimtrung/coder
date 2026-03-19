@@ -1,0 +1,14 @@
+{{define "token_result"}}
+<div class="bg-gray-800 border border-indigo-500/40 rounded-xl p-4">
+  <div class="text-sm text-green-400 font-medium mb-3">New bootstrap token generated</div>
+  <div class="flex items-center gap-3">
+    <code class="flex-1 bg-gray-950 text-indigo-300 px-3 py-2 rounded-lg text-sm font-mono break-all border border-gray-700">{{.Token}}</code>
+    <button
+      onclick="navigator.clipboard.writeText('{{.Token}}').then(function(){this.textContent='Copied!'}.bind(this))"
+      class="shrink-0 bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm transition-colors">
+      Copy
+    </button>
+  </div>
+  <p class="text-xs text-gray-500 mt-2">This token will not be shown again. Share it securely with new developers.</p>
+</div>
+{{end}}

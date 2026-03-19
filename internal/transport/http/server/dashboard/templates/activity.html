@@ -1,0 +1,55 @@
+{{define "activity.html"}}
+{{template "layout" .}}
+{{end}}
+
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-6 text-white">Activity Log</h1>
+
+<!-- Filters -->
+<div class="flex flex-wrap gap-3 mb-6">
+  <select
+    name="client_id"
+    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500"
+    hx-get="/dashboard/activity"
+    hx-trigger="change"
+    hx-target="#activity-rows"
+    hx-swap="innerHTML"
+    hx-include="[name='client_id'],[name='command']">
+    <option value="">All clients</option>
+    {{range .Clients}}
+    <option value="{{.ID}}" {{if eq $.Filter.ClientID .ID}}selected{{end}}>{{.GitEmail}}</option>
+    {{end}}
+  </select>
+  <select
+    name="command"
+    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500"
+    hx-get="/dashboard/activity"
+    hx-trigger="change"
+    hx-target="#activity-rows"
+    hx-swap="innerHTML"
+    hx-include="[name='client_id'],[name='command']">
+    <option value="">All commands</option>
+    <option {{if eq $.Filter.Command "memory search"}}selected{{end}}>memory search</option>
+    <option {{if eq $.Filter.Command "memory store"}}selected{{end}}>memory store</option>
+    <option {{if eq $.Filter.Command "skill search"}}selected{{end}}>skill search</option>
+    <option {{if eq $.Filter.Command "skill ingest"}}selected{{end}}>skill ingest</option>
+  </select>
+</div>
+
+<div class="bg-gray-900 rounded-xl border border-gray-800 overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="text-gray-400 border-b border-gray-800 text-left">
+      <tr>
+        <th class="p-3">Time</th>
+        <th class="p-3">Client</th>
+        <th class="p-3">Command</th>
+        <th class="p-3">Repo</th>
+        <th class="p-3">Branch</th>
+      </tr>
+    </thead>
+    <tbody id="activity-rows">
+      {{template "activity_rows" .}}
+    </tbody>
+  </table>
+</div>
+{{end}}

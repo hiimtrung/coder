@@ -23,6 +23,7 @@ MAINTENANCE:
   check-update        Search for newer versions on GitHub
   self-update         Upgrade coder to the latest version automatically
   login               Configure coder-node connection (protocol and URL)
+  token               Manage your access token (show, rotate)
   skill               Manage skills in vector DB (search, ingest, list)
   memory              Manage semantic memory (Vector DB)
 
@@ -39,6 +40,8 @@ EXAMPLES:
   coder memory search "auth"          # Search semantic memory
   coder skill search "error"          # Search ingested skills
   coder skill ingest --source local   # Ingest local skills into vector DB
+  coder token show                    # Show current token and client identity
+  coder token rotate                  # Rotate your access token
   coder --version                     # Check version
 
 Run 'coder <command> --help' for specific command details.
@@ -66,6 +69,8 @@ func main() {
 		runSelfUpdate()
 	case "login":
 		runLogin(os.Args[2:])
+	case "token":
+		runToken(os.Args[2:])
 	case "skill":
 		runSkill(os.Args[2:])
 	case "memory":

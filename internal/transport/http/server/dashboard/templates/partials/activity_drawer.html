@@ -1,0 +1,27 @@
+{{define "activity_drawer"}}
+<div class="fixed inset-y-0 right-0 w-96 bg-gray-900 border-l border-gray-800 shadow-2xl z-50 overflow-y-auto">
+  <div class="flex items-center justify-between p-4 border-b border-gray-800 sticky top-0 bg-gray-900">
+    <h3 class="font-semibold text-white">{{.ClientEmail}}</h3>
+    <button
+      onclick="document.getElementById('drawer').innerHTML=''"
+      class="text-gray-400 hover:text-white transition-colors text-lg leading-none">
+      x
+    </button>
+  </div>
+  <div class="p-4 space-y-2 text-sm">
+    {{range .Activities}}
+    <div class="bg-gray-800 rounded-lg p-3">
+      <div class="flex justify-between items-center gap-2">
+        <span class="text-indigo-300 font-medium font-mono text-xs">{{.Command}}</span>
+        <span class="text-gray-500 text-xs whitespace-nowrap">{{.Timestamp.Format "01-02 15:04"}}</span>
+      </div>
+      {{if .Repo}}
+      <div class="text-gray-400 text-xs mt-1 truncate">{{.Repo}}{{if .Branch}} · {{.Branch}}{{end}}</div>
+      {{end}}
+    </div>
+    {{else}}
+    <p class="text-gray-500 text-center py-8">No activity recorded yet.</p>
+    {{end}}
+  </div>
+</div>
+{{end}}

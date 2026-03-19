@@ -19,9 +19,16 @@ type AuthRepository interface {
 	UpdateLastSeen(ctx context.Context, clientID string, t time.Time) error
 	DeleteClient(ctx context.Context, clientID string) error
 
+	// Token management
+	UpdateAccessTokenHash(ctx context.Context, clientID, newTokenHash string) error
+
 	// Activity log
 	LogActivity(ctx context.Context, a *Activity) error
 	GetActivities(ctx context.Context, clientID string, limit int) ([]Activity, error)
+
+	// Dashboard queries
+	GetAllActivities(ctx context.Context, filter ActivityFilter) ([]Activity, int, error)
+	GetActivityStats(ctx context.Context, days int) (ActivityStats, error)
 }
 
 // AuthManager is the application-level service for auth operations.
@@ -52,4 +59,17 @@ type AuthManager interface {
 
 	// HasBootstrapToken returns true if a bootstrap token hash is currently stored.
 	HasBootstrapToken(ctx context.Context) (bool, error)
+
+	// RevokeClient removes a client and all its associated data.
+	RevokeClient(ctx context.Context, clientID string) error
+
+	// RotateToken generates a new access token for the calling client,
+	// atomically replacing the old one. Returns the new raw token (shown once).
+	RotateToken(ctx context.Context, clientID string) (rawToken string, err error)
+
+	// GetAllActivities returns paginated activities with client email info.
+	GetAllActivities(ctx context.Context, filter ActivityFilter) ([]Activity, int, error)
+
+	// GetActivityStats returns aggregated stats for the dashboard overview.
+	GetActivityStats(ctx context.Context, days int) (ActivityStats, error)
 }

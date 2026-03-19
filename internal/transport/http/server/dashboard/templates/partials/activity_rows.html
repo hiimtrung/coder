@@ -1,0 +1,22 @@
+{{define "activity_rows"}}
+{{range .Activities}}
+<tr class="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
+  <td class="p-3 text-gray-500 whitespace-nowrap text-xs">{{.Timestamp.Format "2006-01-02 15:04"}}</td>
+  <td class="p-3 text-gray-300">{{.GitEmail}}</td>
+  <td class="p-3">
+    <span class="bg-indigo-900/50 text-indigo-300 px-2 py-0.5 rounded text-xs font-mono">{{.Command}}</span>
+  </td>
+  <td class="p-3 text-gray-400 max-w-xs truncate">{{.Repo}}</td>
+  <td class="p-3 text-gray-400">{{.Branch}}</td>
+</tr>
+{{end}}
+{{if .HasMore}}
+<tr id="scroll-sentinel"
+    hx-get="/dashboard/activity?offset={{.NextOffset}}&client_id={{.Filter.ClientID}}&command={{.Filter.Command}}"
+    hx-trigger="intersect once"
+    hx-target="#scroll-sentinel"
+    hx-swap="outerHTML">
+  <td colspan="5" class="p-4 text-center text-gray-600 text-xs">Loading more...</td>
+</tr>
+{{end}}
+{{end}}

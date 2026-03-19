@@ -1,0 +1,25 @@
+{{define "client_row"}}
+<tr id="client-{{.ID}}" class="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
+  <td class="p-3 font-medium text-gray-100">{{.GitName}}</td>
+  <td class="p-3 text-gray-300">{{.GitEmail}}</td>
+  <td class="p-3 text-gray-400">{{.CreatedAt.Format "2006-01-02"}}</td>
+  <td class="p-3 text-gray-400">{{.LastSeenAt.Format "2006-01-02 15:04"}}</td>
+  <td class="p-3">
+    <button
+      hx-get="/dashboard/clients/{{.ID}}/activity"
+      hx-target="#drawer"
+      hx-swap="innerHTML"
+      class="text-xs text-indigo-400 hover:text-indigo-300 mr-3 transition-colors">
+      Activity
+    </button>
+    <button
+      hx-delete="/dashboard/clients/{{.ID}}"
+      hx-target="#client-{{.ID}}"
+      hx-swap="outerHTML"
+      hx-confirm="Revoke access for {{.GitEmail}}? This cannot be undone."
+      class="text-xs text-red-400 hover:text-red-300 transition-colors">
+      Revoke
+    </button>
+  </td>
+</tr>
+{{end}}

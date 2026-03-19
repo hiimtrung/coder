@@ -17,9 +17,11 @@ import (
 	grpcserver "github.com/trungtran/coder/internal/transport/grpc/server"
 	httpmiddleware "github.com/trungtran/coder/internal/transport/http/middleware"
 	httpserver "github.com/trungtran/coder/internal/transport/http/server"
+	dashboard "github.com/trungtran/coder/internal/transport/http/server/dashboard"
 	ucauth "github.com/trungtran/coder/internal/usecase/auth"
 	ucmemory "github.com/trungtran/coder/internal/usecase/memory"
 	ucskill "github.com/trungtran/coder/internal/usecase/skill"
+	"github.com/trungtran/coder/internal/version"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -145,6 +147,10 @@ func main() {
 	// Auth endpoints
 	httpAuthServer := httpserver.NewAuthServer(authMgr)
 	httpAuthServer.RegisterHandlers(httpMux)
+
+	// Dashboard UI
+	dashboardServer := dashboard.NewDashboardServer(authMgr, version.Version)
+	dashboardServer.RegisterHandlers(httpMux)
 
 	// Wrap entire mux with auth middleware
 	var handler http.Handler = httpMux

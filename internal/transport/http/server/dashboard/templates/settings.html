@@ -1,0 +1,50 @@
+{{define "settings.html"}}
+{{template "layout" .}}
+{{end}}
+
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-6 text-white">Settings</h1>
+
+<!-- Bootstrap token card -->
+<div class="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
+  <h2 class="text-lg font-semibold text-white mb-1">Bootstrap Token</h2>
+  <p class="text-sm text-gray-400 mb-4">
+    Used by new developers to register with <code class="text-indigo-300 bg-gray-800 px-1 rounded">coder login</code>.
+    Rotating generates a new token — existing client access tokens are unaffected.
+  </p>
+
+  <div class="flex items-center gap-3 mb-5">
+    {{if .BootstrapConfigured}}
+    <span class="inline-flex items-center gap-1.5 bg-green-900/40 text-green-400 px-3 py-1 rounded-full text-sm border border-green-700/30">
+      Configured
+    </span>
+    {{else}}
+    <span class="inline-flex items-center gap-1.5 bg-yellow-900/40 text-yellow-400 px-3 py-1 rounded-full text-sm border border-yellow-700/30">
+      Not configured
+    </span>
+    {{end}}
+  </div>
+
+  <button
+    hx-post="/dashboard/settings/regenerate"
+    hx-target="#token-result"
+    hx-swap="innerHTML"
+    hx-confirm="Rotate the bootstrap token? The old token will stop working immediately."
+    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+    Regenerate Bootstrap Token
+  </button>
+
+  <div id="token-result" class="mt-4"></div>
+</div>
+
+<!-- Server info -->
+<div class="bg-gray-900 rounded-xl border border-gray-800 p-6">
+  <h2 class="text-lg font-semibold text-white mb-4">Server Info</h2>
+  <dl class="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
+    <dt class="text-gray-400">Version</dt>
+    <dd class="text-gray-100">{{.Version}}</dd>
+    <dt class="text-gray-400">Secure Mode</dt>
+    <dd class="text-gray-100">{{.SecureMode}}</dd>
+  </dl>
+</div>
+{{end}}

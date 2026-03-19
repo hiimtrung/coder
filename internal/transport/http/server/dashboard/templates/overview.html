@@ -1,0 +1,99 @@
+{{define "overview.html"}}
+{{template "layout" .}}
+{{end}}
+
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-6 text-white">Overview</h1>
+
+<!-- Stat cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+  <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
+    <div class="text-3xl font-bold text-white">{{.Stats.TotalClients}}</div>
+    <div class="text-sm text-gray-400 mt-1">Total Clients</div>
+  </div>
+  <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
+    <div class="text-3xl font-bold text-white">{{.Stats.TotalCommands}}</div>
+    <div class="text-sm text-gray-400 mt-1">Commands (30d)</div>
+  </div>
+  <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
+    <div class="text-3xl font-bold text-white">{{.Stats.ActiveToday}}</div>
+    <div class="text-sm text-gray-400 mt-1">Active Today</div>
+  </div>
+  <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
+    <div class="text-3xl font-bold text-white">{{.Stats.UniqueRepos}}</div>
+    <div class="text-sm text-gray-400 mt-1">Unique Repos</div>
+  </div>
+</div>
+
+<!-- Activity chart -->
+<div class="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-8">
+  <h2 class="text-lg font-semibold text-white mb-4">Commands per Day (last 30 days)</h2>
+  <canvas id="activityChart" height="80"></canvas>
+</div>
+
+<script>
+(function() {
+  var labels = [{{range .Stats.CommandsPerDay}}"{{.Date}}",{{end}}];
+  var values = [{{range .Stats.CommandsPerDay}}{{.Count}},{{end}}];
+  var ctx = document.getElementById("activityChart");
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        borderColor: "#6366f1",
+        backgroundColor: "rgba(99,102,241,0.1)",
+        fill: true,
+        tension: 0.4,
+        pointRadius: 3,
+        pointBackgroundColor: "#6366f1"
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
+        y: { beginAtZero: true, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } }
+      }
+    }
+  });
+})();
+</script>
+
+<!-- Recent activity -->
+<div class="bg-gray-900 rounded-xl border border-gray-800">
+  <div class="p-4 border-b border-gray-800 font-semibold text-white">Recent Activity</div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="text-gray-400 border-b border-gray-800">
+        <tr>
+          <th class="p-3 text-left">Client</th>
+          <th class="p-3 text-left">Command</th>
+          <th class="p-3 text-left">Repo</th>
+          <th class="p-3 text-left">Branch</th>
+          <th class="p-3 text-left">Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Stats.RecentActivity}}
+        <tr class="border-b border-gray-800/50 hover:bg-gray-800/50">
+          <td class="p-3 text-gray-300">{{.GitEmail}}</td>
+          <td class="p-3">
+            <span class="bg-indigo-900/50 text-indigo-300 px-2 py-0.5 rounded text-xs font-mono">{{.Command}}</span>
+          </td>
+          <td class="p-3 text-gray-400 truncate max-w-xs">{{.Repo}}</td>
+          <td class="p-3 text-gray-400">{{.Branch}}</td>
+          <td class="p-3 text-gray-500 whitespace-nowrap">{{.Timestamp.Format "15:04"}}</td>
+        </tr>
+        {{else}}
+        <tr>
+          <td colspan="5" class="p-6 text-center text-gray-600">No activity recorded yet.</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}
