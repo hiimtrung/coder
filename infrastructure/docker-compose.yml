@@ -9,7 +9,9 @@ services:
       POSTGRES_PASSWORD: coder_password
       POSTGRES_DB: coder
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      # PG18+ stores data in /var/lib/postgresql/18/main (version-specific subdir).
+      # Mount the PARENT directory so pg_upgrade --link works across major versions.
+      - pg_data:/var/lib/postgresql
     # start_period gives postgres time to initialise the data directory on first run
     # (especially important on Debian/Linux x86 where cold init can take 60–90s).
     healthcheck:
