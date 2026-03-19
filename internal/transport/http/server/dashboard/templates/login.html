@@ -14,18 +14,40 @@
   <div class="w-full max-w-md">
     <!-- Card -->
     <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-2xl">
-      <div class="mb-8 text-center">
+      <div class="mb-6 text-center">
         <span class="text-3xl font-bold text-white">coder</span>
-        <p class="text-gray-400 text-sm mt-2">Dashboard — sign in with your bootstrap token</p>
+        <p class="text-gray-400 text-sm mt-2">Dashboard</p>
       </div>
 
       {{if .Error}}
-      <div class="mb-6 bg-red-900/40 border border-red-700/50 text-red-300 px-4 py-3 rounded-lg text-sm">
+      <div class="mb-5 bg-red-900/40 border border-red-700/50 text-red-300 px-4 py-3 rounded-lg text-sm">
         {{.Error}}
       </div>
       {{end}}
 
-      <form method="POST" action="/dashboard/login" class="space-y-4">
+      <!-- Tabs -->
+      <div class="flex rounded-lg bg-gray-800/60 p-1 mb-6 gap-1" role="tablist">
+        <button
+          type="button"
+          id="tab-bootstrap"
+          role="tab"
+          onclick="switchTab('bootstrap')"
+          class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors tab-active">
+          Bootstrap Token
+        </button>
+        <button
+          type="button"
+          id="tab-access"
+          role="tab"
+          onclick="switchTab('access')"
+          class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors tab-inactive">
+          Access Token
+        </button>
+      </div>
+
+      <!-- Bootstrap token form -->
+      <form id="form-bootstrap" method="POST" action="/dashboard/login" class="space-y-4">
+        <input type="hidden" name="login_type" value="bootstrap">
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2" for="bootstrap_token">
             Bootstrap Token
@@ -36,9 +58,37 @@
             name="bootstrap_token"
             placeholder="Paste your bootstrap token"
             class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            required
             autocomplete="off"
           >
+          <p class="text-xs text-gray-500 mt-1.5">
+            Obtained from <code class="text-gray-400">coder-node --print-token</code> or Settings page.
+          </p>
+        </div>
+        <button
+          type="submit"
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg transition-colors">
+          Sign in
+        </button>
+      </form>
+
+      <!-- Access token form -->
+      <form id="form-access" method="POST" action="/dashboard/login" class="space-y-4 hidden">
+        <input type="hidden" name="login_type" value="access_token">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2" for="access_token">
+            Access Token
+          </label>
+          <input
+            type="password"
+            id="access_token"
+            name="access_token"
+            placeholder="Paste your coder client access token"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            autocomplete="off"
+          >
+          <p class="text-xs text-gray-500 mt-1.5">
+            Found in <code class="text-gray-400">~/.coder/config.json</code> → <code class="text-gray-400">auth.access_token</code>.
+          </p>
         </div>
         <button
           type="submit"
@@ -52,6 +102,36 @@
       </p>
     </div>
   </div>
+
+  <script>
+    var activeTab = '{{.ActiveTab}}';
+    if (!activeTab || activeTab === '') activeTab = 'bootstrap';
+
+    var tabActiveClass   = ['bg-gray-700', 'text-white'];
+    var tabInactiveClass = ['text-gray-400', 'hover:text-gray-200'];
+
+    function switchTab(name) {
+      activeTab = name;
+
+      var tabs  = ['bootstrap', 'access'];
+      tabs.forEach(function(t) {
+        var btn  = document.getElementById('tab-' + t);
+        var form = document.getElementById('form-' + t);
+        if (t === name) {
+          tabActiveClass.forEach(function(c) { btn.classList.add(c); });
+          tabInactiveClass.forEach(function(c) { btn.classList.remove(c); });
+          form.classList.remove('hidden');
+        } else {
+          tabActiveClass.forEach(function(c) { btn.classList.remove(c); });
+          tabInactiveClass.forEach(function(c) { btn.classList.add(c); });
+          form.classList.add('hidden');
+        }
+      });
+    }
+
+    // Apply initial state on page load
+    switchTab(activeTab);
+  </script>
 </body>
 </html>
 {{end}}
