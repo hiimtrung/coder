@@ -126,6 +126,40 @@ func (m *Manager) LogActivity(ctx context.Context, rawToken, command, repo, bran
 	return m.repo.LogActivity(ctx, act)
 }
 
+// RegenerateBootstrapToken invalidates the current bootstrap token hash,
+// generates a brand-new token, stores the hash, and returns the raw token.
+// Use this when the original token was missed or needs to be rotated.
+func (m *Manager) RegenerateBootstrapToken(ctx context.Context) (string, error) {
+	if !m.secureMode || m.repo == nil {
+		return "", fmt.Errorf("server is not in secure mode")
+	}
+	// Delete the old hash first
+	if err := m.repo.DeleteBootstrapTokenHash(ctx); err != nil {
+		return "", fmt.Errorf("failed to clear old bootstrap token: %w", err)
+	}
+	// Generate and store a new one
+	raw, err := generateToken()
+	if err != nil {
+		return "", err
+	}
+	if err := m.repo.SetBootstrapTokenHash(ctx, sha256Hex(raw)); err != nil {
+		return "", fmt.Errorf("failed to store new bootstrap token: %w", err)
+	}
+	return raw, nil
+}
+
+// HasBootstrapToken reports whether a bootstrap token hash is currently stored.
+func (m *Manager) HasBootstrapToken(ctx context.Context) (bool, error) {
+	if !m.secureMode || m.repo == nil {
+		return false, nil
+	}
+	hash, err := m.repo.GetBootstrapTokenHash(ctx)
+	if err != nil {
+		return false, err
+	}
+	return hash != "", nil
+}
+
 func (m *Manager) ListClients(ctx context.Context) ([]authdomain.Client, error) {
 	if m.repo == nil {
 		return []authdomain.Client{}, nil

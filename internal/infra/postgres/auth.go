@@ -74,6 +74,12 @@ func (a *postgresAuth) SetBootstrapTokenHash(ctx context.Context, tokenHash stri
 	return err
 }
 
+func (a *postgresAuth) DeleteBootstrapTokenHash(ctx context.Context) error {
+	_, err := a.db.ExecContext(ctx,
+		`DELETE FROM coder_server_config WHERE key = 'bootstrap_token_hash'`)
+	return err
+}
+
 func (a *postgresAuth) RegisterClient(ctx context.Context, c *authdomain.Client) error {
 	_, err := a.db.ExecContext(ctx,
 		`INSERT INTO coder_clients (id, git_name, git_email, access_token_hash, created_at, last_seen_at)

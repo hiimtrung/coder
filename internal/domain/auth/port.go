@@ -10,6 +10,7 @@ type AuthRepository interface {
 	// Bootstrap token (used once during client registration)
 	GetBootstrapTokenHash(ctx context.Context) (string, error)
 	SetBootstrapTokenHash(ctx context.Context, tokenHash string) error
+	DeleteBootstrapTokenHash(ctx context.Context) error
 
 	// Client CRUD
 	RegisterClient(ctx context.Context, c *Client) error
@@ -42,6 +43,13 @@ type AuthManager interface {
 	ListClients(ctx context.Context) ([]Client, error)
 
 	// GetBootstrapToken returns the current bootstrap token (raw, for display at startup).
-	// Returns empty string if already shown and revoked.
+	// Returns empty string if already shown.
 	GetBootstrapToken(ctx context.Context) (string, error)
+
+	// RegenerateBootstrapToken invalidates the existing bootstrap token hash,
+	// generates a new one, persists the hash, and returns the raw token once.
+	RegenerateBootstrapToken(ctx context.Context) (string, error)
+
+	// HasBootstrapToken returns true if a bootstrap token hash is currently stored.
+	HasBootstrapToken(ctx context.Context) (bool, error)
 }

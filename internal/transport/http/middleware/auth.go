@@ -45,7 +45,9 @@ func ClientFromContext(r *http.Request) *authdomain.Client {
 
 func isPublicPath(path string) bool {
 	switch path {
-	case "/v1/auth/register-client", "/health":
+	case "/v1/auth/register-client",
+		"/v1/auth/bootstrap/status",
+		"/health":
 		return true
 	}
 	return false
