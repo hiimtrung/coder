@@ -15,6 +15,21 @@ import (
 	"github.com/trungtran/coder/internal/version"
 )
 
+// tmpDir returns ~/.coder — a user-writable directory used for staging downloads.
+// This avoids permission errors when the installed binary lives in a system path
+// like /usr/local/bin that requires root to write.
+func tmpDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	dir := filepath.Join(home, ".coder")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("cannot create ~/.coder: %w", err)
+	}
+	return dir, nil
+}
+
 // Release holds relevant fields from the GitHub API response.
 type Release struct {
 	TagName    string  `json:"tag_name"`
@@ -101,8 +116,10 @@ func FindAsset(release *Release) (Asset, bool) {
 }
 
 // SelfUpdate downloads the asset for the current platform and replaces the running binary.
+// The download is staged in ~/.coder/ so it always succeeds even when the installed binary
+// lives in a system directory (e.g. /usr/local/bin) that requires elevated permissions.
 func SelfUpdate(asset Asset) error {
-	// Find current executable path
+	// Resolve the path of the running binary.
 	execPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to locate current binary: %w", err)
@@ -112,35 +129,90 @@ func SelfUpdate(asset Asset) error {
 		return fmt.Errorf("failed to resolve symlinks: %w", err)
 	}
 
-	fmt.Printf("Downloading %s (%s)...\n", asset.Name, humanSize(asset.Size))
+	// Stage download in ~/.coder/ — always user-writable regardless of where
+	// the binary is installed.
+	stageDir, err := tmpDir()
+	if err != nil {
+		return err
+	}
+	tmpPath := filepath.Join(stageDir, version.BinaryName+".tmp")
+	// Always clean up the temp file when we're done.
+	defer os.Remove(tmpPath)
 
-	// Download to a temp file next to the executable
-	tmpPath := execPath + ".tmp"
+	fmt.Printf("Downloading %s (%s)...\n", asset.Name, humanSize(asset.Size))
 	if err := downloadFile(asset.BrowserDownloadURL, tmpPath); err != nil {
 		return err
 	}
 
-	// Make executable
+	// Make the downloaded binary executable before moving it into place.
 	if err := os.Chmod(tmpPath, 0o755); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("failed to chmod temp binary: %w", err)
+		return fmt.Errorf("failed to chmod downloaded binary: %w", err)
 	}
 
-	// On Windows we can't replace a running binary directly; rename instead.
-	oldPath := execPath + ".old"
+	// Replace the running binary.
+	if err := replaceBinary(tmpPath, execPath); err != nil {
+		return err
+	}
+	return nil
+}
+
+// replaceBinary atomically swaps src into dst.
+//
+// Strategy:
+//  1. Back up dst → dst.old (same directory, same filesystem — fast rename).
+//  2. Try os.Rename(src, dst).  This works when src and dst are on the same
+//     filesystem.  If they are on different filesystems (e.g. src is on the
+//     user's home partition, dst is on /usr/local), os.Rename returns an
+//     "invalid cross-device link" error; in that case we fall back to a
+//     byte-level copy so the caller only needs write access to dst's directory.
+//  3. On any failure after the backup, the old binary is restored.
+func replaceBinary(src, dst string) error {
+	oldPath := dst + ".old"
 	_ = os.Remove(oldPath)
 
-	if err := os.Rename(execPath, oldPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("failed to back up current binary: %w", err)
+	// Back up the current binary (requires write permission on dst's directory).
+	if err := os.Rename(dst, oldPath); err != nil {
+		return fmt.Errorf("failed to back up current binary (try running with sudo): %w", err)
 	}
-	if err := os.Rename(tmpPath, execPath); err != nil {
-		// Try to restore backup
-		_ = os.Rename(oldPath, execPath)
-		return fmt.Errorf("failed to replace binary: %w", err)
+
+	// Attempt a rename — fast path for same-filesystem installs.
+	if err := os.Rename(src, dst); err != nil {
+		// Cross-device: fall back to copy.
+		if copyErr := copyFile(src, dst); copyErr != nil {
+			// Restore backup so the user isn't left without a binary.
+			_ = os.Rename(oldPath, dst)
+			return fmt.Errorf("failed to replace binary (try running with sudo): %w", copyErr)
+		}
 	}
+
 	_ = os.Remove(oldPath)
 	return nil
+}
+
+// copyFile copies src to dst byte-for-byte, preserving permissions.
+// Used as a cross-filesystem fallback when os.Rename returns EXDEV.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Close()
 }
 
 func downloadFile(url, destPath string) error {
