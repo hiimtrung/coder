@@ -1,7 +1,7 @@
 services:
   postgres:
     # pgvector/pgvector supports linux/amd64 + linux/arm64 (replaces ankane/pgvector)
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg18
     container_name: pgvector_db
     restart: unless-stopped
     environment:
