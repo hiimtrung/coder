@@ -1,24 +1,24 @@
 # Coder Intelligence Flows — Roadmap
 
 > **Inspired by:** [get-shit-done](https://github.com/glittercowboy/get-shit-done) — context engineering + spec-driven development system
-> **Goal:** Nâng coder từ một RAG/memory CLI thành một **AI development workflow engine** — có Q&A, review, planning, QA, debug đầy đủ như một senior engineer AI pair.
+> **Goal:** Evolve coder from a RAG/memory CLI into a full **AI development workflow engine** — with Q&A, review, planning, QA, and debug capabilities on par with a senior engineer AI pair.
 > **Last updated:** 2026-03-20
 
 ---
 
-## Tổng quan kiến trúc mới
+## Architecture Overview
 
 ```
 Developer / AI Agent
       │
       │  coder CLI
-      │  ├─ coder chat          ← Q&A với context injection (Phase 2)
-      │  ├─ coder review        ← Code review multi-model  (Phase 3)
-      │  ├─ coder plan          ← Planning workflow        (Phase 4)
-      │  ├─ coder qa            ← QA / UAT verification    (Phase 5)
-      │  ├─ coder debug         ← Root cause diagnosis     (Phase 6)
-      │  ├─ coder session       ← State management         (Phase 7)
-      │  └─ coder workflow      ← Auto-chain orchestration (Phase 8)
+      │  ├─ coder chat          ← Q&A with context injection   (Phase 2)
+      │  ├─ coder review        ← Multi-model code review      (Phase 3)
+      │  ├─ coder plan          ← Planning workflow            (Phase 4)
+      │  ├─ coder qa            ← QA / UAT verification        (Phase 5)
+      │  ├─ coder debug         ← Root cause diagnosis         (Phase 6)
+      │  ├─ coder session       ← State management             (Phase 7)
+      │  └─ coder workflow      ← Auto-chain orchestration     (Phase 8)
       │
       ▼
 ┌──────────────────────────────────────────────────────┐
@@ -49,15 +49,15 @@ Developer / AI Agent
 
 ## Phase 1 — LLM Backbone (coder-node)
 
-> **Priority:** P0 — Nền tảng cho tất cả các phase sau
-> **Effort:** ~5 ngày
+> **Priority:** P0 — Foundation for all subsequent phases
+> **Effort:** ~5 days
 > **Depends on:** nothing (extend existing)
 
-### Mục tiêu
+### Objective
 
-Biến coder-node thành **LLM proxy thông minh** — không chỉ embed/search mà còn generate, tự động inject memory + skill context vào mỗi request. Đây là layer duy nhất gọi Ollama để generate text; CLI không bao giờ gọi Ollama trực tiếp.
+Turn coder-node into an **intelligent LLM proxy** — not just embed/search but also generate, automatically injecting memory + skill context into every request. This is the only layer that calls Ollama to generate text; the CLI never calls Ollama directly.
 
-### 1.1 — API endpoints mới
+### 1.1 — New API endpoints
 
 #### `POST /v1/chat`
 
@@ -90,7 +90,7 @@ Response:
 
 #### `POST /v1/chat/stream`
 
-Giống `/v1/chat` nhưng Server-Sent Events:
+Same as `/v1/chat` but Server-Sent Events:
 ```
 data: {"delta": "For JWT"}
 data: {"delta": " refresh tokens, the recommended"}
@@ -106,7 +106,7 @@ Response:
   "sessions": [
     {
       "id": "abc123",
-      "title": "JWT refresh tokens",   // auto từ first message
+      "title": "JWT refresh tokens",   // auto-generated from first message
       "message_count": 4,
       "updated_at": "2026-03-20T10:00Z"
     }
@@ -116,27 +116,27 @@ Response:
 
 #### `GET /v1/sessions/:id`
 
-Trả về full conversation history (messages array).
+Returns the full conversation history (messages array).
 
 #### `DELETE /v1/sessions/:id`
 
-Xoá session.
+Deletes the session.
 
 ### 1.2 — Context Injection Pipeline
 
 ```
-POST /v1/chat nhận request
+POST /v1/chat receives request
         │
         ▼
 ┌───────────────────────────────────────────────────────┐
 │ Step 1: Extract search keywords                       │
-│   Lấy first 15 words + noun phrases từ message       │
-│   Không cần NLP — simple heuristic đủ dùng           │
+│   Take first 15 words + noun phrases from message     │
+│   No NLP needed — simple heuristic is sufficient      │
 ├───────────────────────────────────────────────────────┤
 │ Step 2: Parallel context search (goroutine)           │
 │   a. memory.Search(keywords, limit=5)                 │
 │   b. skill.Search(keywords, limit=3)                  │
-│   Timeout: 300ms — nếu quá trả về empty context      │
+│   Timeout: 300ms — return empty context if exceeded   │
 ├───────────────────────────────────────────────────────┤
 │ Step 3: Build enriched system prompt                  │
 │                                                       │
@@ -144,12 +144,12 @@ POST /v1/chat nhận request
 │   You are a senior software engineer AI assistant.   │
 │   Answer concisely and precisely.                     │
 │                                                       │
-│   [SKILL CONTEXT — nếu có hits]                      │
+│   [SKILL CONTEXT — if hits found]                     │
 │   ## Relevant patterns and rules:                     │
 │   {skill_chunk_1_content}                             │
 │   {skill_chunk_2_content}                             │
 │                                                       │
-│   [MEMORY CONTEXT — nếu có hits]                      │
+│   [MEMORY CONTEXT — if hits found]                    │
 │   ## Past decisions and learnings:                    │
 │   {memory_1_content}                                  │
 │   {memory_2_content}                                  │
@@ -170,7 +170,7 @@ POST /v1/chat nhận request
 └───────────────────────────────────────────────────────┘
 ```
 
-### 1.3 — Schema PostgreSQL mới
+### 1.3 — New PostgreSQL schema
 
 ```sql
 CREATE TABLE coder_sessions (
@@ -195,7 +195,7 @@ CREATE INDEX idx_sessions_client  ON coder_sessions(client_id, updated_at DESC);
 CREATE INDEX idx_messages_session ON coder_messages(session_id, created_at ASC);
 ```
 
-### 1.4 — Code structure mới
+### 1.4 — New code structure
 
 ```
 internal/domain/chat/
@@ -219,7 +219,7 @@ internal/transport/http/server/
 ### 1.5 — Config extension
 
 ```json
-// ~/.coder/config.json — thêm section mới
+// ~/.coder/config.json — new section added
 {
   "chat": {
     "model":          "llama3.2:latest",
@@ -235,14 +235,14 @@ internal/transport/http/server/
 
 ### 1.6 — Acceptance criteria
 
-- [ ] `POST /v1/chat` trả về reply với context từ memory + skill injected
-- [ ] `POST /v1/chat/stream` stream SSE đúng format, client nhận delta
-- [ ] Session lưu vào DB, có thể `GET /v1/sessions/:id` lấy lại history
-- [ ] Context injection: 2 search queries song song, timeout 300ms
-- [ ] Response chứa `context_used` để debug/verify context injection
-- [ ] Ollama unavailable → error rõ ràng với hướng dẫn fix
-- [ ] Activity "chat" được log vào bảng activity
-- [ ] Unit tests cho context injection pipeline
+- [ ] `POST /v1/chat` returns a reply with context from memory + skills injected
+- [ ] `POST /v1/chat/stream` streams SSE in the correct format; client receives deltas
+- [ ] Session persisted to DB; `GET /v1/sessions/:id` retrieves history correctly
+- [ ] Context injection: 2 search queries run in parallel, timeout 300ms
+- [ ] Response includes `context_used` for debugging/verifying context injection
+- [ ] Ollama unavailable → clear error with actionable fix instructions
+- [ ] Activity "chat" logged to the activity table
+- [ ] Unit tests for context injection pipeline
 - [ ] Build + vet + tests pass
 
 ---
@@ -250,12 +250,12 @@ internal/transport/http/server/
 ## Phase 2 — `coder chat` (Q&A Flow)
 
 > **Priority:** P1
-> **Effort:** ~3 ngày
+> **Effort:** ~3 days
 > **Depends on:** Phase 1
 
-### Mục tiêu
+### Objective
 
-Interactive Q&A CLI với AI, tự động inject memory + skill context. Equivalent `discuss-phase` của GSD nhưng general-purpose. Developer hỏi bất cứ thứ gì — coder trả lời với đầy đủ context của project.
+Interactive Q&A CLI with AI, automatically injecting memory + skill context. Equivalent to the `discuss-phase` of GSD but general-purpose. Developers can ask anything — coder responds with full project context.
 
 ### 2.1 — CLI interface
 
@@ -323,35 +323,35 @@ You › /exit
 Session saved: abc123 — "error handling in NestJS" (2 messages)
 ```
 
-### 2.3 — Slash commands trong REPL
+### 2.3 — Slash commands in REPL
 
 | Command | Action |
 |---|---|
-| `/help` | Hiển thị commands |
+| `/help` | Show available commands |
 | `/sessions` | List recent sessions |
-| `/resume <id>` | Load session |
-| `/clear` | Xoá conversation history (giữ session ID) |
-| `/context` | Hiển thị context đang inject |
-| `/model <name>` | Đổi model cho session này |
-| `/save <note>` | Save session với custom title |
-| `/exit` hoặc Ctrl+C | Thoát, tự động save |
+| `/resume <id>` | Load a session |
+| `/clear` | Clear conversation history (keep session ID) |
+| `/context` | Show currently injected context |
+| `/model <name>` | Switch model for this session |
+| `/save <note>` | Save session with a custom title |
+| `/exit` or Ctrl+C | Exit and auto-save session |
 
-### 2.4 — Flow nội bộ CLI
+### 2.4 — Internal CLI flow
 
 ```
 coder chat "question"
       │
       ▼
-1. loadConfig()                   — đọc ~/.coder/config.json
-2. loadSession() / newSession()   — resume hoặc tạo mới
-3. POST /v1/chat/stream           — gửi message lên coder-node
-      │                             (coder-node inject context tự động)
+1. loadConfig()                   — read ~/.coder/config.json
+2. loadSession() / newSession()   — resume or create new
+3. POST /v1/chat/stream           — send message to coder-node
+      │                             (coder-node auto-injects context)
       ▼
-4. Stream display                 — print delta tokens realtime
+4. Stream display                 — print delta tokens in real-time
       │
       ▼
 5. Show context used              — "Context: [memory hits] [skill hits]"
-6. Wait for next input (REPL)     — hoặc exit nếu single-question mode
+6. Wait for next input (REPL)     — or exit if single-question mode
 ```
 
 ### 2.5 — File: `cmd/coder/cmd_chat.go`
@@ -369,27 +369,27 @@ func listSessions(cfg Config)
 
 ### 2.6 — Acceptance criteria
 
-- [ ] `coder chat "question"` trả về answer có context trong < 3s
-- [ ] Interactive REPL hoạt động với stdin/stdout
-- [ ] Stream output hiện real-time (delta by delta)
-- [ ] Session tự động save khi exit
-- [ ] `--resume` và `--session <id>` load đúng history
-- [ ] `--file` inject file content vào context
-- [ ] Slash commands `/clear`, `/sessions`, `/exit` hoạt động
-- [ ] `coder chat --list` hiển thị sessions gần nhất
-- [ ] Error message rõ ràng nếu coder-node unreachable
+- [ ] `coder chat "question"` returns a context-aware answer in < 3s
+- [ ] Interactive REPL works with stdin/stdout
+- [ ] Stream output renders in real-time (delta by delta)
+- [ ] Session auto-saved on exit
+- [ ] `--resume` and `--session <id>` load the correct history
+- [ ] `--file` injects file content into context
+- [ ] Slash commands `/clear`, `/sessions`, `/exit` work correctly
+- [ ] `coder chat --list` displays most recent sessions
+- [ ] Clear error message if coder-node is unreachable
 
 ---
 
 ## Phase 3 — `coder review` (Code Review Flow)
 
 > **Priority:** P1
-> **Effort:** ~4 ngày
+> **Effort:** ~4 days
 > **Depends on:** Phase 1
 
-### Mục tiêu
+### Objective
 
-Structured code review với AI — đọc git diff hoặc file cụ thể, trả về feedback có cấu trúc (Summary, Strengths, Concerns với severity, Suggestions). Lấy ý tưởng từ `review.md` của GSD: adversarial multi-model review.
+Structured AI code review — reads a git diff or specific files and returns structured feedback (Summary, Strengths, Concerns with severity, Suggestions). Inspired by the `review.md` pattern in GSD: adversarial multi-model review.
 
 ### 3.1 — CLI interface
 
@@ -397,23 +397,23 @@ Structured code review với AI — đọc git diff hoặc file cụ thể, tr�
 # Review git diff (staged + unstaged)
 coder review
 
-# Review chỉ staged changes
+# Review only staged changes
 coder review --staged
 
-# Review file cụ thể
+# Review specific file(s)
 coder review src/auth/service.go
 coder review src/auth/service.go src/auth/handler.go
 
-# Review GitHub PR
+# Review a GitHub PR
 coder review --pr 123
 coder review --pr https://github.com/org/repo/pull/123
 
-# Review với focus cụ thể
+# Review with a specific focus
 coder review --focus security
 coder review --focus performance
 coder review --focus "error handling"
 
-# Multi-model review (nếu có config nhiều provider)
+# Multi-model review (if multiple providers configured)
 coder review --all-models
 coder review --model gpt-4o
 
@@ -423,7 +423,7 @@ coder review --format markdown  # save to file
 coder review -o review.md       # save output
 
 # Severity filter
-coder review --min-severity high  # chỉ show HIGH concerns
+coder review --min-severity high  # show only HIGH concerns
 ```
 
 ### 3.2 — Review output format
@@ -479,7 +479,7 @@ SUGGESTIONS
 Request:
 {
   "type":    "diff" | "file" | "pr",
-  "content": "--- a/src/auth/service.go\n+++ b/...",  // diff hoặc file content
+  "content": "--- a/src/auth/service.go\n+++ b/...",  // diff or file content
   "focus":   "security",                               // optional focus area
   "context": {
     "inject_memory": true,
@@ -551,7 +551,7 @@ Severity guide:
 
 ### 3.5 — Multi-model review (adversarial)
 
-Nếu config có nhiều model hoặc `--all-models`:
+When multiple models are configured or `--all-models` is passed:
 
 ```
 coder review --all-models
@@ -581,15 +581,15 @@ DIVERGENT VIEWS
 
 ### 3.6 — Acceptance criteria
 
-- [ ] `coder review` diff git đúng, hiển thị structured output
-- [ ] `coder review file.go` review single file
-- [ ] `--pr` pull GitHub PR diff qua `gh` CLI
-- [ ] Response JSON được parse và hiển thị đẹp
-- [ ] `--focus security` chỉ focus vào security concerns
-- [ ] Context từ memory + skill inject đúng vào review prompt
-- [ ] `--format json` output machine-readable JSON
-- [ ] `-o file.md` save output ra file
-- [ ] Activity "review" được log
+- [ ] `coder review` diffs git correctly and displays structured output
+- [ ] `coder review file.go` reviews a single file
+- [ ] `--pr` fetches the GitHub PR diff via the `gh` CLI
+- [ ] Response JSON is parsed and displayed cleanly
+- [ ] `--focus security` narrows review to security concerns only
+- [ ] Memory + skill context injected correctly into the review prompt
+- [ ] `--format json` outputs machine-readable JSON
+- [ ] `-o file.md` saves output to file
+- [ ] Activity "review" logged
 - [ ] Build + tests pass
 
 ---
@@ -597,12 +597,12 @@ DIVERGENT VIEWS
 ## Phase 4 — `coder plan` (Planning Flow)
 
 > **Priority:** P2
-> **Effort:** ~6 ngày
+> **Effort:** ~6 days
 > **Depends on:** Phase 1, Phase 2
 
-### Mục tiêu
+### Objective
 
-Planning workflow: nhận feature description hoặc PRD → hỏi clarifying questions (Q&A) → research → generate PLAN.md có cấu trúc. Equivalent `discuss-phase` + `plan-phase` của GSD.
+Planning workflow: receive a feature description or PRD → ask clarifying questions (Q&A) → research → generate a structured PLAN.md. Equivalent to the `discuss-phase` + `plan-phase` of GSD.
 
 ### 4.1 — CLI interface
 
@@ -610,13 +610,13 @@ Planning workflow: nhận feature description hoặc PRD → hỏi clarifying qu
 # Interactive planning session
 coder plan "implement user authentication with JWT"
 
-# Từ PRD document
+# From a PRD document
 coder plan --prd path/to/prd.md
 
 # Skip Q&A, auto-generate plan
 coder plan --auto "implement caching layer with Redis"
 
-# Plan cho một file/module cụ thể
+# Plan for a specific file/module
 coder plan --file src/auth/service.go "refactor this to use the new token manager"
 
 # Output file
@@ -631,16 +631,16 @@ coder plan --list
 ```
 Stage 1: Q&A (discuss)
 ──────────────────────
-Nhận feature description
+Receive feature description
       │
       ▼
 Analyze → identify gray areas (ambiguous decisions)
       │
       ▼
 Interactive Q&A loop:
-  - Hỏi 1 câu một lần
-  - Offer concrete options (không hỏi open-ended)
-  - Capture decisions vào CONTEXT
+  - Ask one question at a time
+  - Offer concrete options (no open-ended questions)
+  - Capture decisions into CONTEXT
   - Detect scope creep → defer to backlog
       │
       ▼
@@ -824,15 +824,15 @@ estimated_hours: 3.5
 
 ### 4.5 — Acceptance criteria
 
-- [ ] Q&A flow: identify gray areas tự động, hỏi tuần tự
-- [ ] Options concrete và có "recommended" label
-- [ ] Scope creep detection: nếu user mention feature mới → defer + note
-- [ ] Research: search memory + skills trước khi generate plan
-- [ ] PLAN.md output có đầy đủ tasks, time estimates, files, risks
-- [ ] `--auto` skip Q&A, dùng defaults
-- [ ] `--prd` đọc PRD file, extract requirements tự động
-- [ ] Plan được save và listable với `coder plan --list`
-- [ ] Activity "plan" được log
+- [ ] Q&A flow: automatically identifies gray areas, asks sequentially
+- [ ] Options are concrete and include a "recommended" label
+- [ ] Scope creep detection: if user mentions a new feature → defer + note it
+- [ ] Research: searches memory + skills before generating the plan
+- [ ] PLAN.md output includes complete tasks, time estimates, files, and risks
+- [ ] `--auto` skips Q&A and uses sensible defaults
+- [ ] `--prd` reads a PRD file and extracts requirements automatically
+- [ ] Plan is saved and listable with `coder plan --list`
+- [ ] Activity "plan" logged
 - [ ] Build + tests pass
 
 ---
@@ -840,30 +840,30 @@ estimated_hours: 3.5
 ## Phase 5 — `coder qa` (QA / Verification Flow)
 
 > **Priority:** P2
-> **Effort:** ~5 ngày
-> **Depends on:** Phase 1, Phase 4 (optional — có thể chạy standalone)
+> **Effort:** ~5 days
+> **Depends on:** Phase 1, Phase 4 (optional — can run standalone)
 
-### Mục tiêu
+### Objective
 
-UAT verification workflow: load acceptance criteria từ plan → present expected behavior từng test → user xác nhận hoặc báo issue → nếu có issues: auto-diagnose + plan fixes. Persistent state qua sessions — không mất progress nếu Ctrl+C. Equivalent `verify-work` của GSD.
+UAT verification workflow: load acceptance criteria from a plan → present expected behavior for each test → user confirms pass or reports an issue → if issues found: auto-diagnose + generate fix plan. Persistent state across sessions — no progress lost on Ctrl+C. Equivalent to `verify-work` in GSD.
 
 ### 5.1 — CLI interface
 
 ```sh
-# Start QA session từ plan
+# Start QA session from a plan
 coder qa --plan .coder/plans/PLAN-auth-jwt.md
 
-# Start với feature description (tự generate test cases)
+# Start with a feature description (auto-generate test cases)
 coder qa "user authentication feature"
 
-# Resume session đang dở
+# Resume an in-progress session
 coder qa --resume
 coder qa --session qa-abc123
 
 # List QA sessions
 coder qa --list
 
-# Run specific test only
+# Run a specific test only
 coder qa --test "3"
 
 # Skip a test
@@ -976,31 +976,31 @@ root_cause: "Missing DeleteRefreshToken call in manager.go:156"
 
 ### 5.4 — Auto-diagnosis
 
-Khi user báo issue:
+When the user reports an issue:
 
 ```
-1. Extract keywords từ issue description
-2. Search memory + skills cho relevant patterns
-3. Read related source files (từ PLAN.md → files section)
+1. Extract keywords from the issue description
+2. Search memory + skills for relevant patterns
+3. Read related source files (from PLAN.md → files section)
 4. Ask LLM: "Given this implementation and this reported issue,
              what is the most likely root cause?"
-5. Present root cause với file:line nếu có thể
-6. Generate minimal fix plan
-7. Append root_cause + fix_plan vào UAT.md
+5. Present root cause with file:line where possible
+6. Generate a minimal fix plan
+7. Append root_cause + fix_plan to UAT.md
 ```
 
 ### 5.5 — Acceptance criteria
 
-- [ ] Load test cases từ PLAN.md acceptance criteria
-- [ ] Present tests one at a time với expected behavior rõ ràng
-- [ ] User response "pass" / description / "skip" được xử lý đúng
-- [ ] Severity inferred từ description (không hỏi)
-- [ ] UAT.md được save sau mỗi test (không mất nếu crash)
-- [ ] `--resume` tiếp tục đúng từ test đang dở
-- [ ] Auto-diagnosis tìm root cause và suggest fix
-- [ ] Fix plan được generate và save
-- [ ] `--report` export full QA report
-- [ ] Activity "qa" được log
+- [ ] Loads test cases from PLAN.md acceptance criteria
+- [ ] Presents tests one at a time with clear expected behavior
+- [ ] User response "pass" / description / "skip" handled correctly
+- [ ] Severity inferred from description (not asked explicitly)
+- [ ] UAT.md saved after each test (no progress lost on crash)
+- [ ] `--resume` continues correctly from the last in-progress test
+- [ ] Auto-diagnosis identifies root cause and suggests a fix
+- [ ] Fix plan generated and saved
+- [ ] `--report` exports a full QA report
+- [ ] Activity "qa" logged
 - [ ] Build + tests pass
 
 ---
@@ -1008,26 +1008,26 @@ Khi user báo issue:
 ## Phase 6 — `coder debug` (Debug Flow)
 
 > **Priority:** P2
-> **Effort:** ~4 ngày
+> **Effort:** ~4 days
 > **Depends on:** Phase 1
 
-### Mục tiêu
+### Objective
 
-Debug assistant: nhận error message / stack trace / log → search relevant context → analyze root cause → suggest fix. Nhanh hơn QA — không cần plan, chỉ cần error. Equivalent `debug` + `diagnose-issues` của GSD.
+Debug assistant: receive an error message / stack trace / log → search relevant context → analyze root cause → suggest a fix. Faster than QA — no plan needed, just the error. Equivalent to `debug` + `diagnose-issues` in GSD.
 
 ### 6.1 — CLI interface
 
 ```sh
-# Debug từ error message
+# Debug from an error message
 coder debug "panic: runtime error: index out of range [3] with length 3"
 
-# Từ log file
+# From a log file
 coder debug --file error.log
 
-# Từ stdin
+# From stdin
 cat crash.log | coder debug
 
-# Debug với file context
+# Debug with file context
 coder debug --context src/auth/manager.go "nil pointer dereference on line 89"
 
 # Debug git diff (what did I break?)
@@ -1161,14 +1161,14 @@ Session saved. Storing fix to memory...
 
 ### 6.5 — Acceptance criteria
 
-- [ ] `coder debug "error"` phân tích và trả về root cause với confidence
-- [ ] `--file` đọc log file và debug
-- [ ] `--context file.go` inject file content
-- [ ] `--diff` debug từ git diff
-- [ ] Output: root cause, location, suggested fix, similar past issues
-- [ ] `--interactive` REPL với follow-up questions
-- [ ] `/done` trong interactive → auto-save lesson vào memory
-- [ ] Activity "debug" được log
+- [ ] `coder debug "error"` analyzes and returns root cause with confidence level
+- [ ] `--file` reads a log file and debugs it
+- [ ] `--context file.go` injects file content into the analysis
+- [ ] `--diff` debugs from a git diff
+- [ ] Output includes: root cause, location, suggested fix, similar past issues
+- [ ] `--interactive` REPL supports follow-up questions
+- [ ] `/done` in interactive mode → auto-saves lesson to memory
+- [ ] Activity "debug" logged
 - [ ] Build + tests pass
 
 ---
@@ -1176,19 +1176,19 @@ Session saved. Storing fix to memory...
 ## Phase 7 — `coder session` (State Management)
 
 > **Priority:** P3
-> **Effort:** ~3 ngày
+> **Effort:** ~3 days
 > **Depends on:** Phase 1
 
-### Mục tiêu
+### Objective
 
-Lưu và restore working context — current task, open files, recent decisions, next steps. Giải quyết vấn đề context rot: AI quên context sau khi restart. Equivalent `pause-work` / `resume-work` của GSD.
+Save and restore working context — current task, open files, recent decisions, next steps. Solves the context rot problem: AI loses context after a restart. Equivalent to `pause-work` / `resume-work` in GSD.
 
 ### 7.1 — CLI interface
 
 ```sh
 # Save current session
 coder session save "implementing JWT refresh tokens — need to add rotation logic"
-coder session save  # interactive: hỏi description
+coder session save  # interactive: prompts for description
 
 # Resume last session
 coder session resume
@@ -1205,7 +1205,7 @@ coder session show ses-abc123
 # Delete session
 coder session delete ses-abc123
 
-# Export session as context file (để paste vào Claude)
+# Export session as a context file (for pasting into any AI)
 coder session export ses-abc123 -o context.md
 ```
 
@@ -1250,22 +1250,22 @@ DeleteRefreshToken call after UpdateAccessTokenHash.
 
 ### 7.3 — Auto-context inject
 
-Khi có active session, các commands tự động inject session context:
+When an active session exists, all commands automatically inject session context:
 
 ```sh
 coder chat "how do I implement DeleteRefreshToken?"
-# → Tự động inject session.md context → AI biết đang làm gì
+# → Automatically injects session.md context → AI knows what you're working on
 # → "Based on your current task implementing token rotation..."
 ```
 
 ### 7.4 — Acceptance criteria
 
-- [ ] `coder session save` tạo `.coder/session.md` với đầy đủ fields
-- [ ] Interactive save: prompt user cho current task, next steps, decisions
-- [ ] `coder session resume` hiển thị context và offer tiếp tục
-- [ ] `coder session list` hiển thị sessions với summary
-- [ ] Session được auto-inject vào `coder chat`, `coder debug`, `coder review`
-- [ ] `coder session export` tạo file có thể paste vào bất kỳ AI nào
+- [ ] `coder session save` creates `.coder/session.md` with all required fields
+- [ ] Interactive save: prompts user for current task, next steps, and decisions
+- [ ] `coder session resume` displays context and offers to continue
+- [ ] `coder session list` displays sessions with a summary
+- [ ] Session automatically injected into `coder chat`, `coder debug`, `coder review`
+- [ ] `coder session export` creates a file that can be pasted into any AI
 - [ ] Build + tests pass
 
 ---
@@ -1273,12 +1273,12 @@ coder chat "how do I implement DeleteRefreshToken?"
 ## Phase 8 — `coder workflow` (Auto-Chain Orchestration)
 
 > **Priority:** P3
-> **Effort:** ~5 ngày
+> **Effort:** ~5 days
 > **Depends on:** Phase 2, 3, 4, 5, 6
 
-### Mục tiêu
+### Objective
 
-Chain tự động: plan → review → qa → fix → done. Developer chỉ cần describe feature, coder tự làm hết. Equivalent `autonomous` + `--auto` chain của GSD.
+Automated chain: plan → review → qa → fix → done. Developer only needs to describe the feature; coder handles the rest. Equivalent to the `autonomous` + `--auto` chain in GSD.
 
 ### 8.1 — CLI interface
 
@@ -1286,16 +1286,16 @@ Chain tự động: plan → review → qa → fix → done. Developer chỉ c�
 # Full auto: plan → implement hints → review → qa
 coder workflow "implement Redis caching for skill search"
 
-# Chỉ plan + review (không QA)
+# Run only plan + review (skip QA)
 coder workflow --steps plan,review "refactor auth service"
 
-# Resume workflow đang dở
+# Resume an in-progress workflow
 coder workflow --resume
 
-# Dry run — chỉ show plan, không execute
+# Dry run — show plan only, do not execute
 coder workflow --dry-run "add rate limiting"
 
-# Với PRD file
+# From a PRD file
 coder workflow --prd path/to/feature.md
 ```
 
@@ -1312,7 +1312,7 @@ Step 1: PLAN
       ▼
 Step 2: REVIEW PLAN
   AI self-reviews the plan for completeness
-  → highlight risks before implementation
+  → highlights risks before implementation
       │
       ▼
 Step 3: CHECKPOINT
@@ -1323,7 +1323,7 @@ Step 3: CHECKPOINT
 Step 4: IMPLEMENT (hints mode)
   Generate implementation checklist for developer
   "Here's what to build, in order, with file references"
-  (coder không tự write code — đó là việc của AI agent)
+  (coder does not write code itself — that is the AI agent's job)
       │
       ▼
 Step 5: QA
@@ -1338,7 +1338,7 @@ Step 6: FIX (if issues)
       ▼
 Step 7: DONE
   Summary: feature name, tests passed, issues resolved
-  Activity log entry với full workflow summary
+  Activity log entry with full workflow summary
 ```
 
 ### 8.3 — Workflow state file
@@ -1361,12 +1361,12 @@ steps:
 
 ### 8.4 — Acceptance criteria
 
-- [ ] Full chain: plan → review checkpoint → QA hoạt động end-to-end
-- [ ] Workflow state lưu vào YAML, resumable sau Ctrl+C
-- [ ] `--steps` chỉ chạy selected steps
-- [ ] Checkpoint: user approve/edit trước khi tiếp tục
-- [ ] Activity log entry cho toàn bộ workflow
-- [ ] `--dry-run` chỉ show plan, không thực thi
+- [ ] Full chain: plan → review checkpoint → QA works end-to-end
+- [ ] Workflow state saved to YAML, resumable after Ctrl+C
+- [ ] `--steps` runs only the selected steps
+- [ ] Checkpoint: user must approve/edit before proceeding
+- [ ] Activity log entry created for the entire workflow
+- [ ] `--dry-run` shows plan only, does not execute
 - [ ] Build + tests pass
 
 ---
@@ -1375,15 +1375,15 @@ steps:
 
 ### Phase 2+ — Chat Dashboard Page
 
-Thêm trang `/dashboard/chat` hiển thị:
+Add `/dashboard/chat` page displaying:
 - Recent sessions (title, message count, last active)
-- Click vào session → view conversation history
-- Stats: total sessions, total messages, avg session length
-- Top topics (từ session titles, word frequency)
+- Click a session → view conversation history
+- Stats: total sessions, total messages, average session length
+- Top topics (from session titles, word frequency)
 
 ### Phase 3+ — Review History Page
 
-Thêm trang `/dashboard/reviews` hiển thị:
+Add `/dashboard/reviews` page displaying:
 - Recent reviews (file/PR, concern counts by severity)
 - Trend: HIGH concerns over time
 - Top recurring issues
@@ -1394,33 +1394,33 @@ Thêm trang `/dashboard/reviews` hiển thị:
 
 | Phase | Feature | Priority | Effort | Value |
 |-------|---------|----------|--------|-------|
-| 1 | LLM Backbone | P0 | 5 ngày | Nền tảng |
-| 2 | coder chat | P1 | 3 ngày | Cao — daily use |
-| 3 | coder review | P1 | 4 ngày | Cao — code quality |
-| 4 | coder plan | P2 | 6 ngày | Cao — workflow |
-| 5 | coder qa | P2 | 5 ngày | Cao — quality gate |
-| 6 | coder debug | P2 | 4 ngày | Cao — debugging |
-| 7 | coder session | P3 | 3 ngày | Medium — UX |
-| 8 | coder workflow | P3 | 5 ngày | Cao — automation |
+| 1 | LLM Backbone | P0 | 5 days | Foundation |
+| 2 | coder chat | P1 | 3 days | High — daily use |
+| 3 | coder review | P1 | 4 days | High — code quality |
+| 4 | coder plan | P2 | 6 days | High — workflow |
+| 5 | coder qa | P2 | 5 days | High — quality gate |
+| 6 | coder debug | P2 | 4 days | High — debugging |
+| 7 | coder session | P3 | 3 days | Medium — UX |
+| 8 | coder workflow | P3 | 5 days | High — automation |
 
-**Total estimated effort:** ~35 ngày kỹ sư
+**Total estimated effort:** ~35 engineer-days
 
 **Recommended execution order:**
-1. Phase 1 (blocker cho tất cả)
-2. Phase 2 + 3 song song (independent sau Phase 1)
-3. Phase 4 + 6 song song
+1. Phase 1 (blocker for everything else)
+2. Phase 2 + 3 in parallel (independent after Phase 1)
+3. Phase 4 + 6 in parallel
 4. Phase 5 (depends on 4)
-5. Phase 7 + 8 cuối
+5. Phase 7 + 8 last
 
 ---
 
 ## Key design principles (from GSD lessons)
 
-1. **Context engineering over prompt engineering** — Tự động inject đúng context thay vì hỏi user cung cấp
-2. **State persistence** — Mọi workflow đều có state file, resumable sau crash
-3. **Concrete options, not open questions** — Luôn offer numbered options thay vì blank input
-4. **Scope creep detection** — Nhận ra khi user đang nói về feature mới → defer, không expand
-5. **Severity inference** — Tự infer severity từ language, không hỏi "how bad is this?"
-6. **Verification loops** — Plan → check → revise trước khi present cho user
-7. **Activity logging** — Mọi command đều log để dashboard tracking
-8. **Fail gracefully** — LLM unavailable, network error → rõ ràng, actionable error messages
+1. **Context engineering over prompt engineering** — Automatically inject the right context instead of asking the user to provide it
+2. **State persistence** — Every workflow has a state file, resumable after a crash
+3. **Concrete options, not open questions** — Always offer numbered options instead of blank input
+4. **Scope creep detection** — Recognize when the user is describing a new feature → defer, do not expand
+5. **Severity inference** — Infer severity from language, never ask "how bad is this?"
+6. **Verification loops** — Plan → check → revise before presenting to the user
+7. **Activity logging** — Every command is logged for dashboard tracking
+8. **Fail gracefully** — LLM unavailable, network error → clear, actionable error messages
