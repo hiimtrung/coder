@@ -41,8 +41,6 @@ It gives every agent in your team access to the same centralized brain: a vector
 
 ## Features
 
-| | |
-|---|---|
 | **Hybrid RAG Search** | pgvector cosine similarity fused with full-text search via Reciprocal Rank Fusion |
 | **Semantic Memory** | Store and retrieve cross-project decisions, patterns, and post-mortems |
 | **20+ Built-in Skills** | NestJS, Go, Java, Rust, Python, React, architecture, testing, and more |
@@ -54,7 +52,19 @@ It gives every agent in your team access to the same centralized brain: a vector
 
 ---
 
-## Quick Start
+## 📗 Reference Documentation
+
+For deep-dive technical guides, see the following:
+
+- 📘 [**Skill RAG Architecture**](docs/skill_architecture.md): Embedding, similarity search, and RAG retrieval.
+- 📦 [**Skill Asset Management (SkillFiles)**](docs/skill_files.md): Bundling and executing binary assets (scripts/data).
+- 🛡️ [**Secure Mode & Authentication**](docs/secure_mode.md): Node-level security and client registration.
+- 📊 [**Web Dashboard UI**](docs/dashboard.md): HTMX-powered visual management console.
+- 💾 [**Memory System**](docs/memory.md): Detailed guide on Project Semantic Memory.
+
+---
+
+## 🚀 Quick Start
 
 ### 1 — Install the CLI
 
