@@ -12,6 +12,7 @@ import (
 	"github.com/trungtran/coder/api/grpc/skillpb"
 	authdomain "github.com/trungtran/coder/internal/domain/auth"
 	"github.com/trungtran/coder/internal/infra/embedding"
+	"github.com/trungtran/coder/internal/infra/llm"
 	"github.com/trungtran/coder/internal/infra/postgres"
 	grpcinterceptor "github.com/trungtran/coder/internal/transport/grpc/interceptor"
 	grpcserver "github.com/trungtran/coder/internal/transport/grpc/server"
@@ -19,7 +20,10 @@ import (
 	httpserver "github.com/trungtran/coder/internal/transport/http/server"
 	dashboard "github.com/trungtran/coder/internal/transport/http/server/dashboard"
 	ucauth "github.com/trungtran/coder/internal/usecase/auth"
+	ucchat "github.com/trungtran/coder/internal/usecase/chat"
+	ucdebug "github.com/trungtran/coder/internal/usecase/debug"
 	ucmemory "github.com/trungtran/coder/internal/usecase/memory"
+	ucreview "github.com/trungtran/coder/internal/usecase/review"
 	ucskill "github.com/trungtran/coder/internal/usecase/skill"
 	"github.com/trungtran/coder/internal/version"
 	"google.golang.org/grpc"
@@ -52,13 +56,18 @@ func main() {
 		ollamaModel = "mxbai-embed-large"
 	}
 
+	ollamaChatModel := os.Getenv("OLLAMA_CHAT_MODEL")
+	if ollamaChatModel == "" {
+		ollamaChatModel = "llama3.2:latest"
+	}
+
 	// Initialize Postgres with shared DB handle
 	memDB, rawDB, err := postgres.NewPostgresMemoryWithDB(dsn)
 	if err != nil {
 		log.Fatalf("Failed to initialize postgres: %v", err)
 	}
 
-	// Initialize Ollama provider
+	// Initialize Ollama embedding provider
 	provider := &embedding.OllamaEmbeddingProvider{
 		BaseURL: ollamaBase,
 		Model:   ollamaModel,
@@ -104,6 +113,20 @@ func main() {
 		authMgr = ucauth.NewManager(nil, false) // open mode — no-op auth
 	}
 
+	// Initialize LLM provider (Ollama /api/chat)
+	llmProvider := llm.NewOllamaProvider(ollamaBase, ollamaChatModel)
+
+	// Initialize chat repository
+	chatRepo, err := postgres.NewPostgresChatRepo(rawDB)
+	if err != nil {
+		log.Fatalf("Failed to initialize chat repository: %v", err)
+	}
+
+	// Initialize chat manager (use case)
+	chatMgr := ucchat.NewManager(chatRepo, llmProvider, mgr, skillFacade, ucchat.Config{
+		Model: ollamaChatModel,
+	})
+
 	// 1. Setup gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
 	if err != nil {
@@ -148,6 +171,20 @@ func main() {
 	httpAuthServer := httpserver.NewAuthServer(authMgr)
 	httpAuthServer.RegisterHandlers(httpMux)
 
+	// Chat endpoints (Phase 1 — LLM Backbone)
+	httpChatServer := httpserver.NewChatServer(chatMgr)
+	httpChatServer.RegisterHandlers(httpMux)
+
+	// Review endpoint (Phase 3)
+	reviewMgr := ucreview.NewManager(llmProvider, mgr, skillFacade, ollamaChatModel)
+	httpReviewServer := httpserver.NewReviewServer(reviewMgr)
+	httpReviewServer.RegisterHandlers(httpMux)
+
+	// Debug endpoint (Phase 6)
+	debugMgr := ucdebug.NewManager(llmProvider, mgr, skillFacade, ollamaChatModel)
+	httpDebugServer := httpserver.NewDebugServer(debugMgr)
+	httpDebugServer.RegisterHandlers(httpMux)
+
 	// Dashboard UI
 	dashboardServer := dashboard.NewDashboardServer(authMgr, version.Version)
 	dashboardServer.RegisterHandlers(httpMux)
@@ -156,7 +193,7 @@ func main() {
 	var handler http.Handler = httpMux
 	handler = httpmiddleware.Auth(authMgr)(handler)
 
-	log.Printf("coder-node HTTP server listening at :%s (secure_mode=%v)", httpPort, authMgr.IsSecureMode())
+	log.Printf("coder-node HTTP server listening at :%s (secure_mode=%v, chat_model=%s)", httpPort, authMgr.IsSecureMode(), ollamaChatModel)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", httpPort), handler); err != nil {
 		log.Fatalf("HTTP server failed: %v", err)
 	}

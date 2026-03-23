@@ -147,6 +147,23 @@ All AI Agent operations MUST utilize the local semantic memory via **Memory Gati
 2. **Gate Out (MANDATORY)**: EVERY workflow must end by running `coder memory store "<Title>" "<Content>" --tags "<tags>"` to capture new patterns, root causes, or architectural decisions.
 3. **Compact Regularly**: Run `coder memory compact --revector` periodically to keep the memory clean and up-to-date.
 
+### AI Workflow Commands (Use These During Development)
+
+The coder CLI has 8 AI workflow commands. Use them at the right phase:
+
+| When | Run this | What it does |
+|------|---------|-------------|
+| Before coding | `coder plan "<feature>"` | Generates PLAN.md with tasks, estimates, risks |
+| Quick Q&A | `coder chat "<question>"` | Context-enriched Q&A with memory+skill injection |
+| After coding | `coder review` | AI review of current git diff |
+| Reviewing a PR | `coder review --pr <number>` | AI review of GitHub PR diff |
+| Hit a bug | `coder debug "<error>"` | Structured root cause analysis + suggested fix |
+| UAT/verification | `coder qa --plan PLAN.md` | Walk acceptance criteria, auto-diagnose failures |
+| Session break | `coder session save` | Saves current task + next steps + decisions |
+| Full delivery | `coder workflow "<feature>"` | Auto-chains: plan → review → qa → fix |
+
+State files are saved in `.coder/` (plans/, qa/, sessions/, workflows/).
+
 ## ⚠️ Critical Rules (ALL Languages)
 
 1. **Type Safety**: NO `any` types, explicit typing everywhere

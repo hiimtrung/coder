@@ -20,20 +20,23 @@ This master workflow coordinates specialized sub-workflows. You can switch betwe
 1. **Task Visibility** — Create/update `task.md` in `@brain/`. Mark tasks as `[ ]`, `[/]`, or `[x]`.
 2. **Context Discovery** — Apply patterns from Gate In results. Run `/new-requirement` to scaffold documentation.
 3. **Requirement Mapping** — Decompose requirements into actionable stories. Run `/capture-knowledge` for complex components.
-4. **Implementation Plan** — Create an `implementation_plan.md`. Success is an approved plan and populated `task.md`.
+4. **Implementation Plan** — Run `coder plan "<feature>" --auto` to generate a structured PLAN.md with tasks, estimates, and risks. Save to `.coder/plans/`. Success is an approved plan and populated `task.md`.
 
 ### Phase 2: Iterative Implementation (Development)
 *Objective: Deliver functional increments through TDD and clean architecture.*
-1. **Task Execution** — Run `/execute-plan` for each User Story. 
-2. **Design Compliance** — Run `/check-implementation` or `/review-design` to ensure alignment with documentation.
-3. **Refinement** — Run `/simplify-implementation` for complex logic. Run `/remember` to store new patterns.
+1. **Task Execution** — Run `/execute-plan` for each User Story.
+2. **Continuous Review** — After each meaningful change, run `coder review` to get AI feedback on the diff before committing.
+3. **Debug as you go** — When hitting errors, run `coder debug "<error message>"` for structured root cause analysis instead of guessing.
+4. **Design Compliance** — Run `/check-implementation` or `/review-design` to ensure alignment with documentation.
+5. **Refinement** — Run `/simplify-implementation` for complex logic. Run `/remember` to store new patterns.
 
 ### Phase 3: Quality Assurance (Testing)
 *Objective: Systematically verify requirements and ensure regression safety.*
-1. **Verification** — Run `/qa-testing` for the delivered increment.
+1. **UAT Verification** — Run `coder qa --plan <PLAN.md>` to walk through acceptance criteria from the plan one by one. Issues are auto-diagnosed.
 2. **Automated Testing** — Run `/writing-test` for missing coverage.
-3. **Technical Review** — Run `/code-review` and `/technical-writer-review` to polish documentation and code.
-4. **Memory Capture** — Run `coder memory store` to save significant patterns or decisions.
+3. **AI Code Review** — Run `coder review` on the full feature diff or `coder review --pr <number>` for PR review.
+4. **Technical Review** — Run `/code-review` and `/technical-writer-review` to polish documentation and code.
+5. **Memory Capture** — Run `coder memory store` to save significant patterns or decisions.
 
 ### Phase 4: Lifecycle Closure & Review
 *Objective: Collect evidence and finalize the delivery.*

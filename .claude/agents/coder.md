@@ -174,6 +174,89 @@ coder memory search "<query>"                                # GATE 2 — run af
 coder memory store "<Title>" "<Content>" --tags "<tags>"     # GATE 3 — run after completing work
 ```
 
+## coder CLI Commands — Use These During Development
+
+The CLI has **three command groups**. Use them at the right phase.
+
+### Group A — Quick AI Workflows (no project setup needed)
+
+| When | Command | What it does |
+|------|---------|-------------|
+| Before coding | `coder plan "<feature>"` | Generates PLAN.md with tasks + estimates |
+| Any question | `coder chat "<question>"` | Context-enriched Q&A with memory+skill injection |
+| After coding | `coder review` | AI review of current git diff |
+| Reviewing a PR | `coder review --pr <N>` | AI review of GitHub PR diff |
+| Hit a bug | `coder debug "<error>"` | Structured root cause analysis + suggested fix |
+| UAT/verification | `coder qa --plan PLAN.md` | Walk acceptance criteria, auto-diagnose failures |
+| Session break | `coder session save` | Saves current task + next steps + decisions |
+| Full delivery | `coder workflow "<feature>"` | Auto-chains: plan → review → qa → fix |
+
+### Group B — Project Lifecycle (requires `coder new-project` first)
+
+| Step | Command | What it does |
+|------|---------|-------------|
+| Init | `coder new-project "idea"` | Q&A → REQUIREMENTS.md + ROADMAP.md + STATE.md |
+| Map | `coder map-codebase` | 4-pass analysis → STACK / ARCH / CONVENTIONS / CONCERNS |
+| Discuss | `coder discuss-phase N` | Gray-area Q&A → CONTEXT.md |
+| Plan | `coder plan-phase N` | Research + XML plans + verification loop |
+| Execute | `coder execute-phase N` | Wave-based task execution + atomic git commits |
+| Ship | `coder ship [N]` | `gh pr create` with AI-generated PR body |
+| Navigate | `coder progress` / `coder next` | Current state + next recommended command |
+| Close | `coder milestone complete N` | Mark phase done, advance to next |
+
+### Group C — Project Utilities
+
+```bash
+coder todo add "investigate rate limiting"   # backlog item
+coder note "decided to use JWT"              # record decision to STATE.md
+coder note --blocker "waiting for API keys"  # record blocker
+coder health                                 # check artifacts + blockers
+coder stats                                  # phases, commits, file counts
+coder do "write unit tests for auth service" # one-off AI task with project context
+```
+
+### Integration with Gates
+
+```
+GATE 1: coder skill search "<topic>"   ← always first
+GATE 2: coder memory search "<topic>"  ← always second
+
+  [New feature — quick path]
+  → coder plan "<feature>" --auto      ← generates PLAN.md
+  → coder review                       ← review diff as you go
+  → coder debug "<error>"              ← structured root cause when stuck
+  → coder qa --plan <PLAN.md>          ← UAT against acceptance criteria
+  → coder session save                 ← save working context
+
+  [Full project — lifecycle path]
+  → coder new-project "..."            ← init requirements + roadmap
+  → coder discuss-phase N              ← Q&A → decisions
+  → coder plan-phase N                 ← research → XML plans
+  → coder execute-phase N              ← execute + commit
+  → coder ship N                       ← PR via gh
+  → coder milestone complete N         ← close phase
+  → coder next                         ← see what's next
+
+GATE 3: coder memory store "<title>"   ← always last
+```
+
+### Active Session Auto-Injection
+
+If `.coder/session.md` exists, `coder chat`, `coder debug`, and `coder review`
+automatically inject session context. The AI "knows" what you're working on.
+
+### Resume Interrupted Commands
+
+| Command | Resume flag |
+|---------|------------|
+| `coder new-project` | `--resume` |
+| `coder plan-phase N` | `--skip-research` (if RESEARCH.md exists) |
+| `coder execute-phase N` | `--gaps-only` (skips plans with SUMMARY.md) |
+| `coder workflow` | `--resume` |
+| `coder qa` | `--resume` |
+
+---
+
 ## Available Workflows (Slash Commands)
 
 - `/full-lifecycle-delivery` — Master orchestrator for end-to-end delivery

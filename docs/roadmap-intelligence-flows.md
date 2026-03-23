@@ -2,7 +2,30 @@
 
 > **Inspired by:** [get-shit-done](https://github.com/glittercowboy/get-shit-done) — context engineering + spec-driven development system
 > **Goal:** Evolve coder from a RAG/memory CLI into a full **AI development workflow engine** — with Q&A, review, planning, QA, and debug capabilities on par with a senior engineer AI pair.
-> **Last updated:** 2026-03-20
+> **Last updated:** 2026-03-23
+
+## Implementation Status
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| 1 | LLM Backbone (coder-node) | ✅ Done |
+| 2 | coder chat | ✅ Done |
+| 3 | coder review | ✅ Done |
+| 4 | coder plan | ✅ Done |
+| 5 | coder qa | ✅ Done |
+| 6 | coder debug | ✅ Done |
+| 7 | coder session | ✅ Done |
+| 8 | coder workflow | ✅ Done |
+| 9 | coder new-project | 🔲 Planned |
+| 10 | coder map-codebase | 🔲 Planned |
+| 11 | coder discuss-phase | 🔲 Planned |
+| 12 | coder plan-phase (upgrade) | 🔲 Planned |
+| 13 | coder execute-phase (subagent execution) | 🔲 Planned |
+| 14 | coder ship | 🔲 Planned |
+| 15 | coder progress / coder next | 🔲 Planned |
+| 16 | coder milestone | 🔲 Planned |
+| 17 | Utilities (todo, stats, health, do, note) | 🔲 Planned |
+| 18 | Subagent agent definitions (.claude/agents/) | 🔲 Planned |
 
 ---
 
@@ -12,13 +35,23 @@
 Developer / AI Agent
       │
       │  coder CLI
-      │  ├─ coder chat          ← Q&A with context injection   (Phase 2)
-      │  ├─ coder review        ← Multi-model code review      (Phase 3)
-      │  ├─ coder plan          ← Planning workflow            (Phase 4)
-      │  ├─ coder qa            ← QA / UAT verification        (Phase 5)
-      │  ├─ coder debug         ← Root cause diagnosis         (Phase 6)
-      │  ├─ coder session       ← State management             (Phase 7)
-      │  └─ coder workflow      ← Auto-chain orchestration     (Phase 8)
+      │  ├─ coder chat           ← Q&A with context injection      (Phase 2)  ✅
+      │  ├─ coder review         ← Multi-model code review         (Phase 3)  ✅
+      │  ├─ coder plan           ← Planning workflow               (Phase 4)  ✅
+      │  ├─ coder qa             ← QA / UAT verification           (Phase 5)  ✅
+      │  ├─ coder debug          ← Root cause diagnosis            (Phase 6)  ✅
+      │  ├─ coder session        ← State management                (Phase 7)  ✅
+      │  ├─ coder workflow       ← Auto-chain orchestration        (Phase 8)  ✅
+      │  │
+      │  ├─ coder new-project    ← Project init + docs scaffold    (Phase 9)  🔲
+      │  ├─ coder map-codebase   ← Parallel codebase analysis      (Phase 10) 🔲
+      │  ├─ coder discuss-phase  ← Gray-area Q&A → CONTEXT.md      (Phase 11) 🔲
+      │  ├─ coder plan-phase     ← Research + plan + verify loop   (Phase 12) 🔲
+      │  ├─ coder execute-phase  ← Wave-based subagent execution   (Phase 13) 🔲
+      │  ├─ coder ship           ← Push branch + create PR         (Phase 14) 🔲
+      │  ├─ coder progress/next  ← State-aware navigation          (Phase 15) 🔲
+      │  ├─ coder milestone      ← Lifecycle: complete/new/audit   (Phase 16) 🔲
+      │  └─ coder todo/stats/... ← Utilities                       (Phase 17) 🔲
       │
       ▼
 ┌──────────────────────────────────────────────────────┐
@@ -1390,27 +1423,852 @@ Add `/dashboard/reviews` page displaying:
 
 ---
 
+---
+
+## Phase 9 — `coder new-project` (Project Initialization)
+
+> **Priority:** P0 — Foundation for phases 10–16
+> **Effort:** ~4 days
+> **Depends on:** Phase 1 (LLM Backbone)
+> **GSD equivalent:** `/gsd:new-project`
+
+### Objective
+
+Initialize a new project through a unified flow: questioning → research → requirements → roadmap.
+Creates the core document set that all downstream phases reference. This is the most leveraged
+moment — deep questioning here means better plans, better execution, better outcomes.
+
+### 9.1 — CLI interface
+
+```sh
+coder new-project "build a multi-tenant SaaS with JWT auth"
+coder new-project --auto @docs/prd.md   # skip Q&A, extract from PRD
+coder new-project --resume              # continue interrupted init
+```
+
+### 9.2 — Flow
+
+```
+Step 1: Detect context
+  - Check if .coder/PROJECT.md already exists → error if so
+  - Check git init → offer to run git init if missing
+  - Check .coder/codebase/ → prompt to run coder map-codebase first (brownfield)
+
+Step 2: Deep questioning (interactive)
+  - Ask until idea is fully understood:
+    goals, constraints, tech preferences, must-haves, nice-to-haves
+  - Detect feature type to ask domain-appropriate questions:
+    API/CLI → auth, versioning, error format, flags
+    UI → layout, interactions, empty states, mobile
+    Data → schema, access patterns, retention
+  - Scope creep guard: "that sounds like v2 — add to backlog?"
+
+Step 3: Research (spawns parallel agents — see Phase 18)
+  - Agent 1: stack research (libraries, frameworks, ecosystem)
+  - Agent 2: feature research (patterns, edge cases)
+  - Agent 3: architecture research (structure, conventions)
+  - Agent 4: pitfalls research (known issues, gotchas)
+  - Results synthesized into .coder/research/
+
+Step 4: Requirements extraction
+  - v1 (must-have) vs v2 (nice-to-have) vs out-of-scope
+  - Phase traceability: each requirement linked to roadmap phase
+  - User approves requirements list before proceeding
+
+Step 5: Roadmap generation
+  - Phases mapped to requirements
+  - Dependencies identified (phase N requires phase M)
+  - Estimates per phase
+  - User approves roadmap
+
+Step 6: Write artifacts
+  .coder/PROJECT.md       — vision, goals, tech stack, constraints
+  .coder/REQUIREMENTS.md  — v1/v2 requirements with phase links
+  .coder/ROADMAP.md       — phases with estimates + dependencies
+  .coder/STATE.md         — current phase, decisions, blockers
+```
+
+### 9.3 — STATE.md format
+
+```markdown
+---
+project: "multi-tenant SaaS"
+current_phase: 1
+updated: 2026-03-23T10:00Z
+---
+
+## Current Position
+Phase: 1 — Auth foundation
+Step: plan
+Last action: discuss-phase completed
+
+## Decisions
+- JWT with httpOnly cookies (not localStorage)
+- PostgreSQL row-level security for tenancy
+- No refresh token rotation grace period
+
+## Blockers
+- None
+
+## Backlog (deferred ideas)
+- OAuth2 social login (v2)
+- Multi-region support (v3)
+```
+
+### 9.4 — Acceptance criteria
+
+- [ ] Creates all 5 core documents in .coder/
+- [ ] `--auto` mode reads PRD and skips interactive Q&A
+- [ ] Scope creep detection redirects to backlog (not expands scope)
+- [ ] STATE.md auto-updated by all subsequent commands
+- [ ] Activity "new-project" logged
+- [ ] Build + tests pass
+
+---
+
+## Phase 10 — `coder map-codebase` (Codebase Analysis)
+
+> **Priority:** P0 — Required for brownfield projects
+> **Effort:** ~3 days
+> **Depends on:** Phase 18 (subagent definitions)
+> **GSD equivalent:** `/gsd:map-codebase`
+
+### Objective
+
+Analyze an existing codebase before starting new work. Spawns parallel agents to explore
+different aspects. Each agent writes its document directly — orchestrator only collects
+confirmations, keeping context minimal.
+
+### 10.1 — CLI interface
+
+```sh
+coder map-codebase              # full analysis
+coder map-codebase auth         # focus on specific subsystem
+coder map-codebase --refresh    # re-analyze after major changes
+```
+
+### 10.2 — Parallel agent execution (Claude Code + Copilot)
+
+```
+Orchestrator (coder map-codebase)
+      │
+      ├─ spawn: coder-codebase-mapper --focus=tech
+      │         → writes .coder/codebase/STACK.md
+      │         → writes .coder/codebase/INTEGRATIONS.md
+      │
+      ├─ spawn: coder-codebase-mapper --focus=arch
+      │         → writes .coder/codebase/ARCHITECTURE.md
+      │         → writes .coder/codebase/STRUCTURE.md
+      │
+      ├─ spawn: coder-codebase-mapper --focus=quality
+      │         → writes .coder/codebase/CONVENTIONS.md
+      │         → writes .coder/codebase/TESTING.md
+      │
+      └─ spawn: coder-codebase-mapper --focus=concerns
+                → writes .coder/codebase/CONCERNS.md
+
+Wait for all 4 → verify 7 documents exist → commit map
+```
+
+**Runtime compatibility:**
+- **Claude Code**: `Agent(subagent_type="coder-codebase-mapper", ...)` — true parallel
+- **Copilot**: `@coder-codebase-mapper` — parallel with sequential fallback
+- **Standalone CLI (no agent runtime)**: sequential inline execution, same output
+
+### 10.3 — Acceptance criteria
+
+- [ ] All 7 codebase documents written to .coder/codebase/
+- [ ] Parallel agents complete without context bleed between them
+- [ ] `--focus` limits analysis to a subsystem
+- [ ] Result committed with message `chore: map codebase`
+- [ ] STATE.md updated with codebase map reference
+- [ ] Build + tests pass
+
+---
+
+## Phase 11 — `coder discuss-phase` (Context Capture)
+
+> **Priority:** P1
+> **Effort:** ~2 days
+> **Depends on:** Phase 9
+> **GSD equivalent:** `/gsd:discuss-phase N`
+
+### Objective
+
+Separate the "what do you want" conversation from planning. Outputs a CONTEXT.md that
+downstream research and planning agents read to know what decisions are locked.
+This is what prevents AI from making reasonable-but-wrong assumptions.
+
+### 11.1 — CLI interface
+
+```sh
+coder discuss-phase 1              # interactive Q&A for phase 1
+coder discuss-phase 1 --auto       # AI picks recommended defaults
+coder discuss-phase 1 --batch      # grouped questions, answer in bulk
+```
+
+### 11.2 — Flow
+
+```
+1. Load prior context
+   - PROJECT.md + REQUIREMENTS.md + STATE.md
+   - All existing CONTEXT.md files from prior phases
+   - Codebase map if available
+
+2. Scout codebase for reusable assets
+   - Existing patterns, components, utilities relevant to this phase
+
+3. Analyze phase from ROADMAP.md
+   - What's being built? (API / UI / CLI / data / org task)
+   - What gray areas exist for this specific type?
+   - Skip areas already decided in prior CONTEXT.md files
+
+4. Present gray areas (multi-select)
+   - Domain-aware: UI phase → layout/interactions/states
+                   API phase → response format/auth/versioning
+                   CLI phase → flags/output/error handling
+   - User picks which to discuss (3-4 areas max)
+
+5. Deep-dive each selected area
+   - 4 focused questions per area
+   - Concrete options (numbered), not open-ended
+   - "More questions on this, or move on?"
+
+6. Scope creep guard
+   - "That's a new capability → adding to backlog, not this phase"
+
+7. Write CONTEXT.md
+   .coder/phases/{N}-CONTEXT.md
+```
+
+### 11.3 — CONTEXT.md format
+
+```markdown
+# Phase 1 Context — Auth Foundation
+
+## Token Storage
+Decision: httpOnly cookie (not localStorage)
+Rationale: security, XSS protection
+Impact: all auth endpoints must set cookie header
+
+## Refresh Token Behavior
+Decision: rotate on every use, no grace period
+Rationale: security > convenience
+Impact: DeleteRefreshToken called in RotateToken flow
+
+## Multi-Device Support
+Decision: NOT in v1 — each login invalidates all previous sessions
+Deferred to: v2
+```
+
+### 11.4 — Acceptance criteria
+
+- [ ] Prior decisions from earlier phases are NOT re-asked
+- [ ] Scope creep redirected to backlog, not expanded
+- [ ] CONTEXT.md decisions are specific enough for agents to act without re-asking
+- [ ] `--auto` picks recommended defaults for all gray areas
+- [ ] Build + tests pass
+
+---
+
+## Phase 12 — `coder plan-phase` (Upgraded Planning)
+
+> **Priority:** P1
+> **Effort:** ~3 days
+> **Depends on:** Phase 11
+> **GSD equivalent:** `/gsd:plan-phase N`
+> **Upgrades:** existing `coder plan` command
+
+### Objective
+
+Upgrade `coder plan` into a full 3-document pipeline: research → plan → verify loop.
+The plan checker catches incomplete plans before a single line of code is written.
+
+### 12.1 — Flow (upgrade to current coder plan)
+
+```
+Current: coder plan → Q&A → single LLM call → PLAN.md
+
+Upgraded: coder plan-phase N
+  │
+  ├─ Step 1: Load context
+  │    Read: CONTEXT.md + REQUIREMENTS.md + codebase map
+  │
+  ├─ Step 2: Research (spawns coder-phase-researcher agent)
+  │    Investigates: implementation approaches, library options, pitfalls
+  │    Writes: .coder/phases/{N}-RESEARCH.md
+  │
+  ├─ Step 3: Plan generation (spawns coder-planner agent)
+  │    Reads: CONTEXT.md + RESEARCH.md
+  │    Generates: 2-4 atomic task plans with XML structure
+  │    Each plan fits in a fresh context window (~50-100 lines)
+  │    Writes: .coder/phases/{N}-{1,2,3,...}-PLAN.md
+  │
+  └─ Step 4: Verification loop (spawns coder-plan-checker agent)
+       Checks: are plans complete? cover all requirements? no contradictions?
+       Loop: max 3 iterations → fail → present to user
+       Writes: PLAN.md updated if issues fixed
+```
+
+### 12.2 — XML Plan format (upgrade from markdown)
+
+```xml
+<plan id="1-01" phase="1" name="JWT token infrastructure">
+  <objective>Create the token generation, validation, and rotation foundation</objective>
+  <files>
+    internal/domain/auth/entity.go
+    internal/usecase/auth/manager.go
+    internal/infra/postgres/auth.go
+  </files>
+  <tasks>
+    <task type="create">
+      <name>Token domain types</name>
+      <action>
+        Create Token, RefreshToken, Claims structs in entity.go.
+        Use jose v4 for JWT (not golang-jwt — license issues).
+        Include: sub, iat, exp, jti claims.
+      </action>
+      <verify>go test ./internal/domain/auth/... passes</verify>
+      <done>Token struct created, marshals to valid JWT</done>
+    </task>
+    <task type="modify">
+      <name>Manager.RotateToken</name>
+      <action>
+        Add nil check for m.repo at line 182.
+        Call repo.DeleteRefreshToken after UpdateAccessTokenHash.
+      </action>
+      <verify>TestRotateToken_InvalidatesOldToken passes</verify>
+      <done>Old token deleted, new token returned</done>
+    </task>
+  </tasks>
+  <dependencies>none</dependencies>
+  <estimated_time>2h</estimated_time>
+</plan>
+```
+
+### 12.3 — Flags
+
+```sh
+coder plan-phase 1                   # full: research + plan + verify
+coder plan-phase 1 --skip-research   # skip if RESEARCH.md exists
+coder plan-phase 1 --skip-verify     # skip verification loop
+coder plan-phase 1 --gaps            # re-plan only failing items from verify-work
+coder plan-phase 1 --prd prd.md      # skip discuss-phase, extract from PRD
+```
+
+### 12.4 — Acceptance criteria
+
+- [ ] RESEARCH.md generated before planning
+- [ ] Plans use XML format with per-task `<verify>` steps
+- [ ] Plan checker catches missing requirements coverage
+- [ ] Verification loop max 3 iterations before surfacing to user
+- [ ] `--gaps` mode generates fix plans from UAT issues
+- [ ] Backward compatible: existing `coder plan` still works unchanged
+- [ ] Build + tests pass
+
+---
+
+## Phase 13 — `coder execute-phase` (Subagent Execution)
+
+> **Priority:** P0 — Core differentiator vs simple "generate hints"
+> **Effort:** ~6 days
+> **Depends on:** Phase 12, Phase 18
+> **GSD equivalent:** `/gsd:execute-phase N`
+
+### Objective
+
+Execute PLAN.md files using wave-based parallel subagent execution. Each subagent gets a
+fresh context window (zero accumulated garbage) and handles one plan end-to-end.
+Orchestrator stays at ~15% context; subagents do the heavy lifting.
+
+### 13.1 — CLI interface
+
+```sh
+coder execute-phase 1               # execute all plans, parallel waves
+coder execute-phase 1 --interactive # sequential, user checkpoint per plan
+coder execute-phase 1 --gaps-only   # only fix plans from verify-work issues
+coder execute-phase 1 --plan 1-02   # execute single plan
+```
+
+### 13.2 — Wave-based parallel execution
+
+```
+Orchestrator reads phase plans → analyzes dependencies → groups into waves
+
+Example: Phase 1 has 4 plans
+  Plan 1-01: token domain types   (no deps)  ─┐ WAVE 1 (parallel)
+  Plan 1-02: postgres schema       (no deps)  ─┘
+  Plan 1-03: auth manager          (needs 1-01, 1-02) ─┐ WAVE 2 (parallel)
+  Plan 1-04: HTTP handlers         (needs 1-03)        ─┘ WAVE 3
+
+WAVE 1: spawn coder-executor for plan 1-01 AND 1-02 simultaneously
+        wait for both to complete
+WAVE 2: spawn coder-executor for plan 1-03
+        wait
+WAVE 3: spawn coder-executor for plan 1-04
+        wait
+
+Each executor:
+  1. Reads plan XML (fresh context, no history)
+  2. Executes tasks in order
+  3. Runs verify step after each task
+  4. Commits: git commit -m "feat(1-01): token domain types"
+  5. Writes .coder/phases/{N}-{plan}-SUMMARY.md
+  6. Returns: done | failed | partial
+```
+
+### 13.3 — Runtime compatibility
+
+```
+Claude Code (coder.md agent):
+  Agent(subagent_type="coder-executor", prompt=plan_context)
+  → true parallel via Agent tool
+  → orchestrator blocks per wave, not per plan
+
+GitHub Copilot:
+  @coder-executor agent reference
+  → parallel with sequential fallback if spawning fails
+
+Standalone CLI (no agent runtime):
+  Sequential inline execution
+  Reads and follows plan XML directly
+  Same output, slower
+
+Fallback rule:
+  If spawned agent commits are visible + SUMMARY.md exists
+  but orchestrator never receives completion signal
+  → treat as success, continue to next wave
+```
+
+### 13.4 — Per-task atomic commits
+
+```
+feat(1-01): create Token and RefreshToken domain types
+feat(1-01): add postgres token schema and migration
+feat(1-02): implement Manager.RotateToken with nil check
+...
+
+Format: {type}({plan-id}): {task name}
+Types: feat | fix | refactor | test | docs | chore
+```
+
+### 13.5 — Post-execution verification
+
+After all waves complete, orchestrator spawns `coder-verifier`:
+```
+coder-verifier reads:
+  - REQUIREMENTS.md (phase requirements)
+  - All SUMMARY.md files from this phase
+  - Runs: go test ./... (or equivalent)
+
+Writes: .coder/phases/{N}-VERIFICATION.md
+  - Requirements: covered / partial / missing
+  - Test results: pass / fail
+  - Recommendation: ready for verify-work | needs fix plans
+```
+
+### 13.6 — Acceptance criteria
+
+- [ ] Wave dependency analysis correct (parallel vs sequential)
+- [ ] Each plan runs in fresh context (no cross-contamination)
+- [ ] Atomic git commit after every task
+- [ ] SUMMARY.md created per plan
+- [ ] VERIFICATION.md checks requirements coverage
+- [ ] `--interactive` mode works without subagents (sequential inline)
+- [ ] Runtime fallback: if agent spawning unavailable → sequential
+- [ ] Activity "execute-phase" logged
+- [ ] Build + tests pass
+
+---
+
+## Phase 14 — `coder ship` (PR Creation)
+
+> **Priority:** P1
+> **Effort:** ~1 day
+> **Depends on:** Phase 13
+> **GSD equivalent:** `/gsd:ship N`
+
+### Objective
+
+Bridge local completion → merged PR. After `coder qa` passes, ship the work:
+push branch, create PR with auto-generated body from SUMMARY.md files.
+
+### 14.1 — CLI interface
+
+```sh
+coder ship 1              # ship phase 1 work
+coder ship 1 --draft      # create draft PR
+coder ship                # ship current phase (reads STATE.md)
+```
+
+### 14.2 — Flow
+
+```
+1. Read STATE.md → current phase, phase name
+2. Read all .coder/phases/{N}-*-SUMMARY.md files
+3. git push --set-upstream origin <branch>
+4. gh pr create \
+     --title "feat: phase {N} — {phase_name}" \
+     --body "<generated from SUMMARY.md>"    \
+     --label "phase-{N}"
+5. Update STATE.md: current_phase status = "shipped", pr_url = <url>
+6. Print: PR URL + next steps
+```
+
+### 14.3 — Auto-generated PR body format
+
+```markdown
+## Summary
+Phase 1 — Auth Foundation
+
+Implements JWT-based authentication with refresh token rotation.
+
+## Changes
+- Token domain types (entity.go)
+- Postgres schema: tokens + refresh_tokens tables
+- Manager.RotateToken with nil guard + DeleteRefreshToken
+- HTTP handlers: /v1/auth/login, /v1/auth/refresh, /v1/auth/logout
+
+## Tests
+- 12 unit tests added
+- 2 integration tests added
+- All passing: go test ./...
+
+## Verification
+- [x] Login flow works
+- [x] Token refresh invalidates old token
+- [x] Invalid credentials return 401 AUTH_INVALID_CREDENTIALS
+
+🤖 Generated by coder ship
+```
+
+### 14.4 — Acceptance criteria
+
+- [ ] Requires `gh` CLI installed and authenticated
+- [ ] PR body generated from SUMMARY.md files
+- [ ] STATE.md updated with PR URL
+- [ ] `--draft` creates draft PR
+- [ ] Build + tests pass
+
+---
+
+## Phase 15 — `coder progress` / `coder next` (Navigation)
+
+> **Priority:** P1
+> **Effort:** ~2 days
+> **Depends on:** Phase 9
+> **GSD equivalent:** `/gsd:progress`, `/gsd:next`
+
+### Objective
+
+State-aware navigation. Developer never needs to remember "where am I?" —
+`coder progress` shows it. `coder next` auto-invokes the logical next step.
+
+### 15.1 — CLI interface
+
+```sh
+coder progress            # show current state, phase, what's done, what's next
+coder next                # auto-detect and run next step
+coder next --dry-run      # show what next would do without running it
+```
+
+### 15.2 — coder progress output
+
+```
+══════════════════════════════════════════════════════════
+  PROJECT: multi-tenant SaaS with JWT auth
+  Milestone: v1.0 — Auth + Core API
+══════════════════════════════════════════════════════════
+
+  ROADMAP
+  ✅ Phase 1 — Auth foundation      (shipped: PR #12)
+  ▶  Phase 2 — User management      (in progress)
+     └─ discuss: ✅  plan: ✅  execute: 🔄 (wave 2/3)  qa: ⬜  ship: ⬜
+  ⬜ Phase 3 — Organization tenancy  (not started)
+  ⬜ Phase 4 — API rate limiting     (not started)
+
+  CURRENT STEP
+  execute-phase 2 — wave 2/3 running
+
+  NEXT STEP (when current completes)
+  coder qa --plan .coder/phases/2-*-PLAN.md
+
+  BLOCKERS
+  None
+══════════════════════════════════════════════════════════
+```
+
+### 15.3 — coder next logic
+
+```
+Read STATE.md + ROADMAP.md + phase directories
+
+Decision tree:
+  No PROJECT.md?             → coder new-project
+  No codebase map?           → coder map-codebase (if brownfield)
+  Phase N has no CONTEXT.md? → coder discuss-phase N
+  Phase N has no PLAN.md?    → coder plan-phase N
+  Phase N not executed?      → coder execute-phase N
+  Phase N not verified?      → coder qa --phase N
+  Phase N not shipped?       → coder ship N
+  All phases done?           → coder milestone complete
+```
+
+### 15.4 — Acceptance criteria
+
+- [ ] Reads STATE.md + ROADMAP.md accurately
+- [ ] Shows per-phase status (discuss/plan/execute/qa/ship)
+- [ ] `coder next` invokes the correct command automatically
+- [ ] `--dry-run` shows command without running
+- [ ] Works even if STATE.md is missing (reconstructs from filesystem)
+- [ ] Build + tests pass
+
+---
+
+## Phase 16 — `coder milestone` (Lifecycle Management)
+
+> **Priority:** P2
+> **Effort:** ~2 days
+> **Depends on:** Phase 15
+> **GSD equivalent:** `/gsd:complete-milestone`, `/gsd:new-milestone`, `/gsd:audit-milestone`
+
+### Objective
+
+Milestone lifecycle: audit → complete → archive → start next.
+One milestone = one shippable version (e.g. v1.0, v1.1).
+
+### 16.1 — CLI interface
+
+```sh
+coder milestone audit          # verify all phases DoD complete
+coder milestone complete       # archive current milestone, tag release
+coder milestone new "v1.1"     # start next milestone cycle
+coder milestone list           # list milestones with status
+```
+
+### 16.2 — complete flow
+
+```
+1. Run milestone audit (all phases shipped? all PRs merged?)
+2. Prompt: squash merge or keep history?
+3. git tag v1.0 -m "$(cat .coder/ROADMAP.md | head -20)"
+4. Archive: move .coder/phases/ → .coder/milestones/v1.0/
+5. Archive: move .coder/ROADMAP.md → .coder/milestones/v1.0/ROADMAP.md
+6. Update STATE.md: milestone = "v1.0", status = "complete"
+7. Print summary: phases completed, PRs merged, tests passing
+```
+
+### 16.3 — Acceptance criteria
+
+- [ ] `audit` checks all phases have: SUMMARY.md + UAT.md + PR merged
+- [ ] `complete` creates git tag from milestone name
+- [ ] Archives .coder/phases/ cleanly
+- [ ] `new` resets for next milestone cycle (keeps PROJECT.md, STATE.md)
+- [ ] Build + tests pass
+
+---
+
+## Phase 17 — Utilities (`todo`, `stats`, `health`, `do`, `note`)
+
+> **Priority:** P2
+> **Effort:** ~3 days
+> **Depends on:** Phase 9
+> **GSD equivalent:** various utility commands
+
+### 17.1 — coder todo
+
+```sh
+coder todo add "implement rate limiting for /v1/chat"  # capture idea
+coder todo list                                         # list pending
+coder todo done <id>                                    # mark complete
+coder todo promote <id>                                 # promote to phase
+```
+
+Saved to `.coder/TODO.md`. Auto-linked to current milestone.
+
+### 17.2 — coder stats
+
+```sh
+coder stats
+```
+
+Output:
+```
+PROJECT: multi-tenant SaaS
+  Phases:       4 total  |  2 complete  |  1 in-progress  |  1 planned
+  Plans:        8 total  |  6 executed  |  2 pending
+  Requirements: 12 v1    |  8 complete  |  4 pending
+  Tests:        47 total |  47 passing
+  PRs merged:   2
+  Git commits:  34 (28 feat, 4 fix, 2 chore)
+  Todo items:   3 pending
+```
+
+### 17.3 — coder health
+
+```sh
+coder health          # validate .coder/ integrity
+coder health --repair # auto-repair missing/corrupted files
+```
+
+Checks:
+- STATE.md parseable and consistent with filesystem
+- All PLAN.md files referenced in ROADMAP.md exist
+- All SUMMARY.md files exist for executed plans
+- No orphaned files
+
+### 17.4 — coder do (smart routing)
+
+```sh
+coder do "add dark mode toggle to settings"
+# → Analyzes intent → routes to: coder quick "add dark mode toggle to settings"
+
+coder do "the login flow is broken"
+# → Analyzes intent → routes to: coder debug "the login flow is broken"
+
+coder do "we need rate limiting for the API"
+# → Analyzes intent → routes to: coder todo add "rate limiting for API" (backlog)
+```
+
+### 17.5 — coder note
+
+```sh
+coder note "remember: use optimistic locking not mutex for rotation"
+coder note list
+coder note promote 3    # promote note to todo
+```
+
+Zero-friction capture. Appends to `.coder/NOTES.md`.
+
+### 17.6 — Acceptance criteria
+
+- [ ] `coder todo` CRUD works, saved to TODO.md
+- [ ] `coder stats` reads from filesystem (no DB needed)
+- [ ] `coder health` detects STATE.md inconsistencies
+- [ ] `coder do` correctly routes 80%+ of freeform commands
+- [ ] `coder note` appends without disrupting workflow
+- [ ] Build + tests pass
+
+---
+
+## Phase 18 — Subagent Definitions (`.claude/agents/` + `.github/agents/`)
+
+> **Priority:** P0 — Required by phases 10, 12, 13
+> **Effort:** ~4 days
+> **Depends on:** Phase 1 (LLM Backbone)
+> **GSD equivalent:** `agents/gsd-*.md` definitions
+
+### Objective
+
+Define specialized subagents that orchestrator commands (map-codebase, plan-phase,
+execute-phase) spawn to do focused work in fresh context windows.
+Each agent is a markdown file describing role, tools, and behavior.
+
+### 18.1 — Agent definitions to create
+
+| Agent file | Role | Used by |
+|-----------|------|---------|
+| `.claude/agents/coder-executor.md` | Executes one PLAN.md, commits per task, writes SUMMARY.md | execute-phase |
+| `.claude/agents/coder-planner.md` | Creates XML plan from CONTEXT.md + RESEARCH.md | plan-phase |
+| `.claude/agents/coder-plan-checker.md` | Verifies plan covers requirements, no gaps | plan-phase |
+| `.claude/agents/coder-phase-researcher.md` | Researches implementation approaches for a phase | plan-phase |
+| `.claude/agents/coder-verifier.md` | Checks codebase against requirements after execution | execute-phase |
+| `.claude/agents/coder-codebase-mapper.md` | Analyzes one aspect of codebase, writes structured doc | map-codebase |
+| `.claude/agents/coder-debugger.md` | Deep root cause analysis with persistent state | debug, qa |
+
+### 18.2 — Agent spawning (runtime-specific)
+
+```
+Claude Code:
+  Agent(
+    subagent_type = "coder-executor",
+    prompt = "<plan file content + tools context>",
+    isolation = "worktree"   ← optional: isolated git worktree
+  )
+
+GitHub Copilot:
+  @coder-executor <plan context>
+  → fallback: sequential inline if spawning fails
+
+Standalone CLI:
+  Sequential inline: agent logic embedded in command
+```
+
+### 18.3 — coder-executor agent design
+
+```markdown
+---
+name: coder-executor
+description: Execute one PLAN.md — read tasks, implement in order,
+             commit after each task, write SUMMARY.md when done.
+tools: Read, Write, Edit, Bash, Glob, Grep
+---
+
+## Role
+You are a focused implementer. You receive exactly one PLAN.md and
+execute it completely. You do not ask questions — decisions are in the plan.
+
+## Process
+1. Read the full plan XML
+2. For each <task>:
+   a. Read referenced files (from <files>)
+   b. Implement changes
+   c. Run <verify> step — fix if failing
+   d. git commit -m "{type}({plan-id}): {task name}"
+3. Write SUMMARY.md when all tasks complete
+4. Return: done | failed (with reason)
+
+## Rules
+- Never expand scope beyond the plan
+- If a <verify> fails twice, write failure to SUMMARY.md and stop
+- Commit message format: feat|fix|refactor|test({plan_id}): {name}
+- Never skip a task silently — either do it or document why
+```
+
+### 18.4 — Acceptance criteria
+
+- [ ] All 7 agent .md files created with correct frontmatter
+- [ ] Each agent tested manually via `/coder-executor` (Claude Code)
+- [ ] Orchestrator correctly spawns agents and collects results
+- [ ] Sequential fallback works when Task tool unavailable
+- [ ] Agent isolation: no context bleed between parallel agents
+- [ ] Build + tests pass
+
+---
+
 ## Implementation Priority Summary
 
-| Phase | Feature | Priority | Effort | Value |
-|-------|---------|----------|--------|-------|
-| 1 | LLM Backbone | P0 | 5 days | Foundation |
-| 2 | coder chat | P1 | 3 days | High — daily use |
-| 3 | coder review | P1 | 4 days | High — code quality |
-| 4 | coder plan | P2 | 6 days | High — workflow |
-| 5 | coder qa | P2 | 5 days | High — quality gate |
-| 6 | coder debug | P2 | 4 days | High — debugging |
-| 7 | coder session | P3 | 3 days | Medium — UX |
-| 8 | coder workflow | P3 | 5 days | High — automation |
+| Phase | Feature | Priority | Effort | Status |
+|-------|---------|----------|--------|--------|
+| 1 | LLM Backbone | P0 | 5d | ✅ Done |
+| 2 | coder chat | P1 | 3d | ✅ Done |
+| 3 | coder review | P1 | 4d | ✅ Done |
+| 4 | coder plan | P2 | 6d | ✅ Done |
+| 5 | coder qa | P2 | 5d | ✅ Done |
+| 6 | coder debug | P2 | 4d | ✅ Done |
+| 7 | coder session | P3 | 3d | ✅ Done |
+| 8 | coder workflow | P3 | 5d | ✅ Done |
+| **9** | **coder new-project** | **P0** | **4d** | 🔲 |
+| **10** | **coder map-codebase** | **P0** | **3d** | 🔲 |
+| **11** | **coder discuss-phase** | **P1** | **2d** | 🔲 |
+| **12** | **coder plan-phase (upgrade)** | **P1** | **3d** | 🔲 |
+| **13** | **coder execute-phase** | **P0** | **6d** | 🔲 |
+| **14** | **coder ship** | **P1** | **1d** | 🔲 |
+| **15** | **coder progress / next** | **P1** | **2d** | 🔲 |
+| **16** | **coder milestone** | **P2** | **2d** | 🔲 |
+| **17** | **Utilities (todo/stats/health/do/note)** | **P2** | **3d** | 🔲 |
+| **18** | **Subagent definitions** | **P0** | **4d** | 🔲 |
 
-**Total estimated effort:** ~35 engineer-days
+**Total remaining effort:** ~30 engineer-days
 
-**Recommended execution order:**
-1. Phase 1 (blocker for everything else)
-2. Phase 2 + 3 in parallel (independent after Phase 1)
-3. Phase 4 + 6 in parallel
-4. Phase 5 (depends on 4)
-5. Phase 7 + 8 last
+**Recommended execution order (next sprint):**
+1. Phase 18 (subagent definitions) — unblocks 10, 12, 13
+2. Phase 9 (new-project + STATE.md) — unblocks everything else
+3. Phase 10 + 11 in parallel (independent after 9 + 18)
+4. Phase 12 (upgrades coder plan) — needs 11 + 18
+5. Phase 13 (execute-phase) — needs 12 + 18 — **the core differentiator**
+6. Phase 14 + 15 in parallel (ship + progress/next)
+7. Phase 16 + 17 last (milestone + utilities)
 
 ---
 
@@ -1424,3 +2282,7 @@ Add `/dashboard/reviews` page displaying:
 6. **Verification loops** — Plan → check → revise before presenting to the user
 7. **Activity logging** — Every command is logged for dashboard tracking
 8. **Fail gracefully** — LLM unavailable, network error → clear, actionable error messages
+9. **Orchestrator stays lean** — Spawns agents, collects results; never does heavy lifting itself (15% context budget)
+10. **Fresh context per task** — Each subagent gets 200k clean tokens; no accumulated garbage from prior work
+11. **Runtime-aware** — Agent spawning adapts: Claude Code `Agent` tool → Copilot `@agent` → sequential inline fallback
+12. **Atomic commits** — Every task gets its own commit immediately; clean bisectable history
