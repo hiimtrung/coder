@@ -16,7 +16,7 @@ const (
 	defaultMemoryLimit  = 5
 	defaultSkillLimit   = 3
 	defaultHistoryLimit = 20
-	contextTimeout      = 300 * time.Millisecond
+	contextTimeout      = 1500 * time.Millisecond
 
 	baseSystemPrompt = `You are a senior software engineer AI assistant embedded in the developer's workflow.
 Answer concisely and precisely. When suggesting code, follow the project's established patterns.

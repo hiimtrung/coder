@@ -25,6 +25,7 @@ EXAMPLES:
   coder chat --list                             # list recent sessions
   coder chat --delete abc123                    # delete a session
   coder chat --no-memory --no-skills "..."      # raw mode, no context injection
+  coder chat --file src/auth.go "review this"   # include file as context
 
 SLASH COMMANDS (interactive mode):
   /help                  show commands
@@ -45,6 +46,7 @@ func runChat(args []string) {
 	delete := fs.String("delete", "", "Delete a session by ID")
 	noMemory := fs.Bool("no-memory", false, "Disable memory context injection")
 	noSkills := fs.Bool("no-skills", false, "Disable skill context injection")
+	fileFlag := fs.String("file", "", "Include file content as context in the prompt")
 
 	fs.Usage = func() {
 		fmt.Fprint(os.Stderr, chatUsage)
@@ -97,8 +99,25 @@ func runChat(args []string) {
 	// Single-question mode
 	if len(fs.Args()) > 0 {
 		question := strings.Join(fs.Args(), " ")
+
+		// Prepend file content if --file is provided
+		if *fileFlag != "" {
+			fileContent, err := os.ReadFile(*fileFlag)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error reading file %q: %v\n", *fileFlag, err)
+				os.Exit(1)
+			}
+			question = fmt.Sprintf("File: `%s`\n\n```\n%s\n```\n\n%s", *fileFlag, string(fileContent), question)
+		}
+
 		runChatSingle(ctx, client, question, sid, injectMemory, injectSkills)
 		return
+	}
+
+	// Interactive REPL (--file is not used without a message — print hint)
+	if *fileFlag != "" {
+		fmt.Fprintf(os.Stderr, "Note: --file requires a message. Example: coder chat --file src/auth.go \"review this\"\n")
+		os.Exit(1)
 	}
 
 	// Interactive REPL

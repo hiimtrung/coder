@@ -18,6 +18,12 @@ const planUsage = `Usage: coder plan [feature-description] [flags]
 Interactive planning workflow. Asks clarifying questions, researches patterns,
 then generates a structured PLAN.md with tasks, time estimates, and risks.
 
+After the plan is generated you can:
+  Y / Enter   accept and save the plan
+  n           discard the plan
+  refine      enter Q&A refinement loop (ask questions, request changes)
+              type 'done' or empty line to exit refinement and re-confirm
+
 EXAMPLES:
   coder plan "implement JWT authentication"
   coder plan --auto "add Redis caching for search"   # skip Q&A
@@ -94,6 +100,9 @@ func runPlan(args []string) {
 	var decisions []string
 	sessionID := ""
 
+	// Single scanner for all interactive stdin reads in this command
+	scanner := bufio.NewScanner(os.Stdin)
+
 	if !*auto {
 		// Stage 1: Q&A — identify gray areas
 		fmt.Printf("Analysing feature scope...\n\n")
@@ -116,7 +125,6 @@ func runPlan(args []string) {
 		fmt.Println("Answer each question (or press Enter to use default):")
 		fmt.Println(strings.Repeat("─", 54))
 
-		scanner := bufio.NewScanner(os.Stdin)
 		qNum := 1
 		for {
 			fmt.Printf("\n[%d] Your answer (or 'done' to proceed): ", qNum)
@@ -171,29 +179,79 @@ func runPlan(args []string) {
 		sessionID = result.SessionID
 	}
 
-	// Accept / reject
-	fmt.Print("\nAccept this plan? [Y/n/edit] › ")
-	scanner2 := bufio.NewScanner(os.Stdin)
-	scanner2.Scan()
-	answer := strings.TrimSpace(strings.ToLower(scanner2.Text()))
-	if answer == "n" {
-		fmt.Println("Plan discarded.")
-		return
-	}
+	// --- Refinement Q&A loop ---
+	// Allows user to ask questions or request changes before accepting the plan.
+	for {
+		fmt.Print("\nAccept plan? [Y/n/refine] › ")
+		scanner.Scan()
+		answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
 
-	// Save plan
-	outPath := *output
-	if outPath == "" {
-		slug := toSlug(feature)
-		outPath = filepath.Join(".coder", "plans", fmt.Sprintf("PLAN-%s.md", slug))
-	}
+		switch answer {
+		case "n":
+			fmt.Println("Plan discarded.")
+			return
 
-	os.MkdirAll(filepath.Dir(outPath), 0755)
-	if err := os.WriteFile(outPath, []byte(planContent.String()), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving plan: %v\n", err)
-		os.Exit(1)
+		case "refine", "edit", "r", "e":
+			// Enter refinement loop using same session
+			fmt.Printf("\n%s\n", strings.Repeat("─", 58))
+			fmt.Println("  Refinement mode — ask questions or request changes.")
+			fmt.Println("  Type your question, or 'done' / empty line to finish.")
+			fmt.Printf("%s\n\n", strings.Repeat("─", 58))
+
+			for {
+				fmt.Print(bold("You") + " › ")
+				if !scanner.Scan() {
+					break
+				}
+				userInput := strings.TrimSpace(scanner.Text())
+				if userInput == "" || userInput == "done" || userInput == "ok" {
+					fmt.Println("\nExiting refinement. Showing updated plan above — please review and accept.")
+					break
+				}
+
+				fmt.Print("\n" + bold("Assistant") + " › ")
+				var updatedSection strings.Builder
+				refResult, refErr := chatClient.ChatStream(ctx, userInput, sessionID, true, true, func(delta string) {
+					fmt.Print(delta)
+					updatedSection.WriteString(delta)
+				})
+				fmt.Print("\n\n")
+
+				if refErr != nil {
+					fmt.Fprintf(os.Stderr, "  Error: %v\n\n", refErr)
+					continue
+				}
+				if refResult != nil {
+					sessionID = refResult.SessionID
+				}
+				// Append refinement exchange to plan content so saved plan reflects it
+				if updatedSection.Len() > 0 {
+					planContent.WriteString(fmt.Sprintf("\n\n---\n_Refinement note:_ %s\n\n%s\n", userInput, updatedSection.String()))
+				}
+			}
+
+		default:
+			// Y / enter → accept
+			// Save plan
+			outPath := *output
+			if outPath == "" {
+				slug := toSlug(feature)
+				outPath = filepath.Join(".coder", "plans", fmt.Sprintf("PLAN-%s.md", slug))
+			}
+
+			os.MkdirAll(filepath.Dir(outPath), 0755)
+			if err := os.WriteFile(outPath, []byte(planContent.String()), 0644); err != nil {
+				fmt.Fprintf(os.Stderr, "Error saving plan: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("\nPlan saved: %s\n", outPath)
+			fmt.Printf("\nNext steps:\n")
+			fmt.Printf("  Execute:  coder execute-plan --plan %s\n", outPath)
+			fmt.Printf("  Verify:   coder qa --plan %s\n", outPath)
+			fmt.Printf("  Discuss:  coder chat --session %s\n", sessionID)
+			return
+		}
 	}
-	fmt.Printf("\nPlan saved: %s\n", outPath)
 }
 
 func buildQAPrompt(feature, fileCtx string) string {

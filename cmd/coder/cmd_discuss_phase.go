@@ -189,11 +189,16 @@ func runDiscussPhase(args []string) {
 	contextContent.WriteString(fmt.Sprintf("# Phase %d Context — %s\n\n", phaseNum, phaseName))
 	contextContent.WriteString(fmt.Sprintf("Generated: %s\n\n", time.Now().Format("2006-01-02")))
 
-	_, err = chatClient.ChatStream(ctx, contextPrompt, "", true, true, func(delta string) {
+	contextResult, err := chatClient.ChatStream(ctx, contextPrompt, "", true, true, func(delta string) {
 		fmt.Print(delta)
 		contextContent.WriteString(delta)
 	})
 	fmt.Printf("\n%s\n", strings.Repeat("═", 58))
+
+	contextSessionID := ""
+	if contextResult != nil {
+		contextSessionID = contextResult.SessionID
+	}
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating CONTEXT.md: %v\n", err)
@@ -216,6 +221,11 @@ func runDiscussPhase(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("\nContext saved: %s\n", contextPath)
+
+	// Bridge to chat session for further discussion
+	if contextSessionID != "" {
+		fmt.Printf("\nWant to discuss further? Run:\n  coder chat --session %s\n", contextSessionID)
+	}
 
 	// Update STATE.md
 	state, err := loadState()

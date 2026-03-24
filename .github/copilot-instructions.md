@@ -149,7 +149,9 @@ All AI Agent operations MUST utilize the local semantic memory via **Memory Gati
 
 ### AI Workflow Commands (Use These During Development)
 
-The coder CLI has 8 AI workflow commands. Use them at the right phase:
+The coder CLI has three command groups. Use them at the right phase:
+
+#### Group A — Quick AI Tools (no setup needed)
 
 | When | Run this | What it does |
 |------|---------|-------------|
@@ -162,7 +164,31 @@ The coder CLI has 8 AI workflow commands. Use them at the right phase:
 | Session break | `coder session save` | Saves current task + next steps + decisions |
 | Full delivery | `coder workflow "<feature>"` | Auto-chains: plan → review → qa → fix |
 
-State files are saved in `.coder/` (plans/, qa/, sessions/, workflows/).
+#### Group B — Project Lifecycle (requires `coder new-project` first)
+
+| Step | Run this | What it does |
+|------|---------|-------------|
+| Init | `coder new-project "idea"` | Q&A → REQUIREMENTS.md + ROADMAP.md + STATE.md |
+| Map | `coder map-codebase` | 4-pass analysis → STACK / ARCH / CONVENTIONS / CONCERNS |
+| Discuss | `coder discuss-phase N` | Gray-area Q&A → CONTEXT.md for phase N |
+| Plan | `coder plan-phase N` | Research + XML plans + verification loop |
+| Execute | `coder execute-phase N` | Wave-based task execution + atomic git commits |
+| Ship | `coder ship [N]` | `gh pr create` with AI-generated PR body |
+| Navigate | `coder progress` / `coder next` | Current state + next recommended command |
+| Close | `coder milestone complete N` | Mark phase done, record in STATE.md |
+| Advance | `coder milestone next` | Move to next phase |
+
+#### Group C — Project Utilities
+
+```bash
+coder todo add "..."         # add backlog item to STATE.md
+coder note "decision text"   # record decision (--blocker | --backlog flags)
+coder health                 # check artifacts, blockers, stale state
+coder stats                  # phases, commits, plan coverage, file counts
+coder do "<task>"            # one-off AI task with full project context
+```
+
+State files are saved in `.coder/` (plans/, qa/, sessions/, workflows/, phases/, STATE.md).
 
 ## ⚠️ Critical Rules (ALL Languages)
 
