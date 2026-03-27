@@ -9,6 +9,7 @@ import (
 	"github.com/trungtran/coder/internal/transport/grpc/credential"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Client is a gRPC memory client that implements memdomain.MemoryManager.
@@ -100,6 +101,7 @@ func (c *Client) Search(ctx context.Context, query string, scope string, tags []
 				UpdatedAt:       r.Knowledge.UpdatedAt.AsTime(),
 			},
 		})
+		memdomain.HydrateKnowledgeLifecycle(&results[len(results)-1].Knowledge)
 	}
 	return results, nil
 }
@@ -136,6 +138,7 @@ func (c *Client) List(ctx context.Context, limit, offset int) ([]memdomain.Knowl
 			CreatedAt:       r.CreatedAt.AsTime(),
 			UpdatedAt:       r.UpdatedAt.AsTime(),
 		})
+		memdomain.HydrateKnowledgeLifecycle(&items[len(items)-1])
 	}
 	return items, nil
 }
@@ -143,6 +146,54 @@ func (c *Client) List(ctx context.Context, limit, offset int) ([]memdomain.Knowl
 func (c *Client) Delete(ctx context.Context, id string) error {
 	_, err := c.c.Delete(ctx, &memorypb.DeleteRequest{Id: id})
 	return err
+}
+
+func (c *Client) Verify(ctx context.Context, id string, opts memdomain.VerifyOptions) (int, error) {
+	req := &memorypb.VerifyRequest{
+		Id:         id,
+		VerifiedBy: opts.VerifiedBy,
+		SourceRef:  opts.SourceRef,
+	}
+	if !opts.VerifiedAt.IsZero() {
+		req.VerifiedAt = timestamppb.New(opts.VerifiedAt)
+	}
+	if opts.Confidence != nil {
+		req.Confidence = *opts.Confidence
+		req.HasConfidence = true
+	}
+
+	res, err := c.c.Verify(ctx, req)
+	if err != nil {
+		return 0, err
+	}
+	return int(res.UpdatedCount), nil
+}
+
+func (c *Client) Supersede(ctx context.Context, id string, replacementID string) (int, error) {
+	res, err := c.c.Supersede(ctx, &memorypb.SupersedeRequest{
+		Id:            id,
+		ReplacementId: replacementID,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return int(res.UpdatedCount), nil
+}
+
+func (c *Client) Audit(ctx context.Context, opts memdomain.AuditOptions) (memdomain.AuditReport, error) {
+	res, err := c.c.Audit(ctx, &memorypb.AuditRequest{
+		Scope:          opts.Scope,
+		UnverifiedDays: int32(opts.UnverifiedDays),
+	})
+	if err != nil {
+		return memdomain.AuditReport{}, err
+	}
+
+	var report memdomain.AuditReport
+	if err := json.Unmarshal([]byte(res.ReportJson), &report); err != nil {
+		return memdomain.AuditReport{}, err
+	}
+	return report, nil
 }
 
 func (c *Client) Compact(ctx context.Context, threshold float32) (int, error) {

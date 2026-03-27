@@ -61,6 +61,18 @@ Require `coder new-project` to initialize. All state tracked in `.coder/STATE.md
 | `coder note <text>` | Record decision, blocker, or backlog item |
 | `coder do "<task>"` | One-off AI task with full project context injected |
 
+### Memory Lifecycle Commands
+
+Use these when working with semantic memory quality, not just capture:
+
+| Command | Purpose |
+|---------|---------|
+| `coder memory store` | Create a new memory entry; supports lifecycle metadata and `--replace-active` |
+| `coder memory search` | Lifecycle-aware retrieval; defaults to active-only and may return a conflict summary |
+| `coder memory verify` | Refresh `last_verified_at`, `verified_by`, `confidence`, and `source_ref` for a memory version |
+| `coder memory supersede` | Mark one version group as replaced by another and link the chain |
+| `coder memory audit` | Report active conflicts, expired active memories, long-unverified memories, and missing lifecycle columns |
+
 ---
 
 ## Full Lifecycle Flow
@@ -225,8 +237,11 @@ DELETE /v1/sessions/:id    — Delete session
 POST /v1/review            — Structured code review
 POST /v1/debug             — Root cause analysis
 
-POST /memory/store         — Store memory entry
-GET  /memory/search        — Semantic memory search
+POST /v1/memory/store      — Store memory entry
+POST /v1/memory/search     — Semantic memory search
+POST /v1/memory/verify     — Verify an existing memory version
+POST /v1/memory/supersede  — Supersede one memory version with another
+POST /v1/memory/audit      — Audit lifecycle issues in memory
 
 POST /skill/search         — Vector skill search
 POST /skill/ingest         — Ingest skill files
@@ -272,7 +287,7 @@ internal/
     review/           — ReviewRequest, ReviewResult, ReviewConcern
     debug/            — DebugRequest, DebugResult, DebugContext
     skill/            — Skill, SkillChunk, SkillSearchResult
-    memory/           — Memory, MemoryEntry interfaces
+    memory/           — Knowledge entities, lifecycle metadata, MemoryManager interfaces
     auth/             — AuthManager, Token interfaces
 
   usecase/
@@ -315,7 +330,7 @@ User message
 Build system prompt:
   [base system prompt]
   + [skill context chunks]
-  + [memory context entries]
+  + [memory context entries or conflict summaries]
   + [session history (last N messages)]
      │
      ▼
@@ -336,6 +351,12 @@ Persist user + assistant messages → coder_sessions / coder_messages
 ### STATE.md mutations
 All lifecycle commands call `loadState()` at start and `saveState()` at end.
 Never modify STATE.md manually during a workflow — use `coder note` instead.
+
+### Memory lifecycle
+- Default `coder memory search` is active-only and validity-aware unless `--include-stale` is passed.
+- Conflicting active versions collapse into a synthesized summary unless `--history` is requested.
+- Prefer `coder memory verify` over `coder memory store` when you are only reconfirming an existing memory.
+- Prefer `coder memory supersede` or `coder memory store --replace-active` when replacing existing guidance.
 
 ### Config
 `~/.coder/config.json` — connection settings (baseURL, accessToken):

@@ -11,6 +11,9 @@ service MemoryService {
   rpc Search(SearchRequest) returns (SearchResponse);
   rpc List(ListRequest) returns (ListResponse);
   rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc Verify(VerifyRequest) returns (VerifyResponse);
+  rpc Supersede(SupersedeRequest) returns (SupersedeResponse);
+  rpc Audit(AuditRequest) returns (AuditResponse);
   rpc Compact(CompactRequest) returns (CompactResponse);
 }
 
@@ -76,6 +79,37 @@ message DeleteRequest {
 
 message DeleteResponse {
   bool success = 1;
+}
+
+message VerifyRequest {
+  string id = 1;
+  google.protobuf.Timestamp verified_at = 2;
+  string verified_by = 3;
+  double confidence = 4;
+  bool has_confidence = 5;
+  string source_ref = 6;
+}
+
+message VerifyResponse {
+  int32 updated_count = 1;
+}
+
+message SupersedeRequest {
+  string id = 1;
+  string replacement_id = 2;
+}
+
+message SupersedeResponse {
+  int32 updated_count = 1;
+}
+
+message AuditRequest {
+  string scope = 1;
+  int32 unverified_days = 2;
+}
+
+message AuditResponse {
+  string report_json = 1;
 }
 
 message CompactRequest {

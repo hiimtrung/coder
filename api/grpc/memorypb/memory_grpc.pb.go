@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v6.32.0
-// source: api/proto/memory/memory.proto
+// source: memory/memory.proto
 
 package memorypb
 
@@ -19,11 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MemoryService_Store_FullMethodName   = "/memory.MemoryService/Store"
-	MemoryService_Search_FullMethodName  = "/memory.MemoryService/Search"
-	MemoryService_List_FullMethodName    = "/memory.MemoryService/List"
-	MemoryService_Delete_FullMethodName  = "/memory.MemoryService/Delete"
-	MemoryService_Compact_FullMethodName = "/memory.MemoryService/Compact"
+	MemoryService_Store_FullMethodName     = "/memory.MemoryService/Store"
+	MemoryService_Search_FullMethodName    = "/memory.MemoryService/Search"
+	MemoryService_List_FullMethodName      = "/memory.MemoryService/List"
+	MemoryService_Delete_FullMethodName    = "/memory.MemoryService/Delete"
+	MemoryService_Verify_FullMethodName    = "/memory.MemoryService/Verify"
+	MemoryService_Supersede_FullMethodName = "/memory.MemoryService/Supersede"
+	MemoryService_Audit_FullMethodName     = "/memory.MemoryService/Audit"
+	MemoryService_Compact_FullMethodName   = "/memory.MemoryService/Compact"
 )
 
 // MemoryServiceClient is the client API for MemoryService service.
@@ -34,6 +37,9 @@ type MemoryServiceClient interface {
 	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	Verify(ctx context.Context, in *VerifyRequest, opts ...grpc.CallOption) (*VerifyResponse, error)
+	Supersede(ctx context.Context, in *SupersedeRequest, opts ...grpc.CallOption) (*SupersedeResponse, error)
+	Audit(ctx context.Context, in *AuditRequest, opts ...grpc.CallOption) (*AuditResponse, error)
 	Compact(ctx context.Context, in *CompactRequest, opts ...grpc.CallOption) (*CompactResponse, error)
 }
 
@@ -85,6 +91,36 @@ func (c *memoryServiceClient) Delete(ctx context.Context, in *DeleteRequest, opt
 	return out, nil
 }
 
+func (c *memoryServiceClient) Verify(ctx context.Context, in *VerifyRequest, opts ...grpc.CallOption) (*VerifyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyResponse)
+	err := c.cc.Invoke(ctx, MemoryService_Verify_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *memoryServiceClient) Supersede(ctx context.Context, in *SupersedeRequest, opts ...grpc.CallOption) (*SupersedeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SupersedeResponse)
+	err := c.cc.Invoke(ctx, MemoryService_Supersede_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *memoryServiceClient) Audit(ctx context.Context, in *AuditRequest, opts ...grpc.CallOption) (*AuditResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuditResponse)
+	err := c.cc.Invoke(ctx, MemoryService_Audit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *memoryServiceClient) Compact(ctx context.Context, in *CompactRequest, opts ...grpc.CallOption) (*CompactResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CompactResponse)
@@ -103,6 +139,9 @@ type MemoryServiceServer interface {
 	Search(context.Context, *SearchRequest) (*SearchResponse, error)
 	List(context.Context, *ListRequest) (*ListResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	Verify(context.Context, *VerifyRequest) (*VerifyResponse, error)
+	Supersede(context.Context, *SupersedeRequest) (*SupersedeResponse, error)
+	Audit(context.Context, *AuditRequest) (*AuditResponse, error)
 	Compact(context.Context, *CompactRequest) (*CompactResponse, error)
 	mustEmbedUnimplementedMemoryServiceServer()
 }
@@ -125,6 +164,15 @@ func (UnimplementedMemoryServiceServer) List(context.Context, *ListRequest) (*Li
 }
 func (UnimplementedMemoryServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedMemoryServiceServer) Verify(context.Context, *VerifyRequest) (*VerifyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Verify not implemented")
+}
+func (UnimplementedMemoryServiceServer) Supersede(context.Context, *SupersedeRequest) (*SupersedeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Supersede not implemented")
+}
+func (UnimplementedMemoryServiceServer) Audit(context.Context, *AuditRequest) (*AuditResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Audit not implemented")
 }
 func (UnimplementedMemoryServiceServer) Compact(context.Context, *CompactRequest) (*CompactResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Compact not implemented")
@@ -222,6 +270,60 @@ func _MemoryService_Delete_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MemoryService_Verify_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MemoryServiceServer).Verify(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MemoryService_Verify_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MemoryServiceServer).Verify(ctx, req.(*VerifyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MemoryService_Supersede_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SupersedeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MemoryServiceServer).Supersede(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MemoryService_Supersede_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MemoryServiceServer).Supersede(ctx, req.(*SupersedeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MemoryService_Audit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuditRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MemoryServiceServer).Audit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MemoryService_Audit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MemoryServiceServer).Audit(ctx, req.(*AuditRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MemoryService_Compact_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CompactRequest)
 	if err := dec(in); err != nil {
@@ -264,10 +366,22 @@ var MemoryService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _MemoryService_Delete_Handler,
 		},
 		{
+			MethodName: "Verify",
+			Handler:    _MemoryService_Verify_Handler,
+		},
+		{
+			MethodName: "Supersede",
+			Handler:    _MemoryService_Supersede_Handler,
+		},
+		{
+			MethodName: "Audit",
+			Handler:    _MemoryService_Audit_Handler,
+		},
+		{
 			MethodName: "Compact",
 			Handler:    _MemoryService_Compact_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/memory/memory.proto",
+	Metadata: "memory/memory.proto",
 }

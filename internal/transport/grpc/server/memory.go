@@ -128,6 +128,49 @@ func (s *MemoryServer) Delete(ctx context.Context, req *memorypb.DeleteRequest) 
 	return &memorypb.DeleteResponse{Success: true}, nil
 }
 
+func (s *MemoryServer) Verify(ctx context.Context, req *memorypb.VerifyRequest) (*memorypb.VerifyResponse, error) {
+	opts := memdomain.VerifyOptions{
+		VerifiedBy: req.VerifiedBy,
+		SourceRef:  req.SourceRef,
+	}
+	if req.VerifiedAt != nil {
+		opts.VerifiedAt = req.VerifiedAt.AsTime()
+	}
+	if req.HasConfidence {
+		opts.Confidence = &req.Confidence
+	}
+
+	updated, err := s.manager.Verify(ctx, req.Id, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &memorypb.VerifyResponse{UpdatedCount: int32(updated)}, nil
+}
+
+func (s *MemoryServer) Supersede(ctx context.Context, req *memorypb.SupersedeRequest) (*memorypb.SupersedeResponse, error) {
+	updated, err := s.manager.Supersede(ctx, req.Id, req.ReplacementId)
+	if err != nil {
+		return nil, err
+	}
+	return &memorypb.SupersedeResponse{UpdatedCount: int32(updated)}, nil
+}
+
+func (s *MemoryServer) Audit(ctx context.Context, req *memorypb.AuditRequest) (*memorypb.AuditResponse, error) {
+	report, err := s.manager.Audit(ctx, memdomain.AuditOptions{
+		Scope:          req.Scope,
+		UnverifiedDays: int(req.UnverifiedDays),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := json.Marshal(report)
+	if err != nil {
+		return nil, err
+	}
+	return &memorypb.AuditResponse{ReportJson: string(payload)}, nil
+}
+
 func (s *MemoryServer) Compact(ctx context.Context, req *memorypb.CompactRequest) (*memorypb.CompactResponse, error) {
 	if req.Revector {
 		if err := s.manager.Revector(ctx); err != nil {

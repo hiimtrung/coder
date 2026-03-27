@@ -44,6 +44,7 @@ This master workflow has two paths depending on scope:
 3. **Debug as you go** — Run `coder debug "<error>"` for structured root cause analysis when hitting errors.
 4. **Design Compliance** — Run `/check-implementation` or `/review-design` to ensure alignment.
 5. **Refinement** — Run `/simplify-implementation` for complex logic. Run `/remember` to store new patterns.
+6. **Memory Hygiene** — If the change replaces an existing decision or pattern, prefer `coder memory store --replace-active` or `coder memory supersede` instead of creating a parallel active memory.
 
 ### Phase 3: Quality Assurance
 
@@ -53,14 +54,18 @@ This master workflow has two paths depending on scope:
 2. **Automated Testing** — Run `/writing-test` for missing coverage.
 3. **AI Code Review** — Run `coder review` on the full feature diff or `coder review --pr <number>` for PR review.
 4. **Technical Review** — Run `/code-review` and `/technical-writer-review` to polish docs and code.
-5. **Memory Capture** — Run `coder memory store` to save significant patterns or decisions.
+5. **Memory Capture** — Use the lifecycle-aware memory commands deliberately:
+   - `coder memory store` for genuinely new patterns or decisions
+   - `coder memory verify` when QA confirms an existing memory is still correct
+   - `coder memory supersede` when one memory version clearly replaces another
+   - `coder memory audit` after major changes that may leave conflicting active memories behind
 
 ### Phase 4: Lifecycle Closure
 
 *Objective: Collect evidence and finalize the delivery.*
 
 1. **Evidence** — Finalize `walkthrough.md`. Update all docs via `/update-planning`.
-2. **Gate Out (MANDATORY)** — Run `coder memory store "Project Lifecycle: <Feature Name>" "<Complete Delivery Summary>"`.
+2. **Gate Out (MANDATORY)** — Run `coder memory store "Project Lifecycle: <Feature Name>" "<Complete Delivery Summary>"`, and if the delivery changed prior architecture or implementation truth, follow with `coder memory audit` or `coder memory supersede` to keep canonical memory clean.
 3. **Sign-off** — Present results and mark the sprint as closed.
 
 ---
@@ -109,3 +114,5 @@ At any time:
 ```bash
 coder memory store "Project Delivery: <Name>" "<Summary: phases delivered, key decisions, patterns used>"
 ```
+
+If the project delivery replaces older active memories, resolve the version chain explicitly with `coder memory store --replace-active` during capture or with `coder memory supersede` / `coder memory audit` before closing.

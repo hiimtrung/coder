@@ -10,4 +10,7 @@ Guide me through creating a structured understanding of a code entry point and s
 3. **Analyze Dependencies** — Build a dependency view up to depth 3, tracking visited nodes to avoid loops. Categorize: imports, function calls, services, external packages. Note external systems or generated code to exclude.
 4. **Synthesize Explanation** — Draft overview (purpose, language, high-level behavior). Detail core logic, execution flow, key patterns. Apply relevant skill guidelines from Gate In. Highlight error handling, performance, security considerations. Identify potential improvements or risks.
 5. **Create Documentation** — Normalize name to kebab-case (`calculateTotalPrice` → `calculate-total-price`). Create `docs/ai/implementation/knowledge-{name}.md` with sections: Overview, Implementation Details, Dependencies, Visual Diagrams, Additional Insights, Metadata, Next Steps. Include mermaid diagrams when they clarify flows or relationships. Add metadata (analysis date, depth, files touched).
-7. **Gate Out (MANDATORY)** — Run `coder memory store "<Feature/Module Title>" "<Key Insights and Analysis Summary>" --tags "knowledge,documentation"` to capture the new insights into semantic memory.
+7. **Gate Out (MANDATORY)** — Capture the outcome into semantic memory with lifecycle semantics:
+   - `coder memory store "<Feature/Module Title>" "<Key Insights and Analysis Summary>" --tags "knowledge,documentation"` for net-new knowledge
+   - `coder memory verify <id>` if the analysis mostly confirms an existing memory
+   - `coder memory supersede <old-id> <new-id>` if the analysis proves an older memory is no longer the active truth

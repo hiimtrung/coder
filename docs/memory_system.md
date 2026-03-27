@@ -13,20 +13,30 @@ Unlike "Skills" (which are general best practices), **Memory** stores:
 
 ## 🧱 Data Model
 
-Each record ([Knowledge](../internal/memory/model.go)) is an augmented data point:
+Each record ([Knowledge](../internal/domain/memory/entity.go)) is an augmented data point:
 
 ### 1. Classification (`Type`)
 - **`fact`**: Objective truths (e.g., "System is running on C++14").
 - **`rule`**: Mandatory coding standards or constraints.
 - **`decision`**: ADRs (Architecture Decision Records) and their rationale.
 - **`pattern`**: Reusable code or logic structures discovered during dev.
+- **`event`**: Incidents, migrations, bugs, or one-time operational learnings.
 - **`document`**: Traditional text/documentation (Default).
+
+Legacy types such as `preference` and `skill` may still exist in historical data, but new lifecycle-aware memory flows should prefer the canonical types above.
 
 ### 2. Ecological Identity (`Metadata`)
 Utilizes PostgreSQL `JSONB` for deep filtering:
 - **`entity_id`**: Identifies which project/team this memory belongs to.
 - **`session_id`**: Scope for short-term memory (session-based).
 - **`process_id`**: The agent/service that generated the memory.
+- **`status`**: Lifecycle state (`active`, `superseded`, `expired`, `archived`, `draft`).
+- **`canonical_key`**: Stable key connecting multiple versions of the same memory.
+- **`valid_from` / `valid_to`**: Optional validity window for time-sensitive memories.
+- **`last_verified_at`**: Timestamp of the most recent verification.
+- **`supersedes_id` / `superseded_by_id`**: Version chain pointers.
+
+Phase 2 promotes the main lifecycle fields into first-class PostgreSQL columns (`status`, `canonical_key`, `supersedes_id`, `superseded_by_id`, `valid_from`, `valid_to`, `last_verified_at`, `confidence`, `source_ref`, `verified_by`) while keeping metadata mirrored for transport compatibility. Phase 3 adds conflict-aware retrieval plus manual lifecycle maintenance commands (`verify`, `supersede`, `audit`).
 
 ---
 
@@ -34,7 +44,7 @@ Utilizes PostgreSQL `JSONB` for deep filtering:
 
 ### 🛡️ Technology Stack
 - **Persistence**: PostgreSQL with `pgvector` extension.
-- **Search**: Hybrid search (Metadata GIN index + Vector Cosine Similarity `<=>`).
+- **Search**: Hybrid search (pgvector + full-text search) with lifecycle column filters and freshness-aware reranking.
 - **Embeddings**: Generated via **Ollama** (`mxbai-embed-large`) or OpenAI.
 
 ### A. Storage Flow (Memorizing)
@@ -63,14 +73,26 @@ sequenceDiagram
     CLI->>NODE: Query string
     NODE->>OL: Generate Query Embedding
     OL-->>NODE: Float32 Array [1024]
-    NODE->>PG: SELECT 1 - (vector <=> $query) AS score
-    Note right of PG: GIN Index filters metadata <br/>Vector index calculates similarity
-    PG-->>CLI: []SearchResult (Ranked by Score)
+    NODE->>PG: Filter active + valid memories, then rank by hybrid search
+    Note right of PG: Lifecycle metadata filters <br/>RRF + freshness-aware reranking
+    PG-->>CLI: []SearchResult (Ranked by score)
 ```
 
 ---
 
 ## 🔄 Lifecycle Management
+
+Memory lifecycle is metadata-first in the current implementation:
+
+- New memories default to `status=active`.
+- `coder memory store --replace-active` supersedes the currently active memory with the same canonical key.
+- `coder memory search` is active-only by default unless `--include-stale` is provided.
+- `coder memory search --as-of <time>` evaluates validity at a specific point in time.
+- `coder memory search` returns a synthesized conflict summary when multiple active versions for the same canonical key disagree; use `--history` to inspect raw versions.
+- `coder memory verify` refreshes verification metadata across a memory version group.
+- `coder memory supersede` links two version groups and updates their lifecycle states atomically at the repository layer.
+- `coder memory audit` reports active conflicts, expired-but-active memories, long-unverified active memories, and records missing lifecycle columns.
+- PostgreSQL backfills lifecycle columns from legacy metadata during initialization so lifecycle filters use real columns on the hot path.
 
 The system includes a **Compaction** command:
 `coder memory compact`
@@ -79,6 +101,8 @@ This process:
 - Identifies duplicate or redundant entries.
 - Summarizes multiple related memories into a single, high-level entry.
 - Cleans up stale or low-utility information.
+
+For the detailed implementation plan to prevent stale or superseded memories from surfacing in default retrieval, see [Memory Lifecycle Plan](memory_lifecycle_plan.md).
 
 ---
 
