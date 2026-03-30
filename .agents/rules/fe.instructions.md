@@ -18,6 +18,19 @@ Before working on any frontend task, run `coder skill search` with the relevant 
 | Testing components           | `testing`                                    |
 | General architecture         | `architecture`                               |
 
+## Knowledge Gates — MANDATORY
+
+Every frontend task starts and ends with memory gates:
+
+```bash
+# GATE 1 (START) — before any code
+coder skill search "frontend"
+coder memory search "<component or feature name>"
+
+# GATE 2 (END) — after completing work
+coder memory store "<Title>" "<What, why, which files>" --tags "<project,frontend,topic>"
+```
+
 ## Component Architecture
 
 ### Single Responsibility

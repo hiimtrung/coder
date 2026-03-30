@@ -19,6 +19,19 @@ Before working in any language, run `coder skill search` with the relevant skill
 | Dart                 | `dart`          |
 | Any backend          | `architecture`, `database`, `development`, `general-patterns`, `testing` |
 
+## Knowledge Gates — MANDATORY
+
+Every backend task starts and ends with memory gates:
+
+```bash
+# GATE 1 (START) — before any code
+coder skill search "<language or topic>"
+coder memory search "<feature or module name>"
+
+# GATE 2 (END) — after completing work
+coder memory store "<Title>" "<What, why, which files>" --tags "<project,language,topic>"
+```
+
 ## API Design Standards
 
 ### REST APIs

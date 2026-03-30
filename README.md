@@ -12,7 +12,7 @@
 ```
 
 **Universal engineering intelligence for AI agents.**
-Distribute skills, enforce architecture, preserve memory — and orchestrate full project delivery from requirements to pull request.
+Distribute skills, enforce architecture, and preserve memory — so every agent on your team operates with the same institutional knowledge.
 
 [![Build & Release](https://github.com/hiimtrung/coder/actions/workflows/release.yml/badge.svg)](https://github.com/hiimtrung/coder/actions/workflows/release.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/hiimtrung/coder)](https://goreportcard.com/report/github.com/hiimtrung/coder)
@@ -27,9 +27,9 @@ Distribute skills, enforce architecture, preserve memory — and orchestrate ful
 
 Most AI agents operate in a vacuum — no memory, no standards, no institutional knowledge. **coder** fixes that.
 
-It gives every agent in your team access to the same centralized brain: a vector-powered knowledge base holding your architecture rules, your senior engineers' patterns, and the project history that made those decisions meaningful.
+It gives every AI agent in your team access to the same centralized brain: a vector-powered knowledge base holding your architecture rules, your senior engineers' patterns, and the project history that made those decisions meaningful.
 
-Beyond knowledge retrieval, **coder** provides a complete **project lifecycle orchestration** layer — from writing requirements all the way to opening a pull request, with structured planning, wave-based execution, and atomic git commits at every step.
+**coder is a pure memory and skill service.** It does not run LLMs. All reasoning, planning, and code generation is done by your AI agent (Claude, GitHub Copilot, or any MCP client). coder provides the knowledge retrieval and storage infrastructure that makes those agents consistently good.
 
 ```
   Your Team's Knowledge                  AI Agents Anywhere
@@ -50,38 +50,35 @@ Beyond knowledge retrieval, **coder** provides a complete **project lifecycle or
 | **Hybrid RAG Search** | pgvector cosine similarity fused with full-text search via Reciprocal Rank Fusion |
 | **Semantic Memory** | Store and retrieve cross-project decisions, patterns, and post-mortems |
 | **20+ Built-in Skills** | NestJS, Go, Java, Rust, Python, React, architecture, testing, and more |
-| **AI Workflow Commands** | `chat`, `review`, `debug`, `plan`, `qa`, `session`, `workflow` — context-aware dev tools |
-| **Project Lifecycle** | `new-project` → `discuss-phase` → `plan-phase` → `execute-phase` → `ship` — end-to-end delivery |
 | **Dual Transport** | gRPC (performance) + HTTP (compatibility) — both support Bearer token auth |
 | **Secure Mode** | Bootstrap token registration, SHA-256 hashed storage, per-client access tokens |
 | **Activity Tracking** | Fire-and-forget telemetry: command + repo + branch, logged per developer |
 | **Web Dashboard** | Embedded HTMX dashboard for monitoring clients, memory, and activity |
-| **Self-Hosted** | One Docker command — Postgres + pgvector + Ollama + coder-node |
+| **Self-Hosted** | One Docker command — Postgres + pgvector + coder-node |
 | **Single Binary** | ~7MB CLI, zero runtime dependencies, cross-platform |
 
 ---
 
-## 📗 Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [**Usage Guide**](docs/GUIDE.md) | Complete guide: all commands, lifecycle flow, flags, examples |
+| [**Usage Guide**](docs/GUIDE.md) | Complete guide: all commands, flags, examples |
 | [**CLI Reference**](docs/cli.md) | Every command with flags and examples |
 | [**Installation**](docs/installation.md) | CLI + coder-node setup, secure mode, env vars |
 | [**Architecture**](docs/architecture.md) | System design, data flows, layer structure |
 | [**Skill System**](docs/skill_system.md) | How the vector RAG works |
 | [**Memory System**](docs/memory_system.md) | Semantic memory internals |
-| [**Memory Lifecycle Plan**](docs/memory_lifecycle_plan.md) | Detailed rollout plan for freshness, validity, and superseded memory handling |
+| [**Memory Lifecycle Plan**](docs/memory_lifecycle_plan.md) | Freshness, validity, and superseded memory handling |
 | [**Skill Files**](docs/skill_files.md) | Bundling and executing binary assets |
 | [**Secure Mode**](docs/secure_mode.md) | Node-level security and client registration |
 | [**Web Dashboard**](docs/dashboard.md) | HTMX-powered visual management console |
-| [**Intelligence Flows Roadmap**](docs/roadmap-intelligence-flows.md) | Implementation roadmap for all AI phases |
 | [**Development**](docs/development.md) | Building from source, release process |
 | [**Changelog**](CHANGELOG.md) | Release history |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1 — Install the CLI
 
@@ -118,68 +115,79 @@ coder login
 
 ```bash
 cd my-project
-coder install fullstack             # scaffold .agents/ into the project
+coder install fullstack             # scaffold .agents/ and .claude/agents/ into the project
 coder skill ingest --source local   # load 20+ built-in skills into the vector DB
 ```
 
-### 5 — Use it
+### 5 — Use it with your AI agent
 
-```bash
-# Quick AI tools (work anywhere)
-coder chat "explain the auth middleware"
-coder review                             # AI review of your git diff
-coder debug "panic: nil pointer at auth.go:45"
-coder plan "add rate limiting"           # generate PLAN.md
-coder qa --plan .coder/plans/PLAN-*.md  # UAT against acceptance criteria
-
-# Full project lifecycle
-coder new-project "build a task manager API in Go"
-coder map-codebase
-coder discuss-phase 1
-coder plan-phase 1
-coder execute-phase 1
-coder ship 1
-```
+Open Claude Code, GitHub Copilot, or any MCP-compatible AI agent. The agent will automatically use `coder memory` and `coder skill` commands to retrieve context before each task.
 
 ---
 
-## How it works
+## How it works with AI Agents
+
+coder does not run language models. Your AI agent (Claude, Copilot, etc.) is the reasoning engine. coder provides the knowledge retrieval layer that makes every agent consistently informed.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Developer Machine                     │
-│                                                         │
-│  AI Agent (Claude / Copilot / any)                      │
-│       │ coder skill search "topic"      ← GATE 1        │
-│       │ coder memory search "topic"     ← GATE 2        │
-│       │        ... does work ...                        │
-│       │ coder memory store "title" ...  ← GATE 3        │
-│       │                                                  │
-│  coder CLI  ──── Bearer token ────▶  coder-node         │
-│                    (gRPC / HTTP)        │                │
-└─────────────────────────────────────────────────────────┘
-                                          │
-                              ┌───────────┴──────────┐
-                              │    coder-node         │
-                              │                      │
-                              │  Auth interceptors   │
-                              │  Context injection   │
-                              │  Hybrid search (RRF) │
-                              │  Skill ingestor      │
-                              │  Memory manager      │
-                              └──────────┬───────────┘
-                                         │
-                              ┌──────────┴──────────┐
-                              │  PostgreSQL + pgvec  │
-                              │  Ollama embeddings   │
-                              └─────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                     Developer Machine                        │
+│                                                              │
+│  AI Agent (Claude Code / GitHub Copilot / any MCP client)   │
+│       │                                                      │
+│       │  1. coder skill search "NestJS error handling"       │
+│       │     → Returns: architecture rules, error patterns    │
+│       │                                                      │
+│       │  2. coder memory search "auth middleware"            │
+│       │     → Returns: past decisions, known issues          │
+│       │                                                      │
+│       │  3. Agent reasons, plans, and writes code            │
+│       │                                                      │
+│       │  4. coder memory store "Auth decision" "content..."  │
+│       │     → Persists new knowledge for next agent/session  │
+│       │                                                      │
+│  coder CLI  ──── Bearer token ────▶  coder-node              │
+│                    (gRPC / HTTP)                             │
+└──────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              │           coder-node           │
+              │                               │
+              │  Auth interceptors            │
+              │  Hybrid search (RRF)          │
+              │  Skill ingestor               │
+              │  Memory manager               │
+              └───────────────┬───────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              │    PostgreSQL + pgvector       │
+              │    (no Ollama dependency)      │
+              └───────────────────────────────┘
 ```
 
-The **3-Gate Loop** enforced by agent workflows:
+### The 3-Gate Loop
 
-1. **GATE 1 — Skill retrieval** `coder skill search "<topic>"` — retrieves architecture rules and best practices before any coding starts
-2. **GATE 2 — Memory retrieval** `coder memory search "<topic>"` — loads project-specific history and past decisions
-3. **GATE 3 — Knowledge capture** `coder memory store "<title>" "<content>"` — persists new patterns so the next agent benefits
+Agent workflows enforce a consistent knowledge gate pattern:
+
+1. **Gate 1 — Skill retrieval**: `coder skill search "<topic>"` — retrieves architecture rules and best practices before any coding
+2. **Gate 2 — Memory retrieval**: `coder memory search "<topic>"` — loads project-specific history and past decisions
+3. **Gate 3 — Knowledge capture**: `coder memory store "<title>" "<content>"` — persists new patterns so every future agent benefits
+
+### Specialized Sub-Agents
+
+The agent system simulates a professional delivery team with specialized roles:
+
+| Agent | Role | When to Use |
+|-------|------|-------------|
+| `coder` | Fullstack orchestrator | End-to-end delivery, coordinates all phases |
+| `coder-ba` | Business Analyst | Elicit and document requirements before design |
+| `coder-architect` | System Architect | Design system, write ADRs, define API contracts |
+| `coder-be` | Backend Developer | Implement APIs, services, repositories |
+| `coder-fe` | Frontend Developer | Build components, pages, design system |
+| `coder-reviewer` | Code Reviewer | Enforce quality before merge |
+| `coder-qa` | QA Engineer | Acceptance testing, regression, QA report |
+| `coder-tech-writer` | Technical Writer | API docs, runbooks, CHANGELOG |
+| `coder-debugger` | Debugger | Root cause analysis, post-mortems |
 
 ---
 
@@ -188,47 +196,44 @@ The **3-Gate Loop** enforced by agent workflows:
 ### Intelligence Gates (always run these)
 
 ```bash
-coder skill search "NestJS error handling"       # GATE 1 — retrieve best practices
-coder memory search "auth pattern"               # GATE 2 — retrieve project decisions
-coder memory store "Auth decision" "content..."  # GATE 3 — capture new knowledge
+coder skill search "NestJS error handling"       # Gate 1 — retrieve best practices
+coder memory search "auth pattern"               # Gate 2 — retrieve project decisions
+coder memory store "Auth decision" "content..."  # Gate 3 — capture new knowledge
 ```
 
-### Quick AI Workflows
+### Memory Management
 
 ```bash
-coder chat "explain the auth middleware"         # context-enriched Q&A
-coder review                                     # AI code review of git diff
-coder review --pr 42                             # review a GitHub PR
-coder debug "panic: nil pointer at auth.go:45"  # root cause analysis
-coder plan "add rate limiting"                   # generate PLAN.md
-coder qa --plan .coder/plans/PLAN-*.md          # walk acceptance criteria
-coder session save                               # save working context
-coder workflow "add email verification"          # full auto-chain
+coder memory search "<query>"                    # Search semantic memory
+coder memory store "<title>" "<content>"         # Store new knowledge
+coder memory list                                # List all stored entries
+coder memory compact --revector                  # Clean and re-embed memory
 ```
 
-### Project Lifecycle
+### Skill Management
 
 ```bash
-coder new-project "build a REST API"   # initialize: requirements + roadmap
-coder map-codebase                     # analyse codebase → STACK/ARCH/CONCERNS
-coder discuss-phase 1                  # Q&A → CONTEXT.md
-coder plan-phase 1                     # research + XML plans + verification
-coder execute-phase 1                  # execute plans, atomic git commits
-coder ship 1                           # gh pr create with AI-generated body
-coder progress                         # see where you are
-coder next                             # get the next recommended command
-coder milestone complete 1             # close phase, advance to next
+coder skill search "<topic>"                     # Search skills (RAG)
+coder skill list                                 # List all ingested skills
+coder skill info <name>                          # Detailed skill info
+coder skill ingest --source local                # Load built-in skills
+```
+
+### Session and Progress
+
+```bash
+coder session save                               # Save working context
+coder progress                                   # See current project state
+coder next                                       # Get next recommended action
+coder milestone complete N                       # Close a milestone
 ```
 
 ### System
 
 ```bash
-coder login                             # connect to coder-node
-coder install fullstack                 # scaffold agent engine into project
-coder skill ingest --source local       # load built-in skills into vector DB
-coder self-update                       # update the CLI binary
-coder health                            # project health check
-coder stats                             # project statistics
+coder login                                      # Connect to coder-node
+coder install fullstack                          # Scaffold agent engine into project
+coder self-update                                # Update the CLI binary
 ```
 
 ---
@@ -253,10 +258,42 @@ Server admin                        Developer
 ```
 
 Token lifecycle:
-- Raw token generated with `crypto/rand`, **never stored**
+- Raw token generated with `crypto/rand`, never stored
 - Only the SHA-256 hash lives in the database
-- Bootstrap token shown **once** in server logs
+- Bootstrap token shown once in server logs
 - Access tokens sent via `authorization` metadata on gRPC; `Authorization: Bearer` on HTTP
+
+---
+
+## Infrastructure
+
+coder-node requires only PostgreSQL with the pgvector extension. No Ollama, no LLM dependency.
+
+```yaml
+# docker-compose.yml
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: coder
+      POSTGRES_USER: coder
+      POSTGRES_PASSWORD: coder
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  coder-node:
+    image: ghcr.io/hiimtrung/coder-node:latest
+    ports:
+      - "8080:8080"   # HTTP
+      - "9090:9090"   # gRPC
+    environment:
+      DATABASE_URL: postgres://coder:coder@postgres:5432/coder
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
+```
 
 ---
 

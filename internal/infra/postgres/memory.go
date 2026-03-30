@@ -197,10 +197,17 @@ func (p *postgresMemory) Store(ctx context.Context, k *memdomain.Knowledge) erro
 //
 // When queryText is empty the method falls back to pure semantic search.
 func (p *postgresMemory) Search(ctx context.Context, queryVector []float32, queryText string, scope string, tags []string, memType memdomain.MemoryType, metaFilters map[string]any, limit int) ([]memdomain.SearchResult, error) {
-	if strings.TrimSpace(queryText) != "" {
+	hasVector := len(queryVector) > 0
+	hasText := strings.TrimSpace(queryText) != ""
+
+	if hasVector && hasText {
 		return p.hybridSearch(ctx, queryVector, queryText, scope, tags, memType, metaFilters, limit)
 	}
-	return p.semanticSearch(ctx, queryVector, scope, tags, memType, metaFilters, limit)
+	if hasVector {
+		return p.semanticSearch(ctx, queryVector, scope, tags, memType, metaFilters, limit)
+	}
+	// FTS-only mode: no embedding provider configured
+	return p.ftsSearch(ctx, queryText, scope, tags, memType, metaFilters, limit)
 }
 
 // semanticSearch is the original pure-vector search (used as fallback when
@@ -270,6 +277,70 @@ func (p *postgresMemory) semanticSearch(ctx context.Context, queryVector []float
 		sqlQuery += " WHERE " + strings.Join(conditions, " AND ")
 	}
 	sqlQuery += fmt.Sprintf(" ORDER BY vector <=> $1 LIMIT $%d", argIdx)
+	args = append(args, limit)
+
+	return p.runSearchQuery(ctx, sqlQuery, args)
+}
+
+// ftsSearch performs a full-text-only search using PostgreSQL tsvector/tsquery.
+// Used when no embedding provider is configured (FTS-only mode).
+func (p *postgresMemory) ftsSearch(ctx context.Context, queryText string, scope string, tags []string, memType memdomain.MemoryType, metaFilters map[string]any, limit int) ([]memdomain.SearchResult, error) {
+	lifecycle, remainingFilters, err := extractLifecycleFilters(metaFilters)
+	if err != nil {
+		return nil, err
+	}
+
+	sqlQuery := `
+		SELECT id, title, content, type, metadata, tags, scope, status, canonical_key,
+		       supersedes_id, superseded_by_id, valid_from, valid_to, last_verified_at,
+		       confidence, source_ref, verified_by, parent_id, chunk_index,
+		       normalized_title, content_hash, created_at, updated_at,
+		       ts_rank(fts, plainto_tsquery('english', $1)) AS score
+		FROM knowledge
+	`
+	var args []any
+	args = append(args, queryText)
+	argIdx := 2
+
+	var conditions []string
+	conditions = append(conditions, "fts @@ plainto_tsquery('english', $1)")
+
+	if scope != "" {
+		conditions = append(conditions, fmt.Sprintf("scope = $%d", argIdx))
+		args = append(args, scope)
+		argIdx++
+	}
+	if string(memType) != "" {
+		conditions = append(conditions, fmt.Sprintf("type = $%d", argIdx))
+		args = append(args, string(memType))
+		argIdx++
+	}
+	if lifecycle.status != "" {
+		conditions = append(conditions, fmt.Sprintf("COALESCE(status, 'active') = $%d", argIdx))
+		args = append(args, lifecycle.status)
+		argIdx++
+	}
+	if lifecycle.canonicalKey != "" {
+		conditions = append(conditions, fmt.Sprintf("COALESCE(NULLIF(canonical_key, ''), type || ':' || normalized_title) = $%d", argIdx))
+		args = append(args, lifecycle.canonicalKey)
+		argIdx++
+	}
+	if len(tags) > 0 {
+		conditions = append(conditions, fmt.Sprintf("tags @> $%d", argIdx))
+		args = append(args, pq.Array(tags))
+		argIdx++
+	}
+
+	for key, val := range remainingFilters {
+		conditions = append(conditions, fmt.Sprintf("metadata->>'%s' = $%d", key, argIdx))
+		args = append(args, fmt.Sprintf("%v", val))
+		argIdx++
+	}
+
+	if len(conditions) > 0 {
+		sqlQuery += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	sqlQuery += fmt.Sprintf(" ORDER BY score DESC LIMIT $%d", argIdx)
 	args = append(args, limit)
 
 	return p.runSearchQuery(ctx, sqlQuery, args)

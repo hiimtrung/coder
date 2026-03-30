@@ -1,83 +1,134 @@
 ---
-description: Review and improve documentation for novice users with technical writing best practices
+description: Review and improve documentation from a professional technical writer's perspective — clarity, completeness, actionability, and structure.
 ---
 
-# Technical Writer Review Workflow
+# Workflow: Technical Writer Review
 
-Review documentation files from a professional technical writer's perspective, focusing on novice user experience.
+Review documentation files to ensure they are clear, complete, and useful for the intended audience — whether that is a developer onboarding to the project, an operator following a runbook, or an API consumer building an integration.
 
-## Review Criteria
+## When to Use
 
-For each document, evaluate:
+- Documentation was written by an engineer and needs a quality pass
+- Docs are stale relative to recent code changes
+- Preparing documentation for a public release
+- Onboarding feedback indicates docs are hard to follow
 
-### 1. Clarity (Is it easy to understand?)
-- Does it explain concepts before using them?
-- Does it avoid jargon, or explain it when necessary?
-- Are examples concrete and realistic?
+## Step 1 — Context Load (MANDATORY)
 
-### 2. Completeness (Does it cover what users need?)
-- Does it explain *what* something is before *how* to use it?
-- Are prerequisites clearly stated?
-- Are there quick start examples?
-- Are edge cases and errors addressed?
+```bash
+coder skill search "technical writing documentation"
+coder memory search "<document topic or component>"
+```
 
-### 3. Actionability (Can users follow along?)
-- Are commands copy-paste ready?
-- Is expected output shown?
-- Are "when to use" hints provided?
-- Do links to related docs exist?
+## Step 2 — Identify Target Documents
 
-### 4. Structure (Is it well organized?)
-- Does the order make sense for newcomers?
-- Are sections clearly separated?
+Confirm which documents are being reviewed:
+- API reference (`docs/api/`)
+- Runbook (`docs/runbooks/`)
+- Requirements or design doc (`docs/requirements/`, `docs/design/`)
+- README, CHANGELOG, or other project-level docs
+
+Read each document from start to finish as its target audience would — as a developer seeing this for the first time.
+
+## Step 3 — Evaluate by Criteria
+
+### 1. Clarity
+
+- Does it explain concepts before using them (no undefined jargon)?
+- Is each sentence unambiguous — could it be interpreted more than one way?
+- Are examples concrete and realistic (not "foo" and "bar")?
+- Is the vocabulary consistent (same term used for the same thing throughout)?
+
+### 2. Completeness
+
+- Does it explain *what* something is before explaining *how* to use it?
+- Are prerequisites explicitly stated?
+- Are there quick start examples for common tasks?
+- Are edge cases and error scenarios addressed?
+- Is the "why" (motivation) explained for non-obvious choices?
+
+### 3. Actionability
+
+- Are commands copy-paste ready (correct tool, flags, and quoting)?
+- Is expected output shown after commands?
+- Are "when to use this" hints provided?
+- Are links to related docs present?
+- Can a reader follow the document without leaving to search for missing context?
+
+### 4. Structure
+
+- Does the order make sense for a first-time reader?
+- Is there a clear hierarchy (headings, subheadings)?
 - Is there a logical flow from simple to complex?
+- Are related items grouped together?
+- Is the document an appropriate length (not padded, not truncated)?
 
-## Review Output Format
+## Step 4 — Produce Review Report
 
-For each document, provide:
+For each document:
 
 ```markdown
 ## [Document Name]
 
+**Audience**: <developer | operator | API consumer>
+**Current State**: Good | Needs Work | Major Revision Required
+
 | Aspect | Rating (1-5) | Notes |
 |--------|--------------|-------|
-| Clarity | ⭐⭐⭐ | ... |
-| Completeness | ⭐⭐ | ... |
-| Actionability | ⭐⭐⭐⭐ | ... |
-| Structure | ⭐⭐⭐ | ... |
+| Clarity | N/5 | <specific observations> |
+| Completeness | N/5 | <what is missing> |
+| Actionability | N/5 | <what blocks a reader from acting> |
+| Structure | N/5 | <organizational issues> |
 
-**Issues:**
-1. Issue description
-2. Issue description
+**Issues by Priority**:
 
-**Suggested Fixes:**
-- Fix description
+**High** (blocks the reader from succeeding):
+1. <issue> — Line <N>: <specific fix>
+
+**Medium** (causes confusion but reader can work through it):
+1. <issue> — Section <X>: <suggestion>
+
+**Low** (polish):
+1. <observation> — <suggestion>
+
+**Suggested Fixes**:
+```markdown
+[Before]
+<original text>
+
+[After]
+<improved text>
+```
 ```
 
-## Common Patterns to Fix
+## Step 5 — Common Patterns to Fix
 
 | Issue | Fix |
 |-------|-----|
-| Missing intro | Add opening paragraph explaining what and why |
-| No prerequisites | Add prerequisites section with requirements |
-| Jargon without explanation | Add callout boxes explaining terminology |
-| No examples | Add Quick Start or example sections |
-| Flat structure | Organize into logical sections |
-| No cross-references | Add "Next Steps" or "See Also" links |
-| Terminal vs editor confusion | Clarify which commands run where |
+| No introduction | Add opening paragraph: what this is, what it does, who it's for |
+| No prerequisites | Add prerequisites section before step 1 |
+| Undefined jargon | Add inline explanation on first use |
+| No quick start | Add a minimal working example before the full reference |
+| Flat structure | Organize into logical sections with descriptive headings |
+| No cross-references | Add "See also" or "Next steps" links |
+| Missing expected output | Show what success looks like after each command |
+| Vague language | Replace "configure appropriately" with the exact values or options |
+| Wrong audience level | Adjust technicality for the intended reader |
 
-## Workflow Steps
+## Step 6 — Gate Out (MANDATORY)
 
-0. **Gate In (MANDATORY)** — Run `coder skill search "<topic of documentation>"` to retrieve technical writing best practices and documentation standards, then run `coder memory search "<topic of documentation>"` to retrieve historical writing patterns and terminology.
-1. **Read the document** from start to finish as a novice would
-2. **Rate each aspect** using the criteria above
-3. **Identify specific issues** with line references
-4. **Suggest concrete fixes** with example text
-5. **Prioritize fixes** as High/Medium/Low impact
-6. **Gate Out (MANDATORY)** — Run `coder memory store "Doc Review: <Document Name>" "<Summary of Critical Writing Improvements and Terminology Decisions>"` to store knowledge.
+```bash
+coder memory store "Doc Review: <Document Name>" "Audience: <audience>. Overall quality: <N/5>. Critical issues: <count and summary>. Key terminology decisions: <terms standardized>. Structural changes made: <if applied>." --tags "documentation,technical-writing,<component>"
+```
 
-## Priority Levels
+---
 
-- **High**: Blocks novice users from succeeding
-- **Medium**: Causes confusion but users can figure it out
-- **Low**: Nice to have improvements
+## Checklist
+
+- [ ] `coder skill search` run
+- [ ] `coder memory search` run
+- [ ] Each document read as target audience
+- [ ] All four criteria evaluated (clarity, completeness, actionability, structure)
+- [ ] Issues classified by priority (high / medium / low)
+- [ ] Concrete before/after suggestions provided for high-priority issues
+- [ ] `coder memory store` run

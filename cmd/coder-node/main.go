@@ -8,14 +8,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/trungtran/coder/api/grpc/chatpb"
-	"github.com/trungtran/coder/api/grpc/debugpb"
 	"github.com/trungtran/coder/api/grpc/memorypb"
-	"github.com/trungtran/coder/api/grpc/reviewpb"
 	"github.com/trungtran/coder/api/grpc/skillpb"
 	authdomain "github.com/trungtran/coder/internal/domain/auth"
 	"github.com/trungtran/coder/internal/infra/embedding"
-	"github.com/trungtran/coder/internal/infra/llm"
 	"github.com/trungtran/coder/internal/infra/postgres"
 	grpcinterceptor "github.com/trungtran/coder/internal/transport/grpc/interceptor"
 	grpcserver "github.com/trungtran/coder/internal/transport/grpc/server"
@@ -23,10 +19,7 @@ import (
 	httpserver "github.com/trungtran/coder/internal/transport/http/server"
 	dashboard "github.com/trungtran/coder/internal/transport/http/server/dashboard"
 	ucauth "github.com/trungtran/coder/internal/usecase/auth"
-	ucchat "github.com/trungtran/coder/internal/usecase/chat"
-	ucdebug "github.com/trungtran/coder/internal/usecase/debug"
 	ucmemory "github.com/trungtran/coder/internal/usecase/memory"
-	ucreview "github.com/trungtran/coder/internal/usecase/review"
 	ucskill "github.com/trungtran/coder/internal/usecase/skill"
 	"github.com/trungtran/coder/internal/version"
 	"google.golang.org/grpc"
@@ -49,19 +42,63 @@ func main() {
 		log.Fatalf("POSTGRES_DSN is required")
 	}
 
-	ollamaBase := os.Getenv("OLLAMA_BASE_URL")
-	if ollamaBase == "" {
-		log.Fatalf("OLLAMA_BASE_URL is required")
+	// -------------------------------------------------------------------------
+	// Embedding provider — powers semantic (vector) search for memory and skills.
+	//
+	// Supported providers (set EMBEDDING_PROVIDER):
+	//   ollama  — Local Ollama embedding model (DEFAULT).
+	//             OLLAMA_BASE_URL   default: http://localhost:11434
+	//             OLLAMA_EMBEDDING_MODEL  default: mxbai-embed-large (dim 1024)
+	//   openai  — OpenAI text-embedding-3-small or any OpenAI-compat endpoint.
+	//             EMBEDDING_API_KEY  required
+	//             EMBEDDING_BASE_URL optional (default: https://api.openai.com/v1)
+	//             EMBEDDING_MODEL    optional (default: text-embedding-3-small)
+	//   none    — FTS-only mode (no vectors, keyword search only)
+	// -------------------------------------------------------------------------
+	var embeddingProvider interface {
+		GenerateEmbedding(ctx context.Context, text string) ([]float32, error)
 	}
 
-	ollamaModel := os.Getenv("OLLAMA_EMBEDDING_MODEL")
-	if ollamaModel == "" {
-		ollamaModel = "mxbai-embed-large"
+	embeddingProviderName := os.Getenv("EMBEDDING_PROVIDER")
+	if embeddingProviderName == "" {
+		embeddingProviderName = "ollama" // default: local Ollama
 	}
 
-	ollamaChatModel := os.Getenv("OLLAMA_CHAT_MODEL")
-	if ollamaChatModel == "" {
-		ollamaChatModel = "qwen3.5:0.8b"
+	switch embeddingProviderName {
+	case "ollama":
+		baseURL := os.Getenv("OLLAMA_BASE_URL")
+		if baseURL == "" {
+			baseURL = "http://localhost:11434"
+		}
+		model := os.Getenv("OLLAMA_EMBEDDING_MODEL")
+		if model == "" {
+			model = "mxbai-embed-large"
+		}
+		embeddingProvider = &embedding.OllamaEmbeddingProvider{
+			BaseURL: baseURL,
+			Model:   model,
+		}
+		log.Printf("Embedding: ollama model=%s base=%s", model, baseURL)
+
+	case "openai":
+		model := os.Getenv("EMBEDDING_MODEL")
+		if model == "" {
+			model = "text-embedding-3-small"
+		}
+		dimensions := 1024 // match existing vector(1024) schema
+		if d := os.Getenv("EMBEDDING_DIMENSIONS"); d != "" {
+			fmt.Sscanf(d, "%d", &dimensions)
+		}
+		embeddingProvider = &embedding.OpenAIEmbeddingProvider{
+			APIKey:     os.Getenv("EMBEDDING_API_KEY"),
+			Model:      model,
+			BaseURL:    os.Getenv("EMBEDDING_BASE_URL"),
+			Dimensions: dimensions,
+		}
+		log.Printf("Embedding: openai model=%s dimensions=%d", model, dimensions)
+
+	default:
+		log.Printf("Embedding: FTS-only mode (set EMBEDDING_PROVIDER=ollama or openai to enable vector search)")
 	}
 
 	// Initialize Postgres with shared DB handle
@@ -70,14 +107,8 @@ func main() {
 		log.Fatalf("Failed to initialize postgres: %v", err)
 	}
 
-	// Initialize Ollama embedding provider
-	provider := &embedding.OllamaEmbeddingProvider{
-		BaseURL: ollamaBase,
-		Model:   ollamaModel,
-	}
-
 	// Initialize memory manager (use case)
-	mgr := ucmemory.NewManager(memDB, provider)
+	mgr := ucmemory.NewManager(memDB, embeddingProvider)
 	defer mgr.Close()
 
 	// Initialize skill store (infrastructure, shares same DB connection)
@@ -86,13 +117,11 @@ func main() {
 		log.Fatalf("Failed to initialize skill store: %v", err)
 	}
 
-	// Initialize skill ingestor (use case)
-	skillIngestor := ucskill.NewIngestor(skillStore, provider)
-
-	// Initialize skill facade (use case — combines ingestor + store)
+	// Initialize skill ingestor + facade (use case)
+	skillIngestor := ucskill.NewIngestor(skillStore, embeddingProvider)
 	skillFacade := ucskill.NewSkillFacade(skillIngestor, skillStore)
 
-	// Secure mode setup
+	// Auth setup
 	ctx := context.Background()
 	var authMgr authdomain.AuthManager
 
@@ -103,7 +132,6 @@ func main() {
 		}
 		authMgr = ucauth.NewManager(authRepo, true)
 
-		// Print bootstrap token if this is the first startup
 		bootstrapToken, err := authMgr.GetBootstrapToken(ctx)
 		if err != nil {
 			log.Printf("Warning: failed to generate bootstrap token: %v", err)
@@ -113,28 +141,10 @@ func main() {
 			fmt.Println()
 		}
 	} else {
-		authMgr = ucauth.NewManager(nil, false) // open mode — no-op auth
+		authMgr = ucauth.NewManager(nil, false)
 	}
 
-	// Initialize LLM provider (Ollama /api/chat)
-	llmProvider := llm.NewOllamaProvider(ollamaBase, ollamaChatModel)
-
-	// Initialize chat repository
-	chatRepo, err := postgres.NewPostgresChatRepo(rawDB)
-	if err != nil {
-		log.Fatalf("Failed to initialize chat repository: %v", err)
-	}
-
-	// Initialize chat manager (use case)
-	chatMgr := ucchat.NewManager(chatRepo, llmProvider, mgr, skillFacade, ucchat.Config{
-		Model: ollamaChatModel,
-	})
-
-	// Initialize review and debug managers (use cases)
-	reviewMgr := ucreview.NewManager(llmProvider, mgr, skillFacade, ollamaChatModel)
-	debugMgr := ucdebug.NewManager(llmProvider, mgr, skillFacade, ollamaChatModel)
-
-	// 1. Setup gRPC server
+	// 1. gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen on gRPC port: %v", err)
@@ -144,21 +154,8 @@ func main() {
 		grpc.ChainUnaryInterceptor(grpcinterceptor.UnaryAuth(authMgr)),
 		grpc.ChainStreamInterceptor(grpcinterceptor.StreamAuth(authMgr)),
 	)
-	memoryServer := grpcserver.NewMemoryServer(mgr)
-	memorypb.RegisterMemoryServiceServer(grpcServer, memoryServer)
-
-	skillServer := grpcserver.NewSkillServer(skillFacade)
-	skillpb.RegisterSkillServiceServer(grpcServer, skillServer)
-
-	grpcChatServer := grpcserver.NewChatServer(chatMgr)
-	chatpb.RegisterChatServiceServer(grpcServer, grpcChatServer)
-
-	grpcReviewServer := grpcserver.NewReviewServer(reviewMgr)
-	reviewpb.RegisterReviewServiceServer(grpcServer, grpcReviewServer)
-
-	grpcDebugServer := grpcserver.NewDebugServer(debugMgr)
-	debugpb.RegisterDebugServiceServer(grpcServer, grpcDebugServer)
-
+	memorypb.RegisterMemoryServiceServer(grpcServer, grpcserver.NewMemoryServer(mgr))
+	skillpb.RegisterSkillServiceServer(grpcServer, grpcserver.NewSkillServer(skillFacade))
 	reflection.Register(grpcServer)
 
 	go func() {
@@ -168,46 +165,23 @@ func main() {
 		}
 	}()
 
-	// 2. Setup HTTP server
+	// 2. HTTP server
 	httpMux := http.NewServeMux()
 
-	// Health endpoint (always public)
 	httpMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"ok","secure_mode":%v}`, authMgr.IsSecureMode())
 	})
 
-	httpMemoryServer := httpserver.NewMemoryServer(mgr)
-	httpMemoryServer.RegisterHandlers(httpMux)
+	httpserver.NewMemoryServer(mgr).RegisterHandlers(httpMux)
+	httpserver.NewSkillServer(skillFacade).RegisterHandlers(httpMux)
+	httpserver.NewAuthServer(authMgr).RegisterHandlers(httpMux)
+	dashboard.NewDashboardServer(authMgr, version.Version).RegisterHandlers(httpMux)
 
-	httpSkillServer := httpserver.NewSkillServer(skillFacade)
-	httpSkillServer.RegisterHandlers(httpMux)
-
-	// Auth endpoints
-	httpAuthServer := httpserver.NewAuthServer(authMgr)
-	httpAuthServer.RegisterHandlers(httpMux)
-
-	// Chat endpoints (Phase 1 — LLM Backbone)
-	httpChatServer := httpserver.NewChatServer(chatMgr)
-	httpChatServer.RegisterHandlers(httpMux)
-
-	// Review endpoint (Phase 3)
-	httpReviewServer := httpserver.NewReviewServer(reviewMgr)
-	httpReviewServer.RegisterHandlers(httpMux)
-
-	// Debug endpoint (Phase 6)
-	httpDebugServer := httpserver.NewDebugServer(debugMgr)
-	httpDebugServer.RegisterHandlers(httpMux)
-
-	// Dashboard UI
-	dashboardServer := dashboard.NewDashboardServer(authMgr, version.Version)
-	dashboardServer.RegisterHandlers(httpMux)
-
-	// Wrap entire mux with auth middleware
 	var handler http.Handler = httpMux
 	handler = httpmiddleware.Auth(authMgr)(handler)
 
-	log.Printf("coder-node HTTP server listening at :%s (secure_mode=%v, chat_model=%s)", httpPort, authMgr.IsSecureMode(), ollamaChatModel)
+	log.Printf("coder-node HTTP server listening at :%s (secure_mode=%v)", httpPort, authMgr.IsSecureMode())
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", httpPort), handler); err != nil {
 		log.Fatalf("HTTP server failed: %v", err)
 	}
