@@ -682,4 +682,5 @@ coder review
 coder debug "panic: concurrent map writes"
 coder skill search "nestjs error handling"
 coder memory search "JWT refresh pattern"
+coder memory store "Auth decision" "Use rotating refresh tokens" --type decision --replace-active
 ```

@@ -11,7 +11,7 @@
         │
         │  coder CLI  (single binary)
         │  ├─ coder skill search …
-        │  ├─ coder memory store …
+        │  ├─ coder memory search / store / verify / supersede / audit …
         │  └─ coder login / self-update / install …
         │
         │  Bearer token (gRPC metadata / HTTP header)
@@ -203,8 +203,8 @@ graph LR
 ```
 
 1. **Skill retrieval** — "How should I approach this?" (architecture patterns, language idioms)
-2. **Memory retrieval** — "What have we done here before?" (project decisions, past fixes)
-3. **Knowledge capture** — "What did I learn?" (store so the next agent benefits)
+2. **Memory retrieval** — "What have we done here before?" (project decisions, past fixes, conflict-aware active truth)
+3. **Knowledge capture** — "What did I learn?" (store, verify, or supersede so the next agent benefits without stale context)
 
 ---
 

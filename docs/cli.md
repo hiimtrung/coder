@@ -574,12 +574,14 @@ Removes a skill and all its chunks from the DB.
 
 ### `coder memory store <title> <content>`
 
-Stores a knowledge snippet in the semantic memory.
+Stores a knowledge snippet in the semantic memory. Supports lifecycle metadata for versioned memories, validity windows, and superseding older active entries.
 
 ```bash
 coder memory store "Auth pattern" "We use SHA-256 hashed tokens in coder_clients table"
 coder memory store "DB migration rule" "Always use reversible migrations" \
   --tags "database,migrations" --type rule
+coder memory store "Auth decision" "Use rotating refresh tokens" \
+  --type decision --replace-active --key "decision:auth-refresh"
 ```
 
 **Flags**
@@ -587,20 +589,92 @@ coder memory store "DB migration rule" "Always use reversible migrations" \
 | Flag | Description |
 |------|-------------|
 | `--tags <t1,t2>` | Comma-separated tags |
-| `--type <type>` | `rule`, `pattern`, `fact`, `decision`, … |
+| `--type <type>` | `fact`, `rule`, `decision`, `pattern`, `event`, `document` |
+| `--scope <scope>` | Memory scope |
+| `--meta <json>` | Raw JSON metadata |
+| `--status <status>` | Lifecycle status: `active`, `superseded`, `expired`, `archived`, `draft` |
+| `--key <canonical_key>` | Stable key for multiple versions of the same memory |
+| `--supersedes <id>` | Explicitly mark which memory/version this entry replaces |
+| `--valid-from <RFC3339>` | Validity window start |
+| `--valid-until <RFC3339>` | Validity window end |
+| `--verified-at <RFC3339>` | Last verification timestamp |
+| `--verified-by <actor>` | Actor or workflow that verified this memory |
+| `--confidence <0..1>` | Confidence score used during reranking |
+| `--source <ref>` | Source reference such as PR, commit, or doc |
+| `--replace-active` | Supersede the current active memory with the same canonical key |
 
 ### `coder memory search <query>`
 
-Hybrid semantic + full-text search across all stored memories.
+Hybrid semantic + full-text search across all stored memories. By default, search is lifecycle-aware: it prefers active memories, applies validity-window filtering, collapses multiple versions of the same canonical key, and emits a conflict summary when multiple active versions disagree materially.
 
 ```bash
 coder memory search "how do we handle authentication"
 coder memory search "postgres connection" --limit 3
+coder memory search "refresh token behavior" --include-stale --history
+coder memory search "auth decision" --key "decision:auth-refresh" --as-of 2026-03-27T00:00:00Z
 ```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--limit <n>` | Number of results to return |
+| `--scope <scope>` | Memory scope |
+| `--type <type>` | Filter by memory type |
+| `--meta <json>` | Additional JSON metadata filters |
+| `--status <status>` | Lifecycle status filter |
+| `--key <canonical_key>` | Canonical key filter |
+| `--as-of <RFC3339>` | Evaluate validity at a specific point in time |
+| `--include-stale` | Include superseded, expired, or archived memories |
+| `--history` | Return multiple versions for the same canonical key instead of collapsing to the best active hit |
+
+### `coder memory verify <id>`
+
+Refreshes verification metadata for a memory version group. This updates `last_verified_at` on all chunks in the target version and can also capture verifier identity, confidence, and source reference.
+
+```bash
+coder memory verify 7f9c4c1e
+coder memory verify 7f9c4c1e --verified-by phase-3 --confidence 0.9 --source docs/memory_lifecycle_plan.md
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--verified-at <RFC3339>` | Verification timestamp, defaults to now |
+| `--verified-by <actor>` | Actor or workflow verifying this memory |
+| `--confidence <0..1>` | Updated confidence score |
+| `--source <ref>` | Source reference used for verification |
+
+### `coder memory supersede <id> <replacement-id>`
+
+Marks one memory version group as superseded by another. The source version becomes `superseded`, the replacement becomes `active`, and the version chain is linked with `supersedes_id` / `superseded_by_id`.
+
+```bash
+coder memory supersede old-parent new-parent
+```
+
+### `coder memory audit`
+
+Reports lifecycle issues in the current memory store so stale or conflicting memories can be resolved before they leak into retrieval.
+
+```bash
+coder memory audit
+coder memory audit --scope backend --unverified-days 90
+coder memory audit --json
+```
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `--scope <scope>` | Restrict the audit to a specific memory scope |
+| `--unverified-days <n>` | Flag active memories not verified within this many days |
+| `--json` | Print the full audit report as JSON |
 
 ### `coder memory list`
 
-Shows the most recent memory entries.
+Shows the most recent memory entries, including lifecycle status.
 
 ```bash
 coder memory list

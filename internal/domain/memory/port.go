@@ -1,6 +1,9 @@
 package memory
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // EmbeddingProvider generates vector embeddings.
 type EmbeddingProvider interface {
@@ -20,6 +23,19 @@ type MemoryRepository interface {
 	Close() error
 }
 
+// MemoryLifecycleRepository provides lifecycle-specific operations used by the
+// memory manager when it needs to supersede or verify existing memories.
+type MemoryLifecycleRepository interface {
+	Get(ctx context.Context, id string) (*Knowledge, error)
+	ListByParentID(ctx context.Context, parentID string) ([]Knowledge, error)
+	ListActiveByCanonicalKey(ctx context.Context, canonicalKey string, scope string) ([]Knowledge, error)
+	UpdateMetadata(ctx context.Context, id string, metadata map[string]any, updatedAt time.Time) error
+}
+
+type MemoryAuditRepository interface {
+	Audit(ctx context.Context, opts AuditOptions) (AuditReport, error)
+}
+
 // MemoryManager is the application service interface.
 // Implemented by usecase/memory.Manager AND by gRPC/HTTP remote clients.
 type MemoryManager interface {
@@ -27,6 +43,9 @@ type MemoryManager interface {
 	Search(ctx context.Context, query string, scope string, tags []string, memType MemoryType, metaFilters map[string]any, limit int) ([]SearchResult, error)
 	List(ctx context.Context, limit, offset int) ([]Knowledge, error)
 	Delete(ctx context.Context, id string) error
+	Verify(ctx context.Context, id string, opts VerifyOptions) (int, error)
+	Supersede(ctx context.Context, id string, replacementID string) (int, error)
+	Audit(ctx context.Context, opts AuditOptions) (AuditReport, error)
 	Compact(ctx context.Context, threshold float32) (int, error)
 	Revector(ctx context.Context) error
 	Close() error

@@ -71,6 +71,7 @@ Beyond knowledge retrieval, **coder** provides a complete **project lifecycle or
 | [**Architecture**](docs/architecture.md) | System design, data flows, layer structure |
 | [**Skill System**](docs/skill_system.md) | How the vector RAG works |
 | [**Memory System**](docs/memory_system.md) | Semantic memory internals |
+| [**Memory Lifecycle Plan**](docs/memory_lifecycle_plan.md) | Detailed rollout plan for freshness, validity, and superseded memory handling |
 | [**Skill Files**](docs/skill_files.md) | Bundling and executing binary assets |
 | [**Secure Mode**](docs/secure_mode.md) | Node-level security and client registration |
 | [**Web Dashboard**](docs/dashboard.md) | HTMX-powered visual management console |

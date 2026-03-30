@@ -30,4 +30,7 @@ Help me work through a feature plan one task at a time.
    - If using lifecycle path: run `coder milestone audit N` to verify phase completeness.
    - Run `coder next` to see the recommended next command.
 
-8. **Gate Out (MANDATORY)** — Run `coder memory store "Implementation Detail: <Task Name>" "<Key Patterns and Code Decisions>"` to capture technical execution into semantic memory.
+8. **Gate Out (MANDATORY)** — Capture technical execution with lifecycle awareness:
+   - `coder memory store "Implementation Detail: <Task Name>" "<Key Patterns and Code Decisions>"` for a new reusable implementation pattern
+   - `coder memory verify <id>` if the task primarily reconfirms an existing pattern
+   - `coder memory supersede <old-id> <new-id>` if the implementation intentionally replaces older guidance

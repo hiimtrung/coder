@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	memdomain "github.com/trungtran/coder/internal/domain/memory"
 )
@@ -21,6 +22,9 @@ func (s *MemoryServer) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/memory/search", s.handleSearch)
 	mux.HandleFunc("/v1/memory/list", s.handleList)
 	mux.HandleFunc("/v1/memory/delete", s.handleDelete)
+	mux.HandleFunc("/v1/memory/verify", s.handleVerify)
+	mux.HandleFunc("/v1/memory/supersede", s.handleSupersede)
+	mux.HandleFunc("/v1/memory/audit", s.handleAudit)
 	mux.HandleFunc("/v1/memory/compact", s.handleCompact)
 }
 
@@ -31,12 +35,12 @@ func (s *MemoryServer) handleStore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Title    string                 `json:"title"`
-		Content  string                 `json:"content"`
-		Type     string                 `json:"type"`
+		Title    string         `json:"title"`
+		Content  string         `json:"content"`
+		Type     string         `json:"type"`
 		Metadata map[string]any `json:"metadata"`
-		Scope    string                 `json:"scope"`
-		Tags     []string               `json:"tags"`
+		Scope    string         `json:"scope"`
+		Tags     []string       `json:"tags"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -61,12 +65,12 @@ func (s *MemoryServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Query       string                 `json:"query"`
-		Scope       string                 `json:"scope"`
-		Tags        []string               `json:"tags"`
-		Type        string                 `json:"type"`
+		Query       string         `json:"query"`
+		Scope       string         `json:"scope"`
+		Tags        []string       `json:"tags"`
+		Type        string         `json:"type"`
 		MetaFilters map[string]any `json:"meta_filters"`
-		Limit       int                    `json:"limit"`
+		Limit       int            `json:"limit"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -142,6 +146,89 @@ func (s *MemoryServer) handleDelete(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
+func (s *MemoryServer) handleVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ID         string     `json:"id"`
+		VerifiedAt *time.Time `json:"verified_at"`
+		VerifiedBy string     `json:"verified_by"`
+		Confidence *float64   `json:"confidence"`
+		SourceRef  string     `json:"source_ref"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var opts memdomain.VerifyOptions
+	if req.VerifiedAt != nil {
+		opts.VerifiedAt = req.VerifiedAt.UTC()
+	}
+	opts.VerifiedBy = req.VerifiedBy
+	opts.Confidence = req.Confidence
+	opts.SourceRef = req.SourceRef
+
+	updated, err := s.mgr.Verify(r.Context(), req.ID, opts)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{"updated_count": updated})
+}
+
+func (s *MemoryServer) handleSupersede(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ID            string `json:"id"`
+		ReplacementID string `json:"replacement_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	updated, err := s.mgr.Supersede(r.Context(), req.ID, req.ReplacementID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{"updated_count": updated})
+}
+
+func (s *MemoryServer) handleAudit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req memdomain.AuditOptions
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	report, err := s.mgr.Audit(r.Context(), req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"report": report})
+}
+
 func (s *MemoryServer) handleCompact(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -173,4 +260,3 @@ func (s *MemoryServer) handleCompact(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]int{"removed_count": count})
 }
-

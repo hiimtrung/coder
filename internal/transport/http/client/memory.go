@@ -109,6 +109,9 @@ func (c *Client) Search(ctx context.Context, query string, scope string, tags []
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
+	for i := range res.Results {
+		memdomain.HydrateKnowledgeLifecycle(&res.Results[i].Knowledge)
+	}
 	return res.Results, nil
 }
 
@@ -137,6 +140,9 @@ func (c *Client) List(ctx context.Context, limit, offset int) ([]memdomain.Knowl
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
+	for i := range res.Items {
+		memdomain.HydrateKnowledgeLifecycle(&res.Items[i])
+	}
 	return res.Items, nil
 }
 
@@ -158,6 +164,94 @@ func (c *Client) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("server returned status: %s", resp.Status)
 	}
 	return nil
+}
+
+func (c *Client) Verify(ctx context.Context, id string, opts memdomain.VerifyOptions) (int, error) {
+	reqBody := map[string]any{
+		"id":          id,
+		"verified_at": opts.VerifiedAt,
+		"verified_by": opts.VerifiedBy,
+		"confidence":  opts.Confidence,
+		"source_ref":  opts.SourceRef,
+	}
+
+	data, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/memory/verify", bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("server returned status: %s", resp.Status)
+	}
+
+	var res struct {
+		UpdatedCount int `json:"updated_count"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return 0, err
+	}
+	return res.UpdatedCount, nil
+}
+
+func (c *Client) Supersede(ctx context.Context, id string, replacementID string) (int, error) {
+	reqBody := map[string]any{
+		"id":             id,
+		"replacement_id": replacementID,
+	}
+
+	data, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/memory/supersede", bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("server returned status: %s", resp.Status)
+	}
+
+	var res struct {
+		UpdatedCount int `json:"updated_count"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return 0, err
+	}
+	return res.UpdatedCount, nil
+}
+
+func (c *Client) Audit(ctx context.Context, opts memdomain.AuditOptions) (memdomain.AuditReport, error) {
+	data, _ := json.Marshal(opts)
+	req, _ := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/memory/audit", bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return memdomain.AuditReport{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return memdomain.AuditReport{}, fmt.Errorf("server returned status: %s", resp.Status)
+	}
+
+	var res struct {
+		Report memdomain.AuditReport `json:"report"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return memdomain.AuditReport{}, err
+	}
+	return res.Report, nil
 }
 
 func (c *Client) Compact(ctx context.Context, threshold float32) (int, error) {
