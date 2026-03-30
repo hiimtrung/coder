@@ -180,21 +180,28 @@ coder memory search "<query>"                                # GATE 2
 coder memory store "<Title>" "<Content>" --tags "<tags>"     # GATE 3
 ```
 
-## Available Workflows (Slash Commands)
+## Implementation Approach
 
-- `/full-lifecycle-delivery` — Master orchestrator for end-to-end delivery
-- `/new-requirement` — Requirement analysis and document scaffolding
-- `/execute-plan` — Story-by-story test-driven implementation
-- `/qa-testing` — Verification and regression safety
-- `/code-review` — Quality guardrails
-- `/debug` — Debug runtime issues
+Work in waves — each wave is independently committable:
+
+1. **Wave plan**: Review requirements and design docs, decompose into waves
+2. **Per wave**: Write tests first (Red) → implement (Green) → lint + build + test → commit
+3. **Signal checkpoint**: After each wave commit, tell the user the wave is done and wait for "continue"
+4. **Final verification**: Run full test suite and verify all acceptance criteria pass
+
+## Available Workflows
+
+- `/clarify-requirements` — Elicit and document requirements (use coder-ba agent)
+- `/architecture-design` — Technical design and ADR (use coder-architect agent)
+- `/implement-feature` — TDD wave-by-wave implementation
+- `/code-review` — Quality gate before merge
+- `/debug-issue` — Structured root cause analysis
 - `/debug-leak` — Memory leak detection and resolution
-- `/writing-test` — Test writing workflows
+- `/writing-test` — Comprehensive test writing
 - `/check-implementation` — Verify implementation against requirements
-- `/remember` — Store reusable patterns via `coder memory store`
-- `/capture-knowledge` — Document specific code entry points
+- `/simplify-implementation` — Reduce complexity
 - `/technical-writer-review` — Documentation quality review
-- `/update-planning` — Update planning documents
+- `/knowledge-capture` — Store patterns and decisions
 
 ## Multi-Language Backend Support
 

@@ -1,323 +1,239 @@
 ---
 name: general-instructions
-description: Global project rules and architecture patterns (Synced from .github/copilot-instructions.md)
+description: Universal rules for all AI agents — architecture standards, knowledge gates, error handling, and professional delivery process.
 applyTo: "**/*"
 ---
 
-# Copilot Instructions - AI-Agents Development System
+# General Instructions — AI Agent Development System
 
-This is a **unified AI Agent system** for VS Code Copilot designed to guide development across **multiple languages and frameworks** with consistent, maintainable code standards.
-
-## 🎯 System Overview
-
-You are working in a **multi-codebase workspace** with:
-
-- **omi-channel-be**: NestJS multi-tenant omnichannel backend (PostgreSQL + MongoDB + Redis)
-- **crm_be**: Spring Boot CRM backend
-- **packageTourApi**: Java REST API
-- **packageTourAdmin** & **findtourgoUI**: Next.js/React frontends
-- **ai-agents**: AI development guidance system (current)
-
-## 🛡️ Workspace Safety & Sandbox
-
-To ensure system stability and security, the following rules apply to all AI Agent operations:
-
-1. **Sandbox Execution**: Strictly forbid reading or modifying files outside of the defined project repositories (`/Users/trungtran/ai-agents/` and its sub-packages).
-2. **Forbidden Directories**: NEVER access or write to system directories, including but not limited to: `/tmp`, `/etc`, `/var`, `/usr`, `~/.ssh`, `~/.config`, or OS-specific sensitive paths.
-3. **Path Validation**: Before any `write_to_file` or `replace_file_content` operation, verify that the `TargetFile` absolute path resides within the approved workspace.
-4. **Tool usage**: Only use tools on files that you have explicitly identified as part of the project structure via `list_dir` or `find_by_name`.
+All projects follow **Clean Architecture + Event-Driven Design** with standardized error codes, semantic memory, and a professional multi-role delivery pipeline.
 
 ---
 
-All projects follow **Clean Architecture + Event-Driven Design** with standardized error codes and patterns.
+## 🏗️ System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  YOUR AI AGENT (Claude / Copilot)                           │
+│  All reasoning, planning, code generation — done HERE       │
+│  No LLM configuration needed on coder-node                  │
+└────────────────────┬────────────────────────────────────────┘
+                     │ coder CLI (gRPC)
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│  coder-node  (memory + skill + semantic search service)     │
+│  ├── PostgreSQL + pgvector  (vector(1024) storage)          │
+│  └── Ollama mxbai-embed-large  (embedding only, dim 1024)   │
+│      ↳ Converts text → vectors for semantic similarity      │
+│      ↳ NO chat LLM — Ollama is embedding-only here         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Embedding provider** (`EMBEDDING_PROVIDER`):
+| Value | Description |
+|-------|-------------|
+| `ollama` (default) | Local Ollama `mxbai-embed-large` — best for air-gapped / offline |
+| `openai` | OpenAI `text-embedding-3-small` — requires `EMBEDDING_API_KEY` |
+| `none` | FTS-only mode (keyword search, no vector similarity) |
+
+---
+
+## 🔐 Knowledge Gates — MANDATORY for every task
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  GATE 1 (START) — Before touching any code                   │
+│  coder skill search "<topic>"                                │
+│  coder memory search "<topic>"                               │
+├──────────────────────────────────────────────────────────────┤
+│  EXECUTE (implement, test, commit)                           │
+├──────────────────────────────────────────────────────────────┤
+│  GATE 2 (END) — After completing any non-trivial work        │
+│  coder memory store "<Title>" "<Content>" --tags "<tags>"    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Both gates are **blocking**. Skipping either is a workflow violation.
+
+**Todo list rule** — every task list MUST be:
+```
+1. [GATE 1] coder skill search "<topic>"
+2. [GATE 1] coder memory search "<topic>"
+   ... implementation tasks ...
+N. [GATE 2] coder memory store "<title>"
+```
+
+---
+
+## 🏢 Professional Delivery Pipeline
+
+Every feature follows a **multi-role pipeline** that mirrors a professional tech company:
+
+```
+BA (clarify-requirements)
+  ↓  confirmed requirements doc
+Architect (architecture-design)
+  ↓  ADR + system design
+Backend Dev (implement-feature)
+  ↓  implementation + unit tests
+Frontend Dev (implement-feature)
+  ↓  UI + integration
+Code Reviewer (code-review)
+  ↓  review checklist
+QA Engineer (qa-test)
+  ↓  test plan + execution
+Tech Writer (write-documentation / technical-writer-review)
+  ↓  updated docs
+Release (release-readiness)
+  ↓  production-ready artifact
+```
+
+Available workflow slash commands:
+- `/clarify-requirements` — BA phase: ask questions → write requirements doc
+- `/architecture-design` — Architect phase: ADR + design decisions
+- `/implement-feature` — Dev phase: implement + unit tests
+- `/code-review` — Review phase: structured code review checklist
+- `/qa-test` — QA phase: test plan + execution report
+- `/write-documentation` — Tech Writer: generate or update docs
+- `/technical-writer-review` — Review existing docs for quality
+- `/debug-issue` — Root cause analysis + fix plan
+- `/debug-leak` — Memory / resource leak investigation
+- `/writing-test` — Generate test cases and test suites
+- `/check-implementation` — Verify implementation matches requirements
+- `/review-design` — Review UI/UX design decisions
+- `/review-requirements` — BA review of requirements completeness
+- `/simplify-implementation` — Refactor for clarity/maintainability
+- `/release-readiness` — Pre-release checklist
+- `/knowledge-capture` — Manually capture patterns and decisions
+
+---
+
+## 🏗️ Clean Architecture (All Languages)
+
+```
+Presentation Layer  (Controllers / Handlers / gRPC)
+    ↓ DTOs
+Application Layer   (Use Cases / Application Services)
+    ↓ Domain interfaces
+Domain Layer        (Entities, Value Objects, Domain Events, Exceptions)
+    ↑ implements
+Infrastructure Layer (Repositories, External APIs, DB adapters)
+```
+
+**Rules:**
+- Dependencies point **inward only** — infrastructure depends on domain, never the reverse
+- Domain layer has **zero framework dependencies**
+- Use cases orchestrate domain objects through infrastructure interfaces
+- Cross-module communication: **events only**, never direct repository calls
+- Multi-tenancy: `company_id` on **every** query, extracted from JWT — never from request body
+
+---
+
+## ⚠️ Error Code Standard (ALL Languages)
+
+**Format**: `{CATEGORY}_{DESCRIPTIVE_NAME}`
+
+| Prefix | HTTP Status | Category | Example |
+|--------|-------------|----------|---------|
+| `AUTH_*` | 401, 403 | Authentication / Authorization | `AUTH_TOKEN_EXPIRED` |
+| `VAL_*` | 400 | Input validation | `VAL_INVALID_EMAIL` |
+| `BIZ_*` | 400, 404, 409 | Business logic | `BIZ_USER_NOT_FOUND` |
+| `INF_*` | 500, 502, 503 | Infrastructure / External | `INF_DB_CONNECTION_FAILED` |
+| `SYS_*` | 500 | System / Configuration | `SYS_CONFIG_MISSING` |
+
+**Error response shape** (consistent across all APIs):
+```json
+{
+  "error": {
+    "code": "BIZ_USER_NOT_FOUND",
+    "message": "User with this ID does not exist",
+    "action": "Verify the user ID and try again"
+  }
+}
+```
+
+---
+
+## ⚠️ Critical Rules (ALL Languages)
+
+1. **Type Safety** — NO `any` types; explicit typing everywhere
+2. **Error Handling** — Throw domain exceptions using the error code standard above
+3. **Multi-Tenancy** — ALWAYS include `company_id` in every data query
+4. **Events** — Publish domain events AFTER successful persistence, never before
+5. **Knowledge Gates** — Both gates are blocking (see above)
+6. **Build** — Run `lint → build → test` before every commit
+7. **Package Manager** — `yarn` for NestJS; `gradle` for Java; never `npm` on Node projects
+
+---
+
+## 🛠️ Available coder CLI Commands
+
+```bash
+# Memory — semantic storage and retrieval
+coder memory search "<query>"
+coder memory store "<title>" "<content>" --tags "<tag1,tag2>"
+coder memory list
+coder memory compact --revector
+
+# Skills — knowledge base retrieval
+coder skill search "<topic>"
+coder skill list
+coder skill info <name>
+
+# Session — checkpointing
+coder session save
+coder progress
+coder next
+
+# Project lifecycle
+coder install [profile]        # install rules + workflows + agent files
+coder login                    # authenticate with coder-node
+coder token                    # manage API tokens
+coder milestone complete N     # mark milestone done
+coder version                  # show version
+```
+
+**DO NOT call**: `coder chat`, `coder debug`, `coder review`, `coder qa`, `coder workflow`, `coder plan-phase`, `coder execute-phase` — these have been removed. All reasoning is handled by your AI agent (Claude / Copilot).
 
 ---
 
 ## 📋 Language-Specific Rules
 
-Detailed instructions for each language are in `.agents/rules/`:
+| Language | Skill Reference | Primary Projects |
+|----------|-----------------|-----------------|
+| TypeScript (NestJS) | `nestjs` | omi-channel-be, findtourgoUI, packageTourAdmin |
+| Java (Spring Boot) | `java` | crm_be, packageTourApi |
+| Go | `golang` | Future services |
+| Rust | `rust` | Future services |
+| Python | `python` | Scripts / utilities |
+| Dart | `dart` | Mobile / Flutter |
+| C | `c` | Embedded / system |
 
-### Backend Languages
+**Architecture Skills:**
 
-| Language       | Skill Reference | Primary Projects                               |
-| -------------- | --------------- | ---------------------------------------------- |
-| **TypeScript** | `nestjs`        | omi-channel-be, findtourgoUI, packageTourAdmin |
-| **Java**       | `java`          | crm_be, packageTourApi                         |
-| **Go**         | `golang`        | (reference for future services)                |
-| **Rust**       | `rust`          | (reference for future services)                |
-| **Python**     | `python`        | (reference for utilities/scripts)              |
-| **C**          | `c`             | (reference, if needed)                         |
-| **Dart**       | `dart`          | (reference, if needed)                         |
-
-### Architecture & Domain Rules
-
-| Topic                             | Skill Reference    | Focus                                                                         |
-| --------------------------------- | ------------------ | ----------------------------------------------------------------------------- |
-| **Architecture Patterns**         | `architecture`     | Clean Architecture, layers, module structure, DDD                             |
-| **Business Logic Patterns**       | `development`      | Use cases, domain events, exception handling                                  |
-| **Infrastructure & Integrations** | `database`         | Repositories, external APIs, messaging, databases                             |
-| **Error Codes & Exceptions**      | `general-patterns` | Error code standards, exception patterns, HTTP status codes, recovery actions |
-| **UI/UX Design Intelligence**     | `ui-ux-pro-max`    | Design system generation, styles, accessibility, and professional UI rules    |
-| **Semantic Memory**               | `coder memory` | Semantic search, pattern storage, and context retrieval                       |
-
----
-
-## 🚀 Quick Start for AI Agents
-
-### 1. Identify the Project & Language + Error Handling Rules
-
-```bash
-# Example: Working in omi-channel-be (TypeScript)
-→ Load Skill: `nestjs` (primary)
-→ Reference Skill: `general-patterns` (exceptions & error codes)
-→ Reference Skill: `architecture`
-→ Reference Skill: `development`
-
-# Example: Working in crm_be (Java)
-→ Load Skill: `java` (primary)
-→ Reference Skill: `general-patterns` (exceptions & error codes)
-→ Reference Skill: `architecture`
-→ Reference Skill: `database`
-```
-
-### 2. Follow the Hierarchy
-
-1. **Language-specific skills** (e.g., `nestjs`, `java`) - type safety, syntax, idioms
-2. **General patterns & error handling** (`general-patterns`) - standardized error codes, HTTP status, recovery actions
-3. **Architecture skills** (`architecture`) - folder structure, Clean Architecture layers
-4. **Development skills** (`development`) - use cases, domain events, exception handling
-5. **Database skills** (`database`) - database operations, external integrations
-
-### 3. When in Doubt
-
-- Check the relevant rule file for patterns
-- Check error codes reference for exception patterns
-- Look for examples in the codebase
-- Ask for specific files that exemplify the pattern (e.g., "show me a use case implementation in omi-channel-be")
-
----
-
-## 🏗️ Unified Architecture Principles
-
-### Clean Architecture (All Languages)
-
-```
-Presentation Layer (Controllers/Handlers)
-    ↓ (calls)
-Application Layer (Use Cases, Services, DTOs)
-    ↓ (uses)
-Domain Layer (Entities, Exceptions, Interfaces)
-    ↓ (implements)
-Infrastructure Layer (Repositories, External APIs)
-```
-
-### Error Handling (Standardized Across All Projects)
-
-**Error Code Format**: `{CATEGORY}_{DESCRIPTIVE_NAME}`
-
-```
-Categories:
-- AUTH_*     : Authentication/Authorization (401, 403)
-- VAL_*      : Validation errors (400)
-- BIZ_*      : Business logic errors (400, 404, 409)
-- INF_*      : Infrastructure errors (500, 502, 503)
-- SYS_*      : System errors (500)
-
-Examples:
-- AUTH_INVALID_TOKEN
-- VAL_MISSING_REQUIRED_FIELD
-- BIZ_ENTITY_NOT_FOUND
-- INF_DATABASE_ERROR
-- SYS_INTERNAL_ERROR
-```
-
-### Multi-Tenancy Pattern
-
-Every request includes tenant context (company_id from JWT):
-
-- **Extract** in controller from JWT
-- **Pass** through all use cases/services
-- **Validate** at use case level (never in database)
-- **Use** in all repository queries for data isolation
-
-### Semantic Memory System (coder memory)
-
-All AI Agent operations MUST utilize the local semantic memory via **Memory Gating**:
-1. **Gate In (MANDATORY)**: EVERY workflow must start by running `coder memory search "<topic>"` to retrieve historical context, patterns, and decisions.
-2. **Gate Out (MANDATORY)**: EVERY workflow must end by running `coder memory store "<Title>" "<Content>" --tags "<tags>"` to capture new patterns, root causes, or architectural decisions.
-3. **Compact Regularly**: Run `coder memory compact --revector` periodically to keep the memory clean and up-to-date.
-
-### AI Workflow Commands (Use These During Development)
-
-The coder CLI has three command groups. Use them at the right phase:
-
-#### Group A — Quick AI Tools (no setup needed)
-
-| When | Run this | What it does |
-|------|---------|-------------|
-| Before coding | `coder plan "<feature>"` | Generates PLAN.md with tasks, estimates, risks |
-| Quick Q&A | `coder chat "<question>"` | Context-enriched Q&A with memory+skill injection |
-| After coding | `coder review` | AI review of current git diff |
-| Reviewing a PR | `coder review --pr <number>` | AI review of GitHub PR diff |
-| Hit a bug | `coder debug "<error>"` | Structured root cause analysis + suggested fix |
-| UAT/verification | `coder qa --plan PLAN.md` | Walk acceptance criteria, auto-diagnose failures |
-| Session break | `coder session save` | Saves current task + next steps + decisions |
-| Full delivery | `coder workflow "<feature>"` | Auto-chains: plan → review → qa → fix |
-
-#### Group B — Project Lifecycle (requires `coder new-project` first)
-
-| Step | Run this | What it does |
-|------|---------|-------------|
-| Init | `coder new-project "idea"` | Q&A → REQUIREMENTS.md + ROADMAP.md + STATE.md |
-| Map | `coder map-codebase` | 4-pass analysis → STACK / ARCH / CONVENTIONS / CONCERNS |
-| Discuss | `coder discuss-phase N` | Gray-area Q&A → CONTEXT.md for phase N |
-| Plan | `coder plan-phase N` | Research + XML plans + verification loop |
-| Execute | `coder execute-phase N` | Wave-based task execution + atomic git commits |
-| Ship | `coder ship [N]` | `gh pr create` with AI-generated PR body |
-| Navigate | `coder progress` / `coder next` | Current state + next recommended command |
-| Close | `coder milestone complete N` | Mark phase done, record in STATE.md |
-| Advance | `coder milestone next` | Move to next phase |
-
-#### Group C — Project Utilities
-
-```bash
-coder todo add "..."         # add backlog item to STATE.md
-coder note "decision text"   # record decision (--blocker | --backlog flags)
-coder health                 # check artifacts, blockers, stale state
-coder stats                  # phases, commits, plan coverage, file counts
-coder do "<task>"            # one-off AI task with full project context
-```
-
-State files are saved in `.coder/` (plans/, qa/, sessions/, workflows/, phases/, STATE.md).
-
-## ⚠️ Critical Rules (ALL Languages)
-
-1. **Type Safety**: NO `any` types, explicit typing everywhere
-2. **Error Handling**: Throw domain exceptions with standardized error codes (see `general-patterns` skill)
-   - **AUTH\_\*** (401, 403): Authentication & authorization failures
-   - **VAL\_\*** (400): Input validation failures
-   - **BIZ\_\*** (400, 404, 409): Business logic violations
-   - **INF\_\*** (500, 502, 503): Infrastructure/external failures
-   - **SYS\_\*** (500): System/configuration errors
-3. **Multi-Tenancy**: ALWAYS validate company_id on queries
-4. **Events**: Publish AFTER persistence, NOT before (event-driven architecture)
-5. **Memory** — TWO MANDATORY GATES:
-
-   **GATE 1 (START)** — Run before touching any code:
-
-   ```bash
-   coder memory search "<task topic>"
-   ```
-
-   **GATE 2 (END)** — Run after completing any non-trivial work:
-
-   ```bash
-   coder memory store "<Title>" "<What was done, why, which files>" --tags "<project,topic>"
-   ```
-
-   Both gates are **blocking**. Skipping either is a workflow violation.
-
-   **Todo List Rule**: Every todo list MUST be structured as:
-   ```
-   1. [GATE 1] Memory search: "<topic>"      ← always first
-      ... actual work tasks ...
-   N. [GATE 2] Memory store: "<title>"       ← always last
-   ```
-   A todo list without these two bookend tasks is **invalid**.
-
-6. **Build**: Run lint → build → test before commit
-7. **Package Manager**: Use `yarn` for NestJS, `gradle` for Java (never npm for Node projects)
+| Topic | Skill |
+|-------|-------|
+| Clean Architecture, DDD | `architecture` |
+| Use cases, domain events | `development` |
+| Repositories, integrations | `database` |
+| Error codes, exceptions | `general-patterns` |
+| UI/UX design | `ui-ux-pro-max` |
 
 ---
 
 ## 🔄 Cross-Module Communication
 
-### Right Way: Event-Driven
-
 ```typescript
-// Module A: Publish event after persistence
+// ✅ RIGHT — event-driven
 await this.repository.save(entity);
-await this.eventPublisher.publish(new DomainEvent(...));
+await this.eventPublisher.publish(new UserCreatedEvent(...));
 
-// Module B: Subscribe to event in handler
-@EventsHandler(DomainEvent)
-export class DomainEventHandler { ... }
-```
-
-### Wrong Way: Direct Repository Calls
-
-```typescript
-// ❌ FORBIDDEN: Module A calling Module B's repository
-private readonly moduleB_Repository: IRepository; // ← Cross-module!
+// ❌ WRONG — cross-module repository access
+private readonly orderRepository: IOrderRepository; // forbidden in UserModule
 ```
 
 ---
 
-## 📖 How to Use These Rules
-
-**For Copilot/AI Agents**:
-
-1. When asked to work on a file, check its extension (`.ts`, `.java`, etc.)
-2. Load the corresponding language skill (e.g., `nestjs`, `java`)
-3. Cross-reference `general-patterns` as needed
-4. Reference `architecture`/`development` skills for patterns
-5. Ask for specific code examples from the codebase if clarification needed
-
-**For Developers**:
-
-1. Keep `.agents/skills/` referenced when developing
-2. Refer to the language-specific skill for your project
-3. Check `general-patterns` for exception patterns
-4. Reference `architecture` skill for folder structure questions
-5. Reference `development` skill for use case/domain patterns
-
----
-
-## 🔍 Complete Rules Reference Map
-
-### Core Skills (All Languages)
-
-1. **`general-patterns`** - Standardized error codes (AUTH*\*, VAL*\_, BIZ\_\_, INF*\*, SYS*\*), exception patterns, HTTP status codes, recovery actions
-2. **`architecture`** - Clean Architecture, layer structure, module organization, design patterns
-3. **`development`** - Use cases, domain events, exception handling, validation patterns
-4. **`database`** - Repositories, external APIs, database operations, messaging
-5. **`ui-ux-pro-max`** - Design system generation, styles, accessibility, and professional UI guidelines
-
-### Language-Specific Skills
-
-- **`nestjs`** - Type safety, NestJS patterns, module structure (for omi-channel-be, findtourgoUI, packageTourAdmin)
-- **`java`** - Spring Boot patterns, annotations, dependency injection (for crm_be, packageTourApi)
-- **`golang`** - Interfaces, error handling, concurrency (reference for future Go services)
-- **`rust`** - Ownership, Result types, async/await (reference for future Rust services)
-- **`python`** - Type hints, best practices (reference for scripts/utilities)
-- **`dart`** - Classes, async patterns (reference for mobile/Flutter apps)
-- **`c`** - Memory management, C conventions (reference if needed)
-
-### Rule Selection Guide
-
-| Scenario                                       | Load First         | Then Reference                                       |
-| ---------------------------------------------- | ------------------ | ---------------------------------------------------- |
-| Creating new TypeScript file in omi-channel-be | `nestjs`           | `general-patterns`, `architecture`, `development`    |
-| Creating new Java file in crm_be               | `java`             | `general-patterns`, `architecture`, `database`       |
-| Implementing new exception                     | `general-patterns` | `development`, language-specific skills              |
-| Designing new module architecture              | `architecture`     | `general-patterns`, `development`, language-specific |
-| Building cross-module integration              | `development`      | `architecture`, `general-patterns`, `database`       |
-| Integrating external API                       | `database`         | `general-patterns`, language-specific, `development` |
-| Designing a new UI/Landing Page                | `ui-ux-pro-max`    | `nestjs`, `architecture`, `general-patterns`         |
-| Reviewing UI for professional quality          | `ui-ux-pro-max`    | `web-design-guidelines`, `general-patterns`          |
-
----
-
-## 🎓 Learning Path for New Developers
-
-1. **Day 1**: Read the project's main `README.md`
-2. **Day 2-3**: Read language-specific skill (e.g., `nestjs`)
-3. **Day 3**: Read `architecture` skill
-4. **Day 4**: Read project docs (e.g., omi-channel-be/docs/ARCHITECTURE.md)
-5. **Day 5+**: Reference `development` and `database` skills as needed
-
----
-
-**Last Updated**: February 2026
+**Last Updated**: March 2026
 **System**: AI-Agents Unified Development Guidance
 **Status**: Production Ready

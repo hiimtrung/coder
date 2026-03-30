@@ -190,20 +190,28 @@ coder memory search "<query>"                                # GATE 2
 coder memory store "<Title>" "<Content>" --tags "<tags>"     # GATE 3
 ```
 
-## Available Workflows (Slash Commands)
+## Implementation Approach
 
-- `/new-requirement` — Requirement analysis and component scaffolding
-- `/execute-plan` — Component-by-component implementation
-- `/qa-testing` — UI verification and regression safety
-- `/code-review` — Quality guardrails
-- `/debug` — Debug UI/logic issues
+Work in waves — each wave is independently committable:
+
+1. **Wave plan**: Review requirements and design docs, decompose into component waves
+2. **Per wave**: Write tests first (Red) → implement (Green) → lint + build + test → commit
+3. **Signal checkpoint**: After each wave commit, tell the user the wave is done and wait for "continue"
+4. **Final verification**: Run full test suite and verify all acceptance criteria pass
+
+## Available Workflows
+
+- `/clarify-requirements` — Elicit and document requirements (use coder-ba agent)
+- `/architecture-design` — Technical design (use coder-architect agent)
+- `/implement-feature` — TDD wave-by-wave implementation
+- `/code-review` — Quality gate before merge
+- `/debug-issue` — Structured root cause analysis
 - `/writing-test` — Component and integration test writing
-- `/review-design` — Verify implementation against Figma/design specs
+- `/review-design` — Verify implementation against design specs
 - `/check-implementation` — Verify implementation against requirements
-- `/remember` — Store reusable patterns via `coder memory store`
-- `/capture-knowledge` — Document specific component patterns
 - `/simplify-implementation` — Refactor complex components
 - `/technical-writer-review` — Documentation quality review
+- `/knowledge-capture` — Store patterns and decisions
 
 ## Multi-Platform Frontend Support
 

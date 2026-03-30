@@ -13,19 +13,21 @@ import (
 	memdomain "github.com/trungtran/coder/internal/domain/memory"
 )
 
-// Manager implements memdomain.MemoryManager using a MemoryRepository and EmbeddingProvider.
+// Manager implements memdomain.MemoryManager using a MemoryRepository and an optional EmbeddingProvider.
+// When provider is nil the manager operates in FTS-only mode: Store persists without vectors and
+// Search uses full-text search instead of semantic (vector) search.
 type Manager struct {
 	db       memdomain.MemoryRepository
 	provider memdomain.EmbeddingProvider
 	chunker  *memdomain.Chunker
 }
 
-// NewManager creates a new Manager
+// NewManager creates a new Manager. provider may be nil (FTS-only mode).
 func NewManager(db memdomain.MemoryRepository, provider memdomain.EmbeddingProvider) *Manager {
 	return &Manager{
 		db:       db,
 		provider: provider,
-		chunker:  memdomain.NewChunker(1000, 200), // Default settings
+		chunker:  memdomain.NewChunker(1000, 200),
 	}
 }
 
@@ -82,9 +84,13 @@ func (m *Manager) Store(ctx context.Context, title, content string, memType memd
 	parentID := uuid.New().String()
 
 	for i, chunk := range chunks {
-		embedding, err := m.provider.GenerateEmbedding(ctx, chunk)
-		if err != nil {
-			return "", err
+		var vec []float32
+		if m.provider != nil {
+			v, err := m.provider.GenerateEmbedding(ctx, chunk)
+			if err != nil {
+				return "", err
+			}
+			vec = v
 		}
 
 		id := uuid.New().String()
@@ -104,7 +110,7 @@ func (m *Manager) Store(ctx context.Context, title, content string, memType memd
 			ChunkIndex:      i,
 			NormalizedTitle: strings.ToLower(strings.TrimSpace(title)),
 			ContentHash:     hex.EncodeToString(hash(chunk)),
-			Vector:          embedding,
+			Vector:          vec,
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
@@ -133,15 +139,20 @@ func (m *Manager) Search(ctx context.Context, query string, scope string, tags [
 
 	now := time.Now().UTC()
 	filters := memdomain.NormalizeSearchFilters(metaFilters, now)
-	embedding, err := m.provider.GenerateEmbedding(ctx, query)
-	if err != nil {
-		return nil, err
+
+	// When an embedding provider is available, use hybrid (vector + FTS) search.
+	// Otherwise fall back to FTS-only by passing a nil vector.
+	var vec []float32
+	if m.provider != nil {
+		v, err := m.provider.GenerateEmbedding(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		vec = v
 	}
 
-	// Pass both the embedding vector and the raw query text so the storage
-	// layer can perform hybrid semantic + full-text search (RRF).
 	fetchLimit := max(limit*3, 15)
-	results, err := m.db.Search(ctx, embedding, query, scope, tags, memType, filters, fetchLimit)
+	results, err := m.db.Search(ctx, vec, query, scope, tags, memType, filters, fetchLimit)
 	if err != nil {
 		return nil, err
 	}

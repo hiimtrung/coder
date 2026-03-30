@@ -266,10 +266,17 @@ func (s *postgresSkillStore) DeleteSkill(ctx context.Context, name string) error
 //
 // When queryText is empty the method falls back to pure semantic search.
 func (s *postgresSkillStore) SearchChunks(ctx context.Context, queryVector []float32, queryText string, limit int) ([]skilldomain.SkillChunkResult, error) {
-	if strings.TrimSpace(queryText) != "" {
+	hasVector := len(queryVector) > 0
+	hasText := strings.TrimSpace(queryText) != ""
+
+	if hasVector && hasText {
 		return s.hybridSearchChunks(ctx, queryVector, queryText, limit)
 	}
-	return s.semanticSearchChunks(ctx, queryVector, limit)
+	if hasVector {
+		return s.semanticSearchChunks(ctx, queryVector, limit)
+	}
+	// FTS-only mode: no embedding provider
+	return s.ftsSearchChunks(ctx, queryText, limit)
 }
 
 // semanticSearchChunks is the original pure-vector search.
@@ -329,6 +336,20 @@ func (s *postgresSkillStore) hybridSearchChunks(ctx context.Context, queryVector
 	`, candidateLimit, candidateLimit, limit)
 
 	return s.runChunkQuery(ctx, sqlQuery, vec, queryText)
+}
+
+// ftsSearchChunks performs FTS-only skill chunk search (no vector required).
+func (s *postgresSkillStore) ftsSearchChunks(ctx context.Context, queryText string, limit int) ([]skilldomain.SkillChunkResult, error) {
+	query := `
+		SELECT sc.id, sc.skill_id, sc.section_id, sc.chunk_type, sc.title, sc.content,
+		       sc.chunk_index, sc.content_hash, sc.created_at,
+		       ts_rank(sc.fts, plainto_tsquery('english', $1)) AS score
+		FROM skill_chunks sc
+		WHERE sc.fts @@ plainto_tsquery('english', $1)
+		ORDER BY score DESC
+		LIMIT $2
+	`
+	return s.runChunkQuery(ctx, query, queryText, limit)
 }
 
 // runChunkQuery executes any chunk search query and scans the standard 10-column result.

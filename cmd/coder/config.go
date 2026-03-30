@@ -15,6 +15,7 @@ import (
 	ucmemory "github.com/trungtran/coder/internal/usecase/memory"
 )
 
+
 // Config represents the coder configuration stored at ~/.coder/config.json.
 type Config struct {
 	Memory struct {
@@ -125,39 +126,15 @@ func getMemoryManager() memdomain.MemoryManager {
 		os.Exit(1)
 	}
 
+	// Embedding provider — optional. When provider is not configured, the manager
+	// falls back to FTS-only (full-text) search — no API key required.
 	var provider memdomain.EmbeddingProvider
 
-	if providerType == "ollama" {
-		baseURL := cfg.Memory.BaseURL
-		if baseURL == "" {
-			baseURL = os.Getenv("OLLAMA_BASE_URL")
-		}
-		if baseURL == "" {
-			fmt.Fprintf(os.Stderr, "Error: ollama base_url is not configured. Local ollama is not supported.\n")
-			os.Exit(1)
-		}
-		model := cfg.Memory.Model
-		if model == "" {
-			model = os.Getenv("OLLAMA_EMBEDDING_MODEL")
-		}
-		if model == "" {
-			model = "mxbai-embed-large" // dimension 1024
-		}
-		provider = &embedding.OllamaEmbeddingProvider{
-			BaseURL: baseURL,
-			Model:   model,
-		}
-	} else {
+	if providerType == "openai" {
 		apiKey := cfg.Memory.APIKey
 		if apiKey == "" {
 			apiKey = os.Getenv("OPENAI_API_KEY")
 		}
-
-		baseURL := cfg.Memory.BaseURL
-		if baseURL == "" {
-			baseURL = os.Getenv("OPENAI_BASE_URL")
-		}
-
 		model := cfg.Memory.Model
 		if model == "" {
 			model = os.Getenv("OPENAI_EMBEDDING_MODEL")
@@ -165,13 +142,14 @@ func getMemoryManager() memdomain.MemoryManager {
 		if model == "" {
 			model = "text-embedding-3-small"
 		}
-
 		provider = &embedding.OpenAIEmbeddingProvider{
-			APIKey:  apiKey,
-			BaseURL: baseURL,
-			Model:   model,
+			APIKey:     apiKey,
+			BaseURL:    cfg.Memory.BaseURL,
+			Model:      model,
+			Dimensions: 1024,
 		}
 	}
+	// Any other value (or empty) → FTS-only, provider stays nil.
 
 	return ucmemory.NewManager(db, provider)
 }
@@ -214,49 +192,6 @@ func getSkillClient() skilldomain.SkillClient {
 	}
 }
 
-// getDebugClient returns the appropriate DebugClientIface based on configured protocol.
-func getDebugClient(cfg *Config) httpclient.DebugClientIface {
-	if cfg.Memory.Protocol == "grpc" {
-		addr := cfg.Memory.BaseURL
-		if addr == "" {
-			addr = "localhost:50051"
-		}
-		client, err := grpcclient.NewDebugClient(addr, cfg.Auth.AccessToken)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to create gRPC debug client: %v — falling back to HTTP\n", err)
-		} else {
-			return client
-		}
-	}
-	return httpclient.NewDebugClient(getHTTPBaseURL(cfg), cfg.Auth.AccessToken)
-}
-
-// getReviewClient returns the appropriate ReviewClientIface based on configured protocol.
-func getReviewClient(cfg *Config) httpclient.ReviewClientIface {
-	if cfg.Memory.Protocol == "grpc" {
-		addr := cfg.Memory.BaseURL
-		if addr == "" {
-			addr = "localhost:50051"
-		}
-		client, err := grpcclient.NewReviewClient(addr, cfg.Auth.AccessToken)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to create gRPC review client: %v — falling back to HTTP\n", err)
-		} else {
-			return client
-		}
-	}
-	return httpclient.NewReviewClient(getHTTPBaseURL(cfg), cfg.Auth.AccessToken)
-}
-
-// getHTTPBaseURL returns the correct base URL for HTTP-only transport clients.
-// When protocol is "grpc", the base_url points to the gRPC port so we fall
-// back to localhost:8080 — the default HTTP port for coder-node.
-func getHTTPBaseURL(cfg *Config) string {
-	if cfg.Memory.Protocol != "grpc" && cfg.Memory.BaseURL != "" {
-		return cfg.Memory.BaseURL
-	}
-	return "http://localhost:8080"
-}
 
 // resolveTargetDir returns the given flag value, or the current working directory.
 func resolveTargetDir(flag string) string {

@@ -1,6 +1,6 @@
 services:
   postgres:
-    # pgvector/pgvector supports linux/amd64 + linux/arm64 (replaces ankane/pgvector)
+    # pgvector/pgvector supports linux/amd64 + linux/arm64
     image: pgvector/pgvector:pg18
     container_name: pgvector_db
     restart: unless-stopped
@@ -9,11 +9,7 @@ services:
       POSTGRES_PASSWORD: coder_password
       POSTGRES_DB: coder
     volumes:
-      # PG18+ stores data in /var/lib/postgresql/18/main (version-specific subdir).
-      # Mount the PARENT directory so pg_upgrade --link works across major versions.
       - pg_data:/var/lib/postgresql
-    # start_period gives postgres time to initialise the data directory on first run
-    # (especially important on Debian/Linux x86 where cold init can take 60–90s).
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U coder -d coder"]
       interval: 10s
@@ -22,7 +18,8 @@ services:
       start_period: 60s
 
   ollama:
-    # ollama/ollama supports linux/amd64 + linux/arm64
+    # Embedding-only Ollama instance — no LLM models, only mxbai-embed-large.
+    # All LLM reasoning is handled client-side by your AI agent (Claude, Copilot, etc.).
     image: ollama/ollama:latest
     container_name: ollama_embed
     restart: unless-stopped
@@ -34,23 +31,19 @@ services:
         ollama serve &
         echo "Waiting for ollama to start..."
         until ollama list > /dev/null 2>&1; do sleep 2; done
-        echo "Pulling mxbai-embed-large..."
+        echo "Pulling mxbai-embed-large (embedding model)..."
         ollama pull mxbai-embed-large
-        echo "Pulling qwen3.5:0.8b..."
-        ollama pull qwen3.5:0.8b
-        echo "Ollama ready."
+        echo "Ollama ready — embedding service online."
         wait
     healthcheck:
-      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1"]
-      interval: 10s
+      test: ["CMD-SHELL", "ollama list | grep -q mxbai-embed-large"]
+      interval: 15s
       timeout: 10s
-      retries: 15
-      start_period: 30s
+      retries: 20
+      start_period: 60s
 
   coder-node:
     # Production: pulls from registry. Dev: run `docker-compose build coder-node` to build from source.
-    # When both build: and image: are set, `docker-compose build` uses the Dockerfile and tags
-    # the result with the image name so `docker-compose up` picks it up automatically.
     build:
       context: ..
       dockerfile: Dockerfile.node
@@ -59,14 +52,15 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DSN: postgres://coder:coder_password@postgres:5432/coder?sslmode=disable
-      OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_EMBEDDING_MODEL: mxbai-embed-large
-      OLLAMA_CHAT_MODEL: qwen3.5:0.8b
       GRPC_PORT: 50051
       HTTP_PORT: 8080
-      # Set SECURE_MODE=true to require client authentication.
-      # When enabled, the server prints a one-time bootstrap token on first startup.
-      # Each developer must run `coder login` with that token to register their machine.
+      # Embedding — Ollama (default). Provides semantic vector search for memory + skills.
+      EMBEDDING_PROVIDER: ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_EMBEDDING_MODEL: mxbai-embed-large
+      # Secure mode: set to true to require client token registration.
+      # On first start, a BOOTSTRAP TOKEN is printed — share it with developers
+      # who then run: coder login
       SECURE_MODE: ${SECURE_MODE:-false}
     ports:
       - "50051:50051"

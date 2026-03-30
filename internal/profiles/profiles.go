@@ -22,19 +22,20 @@ var predefined = map[string]Profile{
 			"be.instructions.md",
 		},
 		Workflows: []string{
-			"full-lifecycle-delivery.md",
-			"new-requirement.md",
-			"execute-plan.md",
-			"qa-testing.md",
+			"clarify-requirements.md",
+			"architecture-design.md",
+			"implement-feature.md",
 			"code-review.md",
-			"debug.md",
+			"qa-test.md",
+			"debug-issue.md",
 			"debug-leak.md",
 			"writing-test.md",
 			"check-implementation.md",
-			"remember.md",
-			"capture-knowledge.md",
+			"release-readiness.md",
+			"knowledge-capture.md",
 			"technical-writer-review.md",
-			"update-planning.md",
+			"review-requirements.md",
+			"simplify-implementation.md",
 		},
 		AgentFile:       "coder-be.agent.md",
 		ClaudeAgentFile: "coder-be.md",
@@ -47,37 +48,37 @@ var predefined = map[string]Profile{
 			"fe.instructions.md",
 		},
 		Workflows: []string{
-			"new-requirement.md",
-			"execute-plan.md",
-			"qa-testing.md",
+			"clarify-requirements.md",
+			"implement-feature.md",
 			"code-review.md",
-			"debug.md",
+			"qa-test.md",
+			"debug-issue.md",
 			"writing-test.md",
 			"review-design.md",
 			"check-implementation.md",
-			"remember.md",
-			"capture-knowledge.md",
+			"knowledge-capture.md",
 			"simplify-implementation.md",
 			"technical-writer-review.md",
+			"write-documentation.md",
 		},
 		AgentFile:       "coder-fe.agent.md",
 		ClaudeAgentFile: "coder-fe.md",
 	},
 	"fullstack": {
 		Name:            "fullstack",
-		Description:     "Full-stack development (backend + frontend)",
+		Description:     "Full-stack delivery with complete professional team simulation",
 		Rules:           nil, // all
 		Workflows:       nil, // all
 		AgentFile:       "coder.agent.md",
-		ClaudeAgentFile: "coder.md",
+		ClaudeAgentFile: "", // all Claude agent files (coder + all specialists)
 	},
 	"all": {
 		Name:            "all",
-		Description:     "All available files, rules, and workflows",
-		Rules:           nil, // all
-		Workflows:       nil, // all
-		AgentFile:       "", // all VS Code agent files as-is
-		ClaudeAgentFile: "", // all Claude agent files as-is
+		Description:     "All available files, rules, workflows, and agent definitions",
+		Rules:           nil,
+		Workflows:       nil,
+		AgentFile:       "",
+		ClaudeAgentFile: "",
 	},
 }
 
@@ -97,8 +98,8 @@ func PrintAll() {
 	fmt.Println("Available profiles:")
 	fmt.Println("  be         Backend development (NestJS, Java, Go, Python, Rust, C, Dart)")
 	fmt.Println("  fe         Frontend development (React, Next.js, React Native)")
-	fmt.Println("  fullstack  Full-stack development (backend + frontend)")
-	fmt.Println("  all        All available files, rules, and workflows")
+	fmt.Println("  fullstack  Full-stack delivery with complete professional team simulation")
+	fmt.Println("  all        All available files, rules, workflows, and agent definitions")
 }
 
 // PrintProfile prints the details of a single profile.

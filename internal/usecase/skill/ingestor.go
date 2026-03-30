@@ -229,16 +229,19 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 		}
 	}
 
-	// 8. Process changed/new sections → rewrite paths → generate embedding → store chunk
+	// 8. Process changed/new sections → rewrite paths → optionally embed → store chunk
 	for _, item := range sectionsToIngest {
 		// Rewrite script paths to point to ~/.coder/cache/<skill>/ before embedding
 		rewrittenContent := skilldomain.RewriteSkillPaths(item.section.Content, name)
 
-		// Generate embedding on rewritten content so semantic search reflects cache paths
-		embeddingText := item.section.Title + "\n" + rewrittenContent
-		embedding, err := ing.provider.GenerateEmbedding(ctx, embeddingText)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate embedding for chunk %d of %q: %w", item.index, name, err)
+		var vec []float32
+		if ing.provider != nil {
+			embeddingText := item.section.Title + "\n" + rewrittenContent
+			v, err := ing.provider.GenerateEmbedding(ctx, embeddingText)
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate embedding for chunk %d of %q: %w", item.index, name, err)
+			}
+			vec = v
 		}
 
 		chunk := &skilldomain.SkillChunk{
@@ -250,7 +253,7 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 			Content:     rewrittenContent,
 			ChunkIndex:  item.index,
 			ContentHash: item.hash,
-			Vector:      embedding,
+			Vector:      vec,
 			CreatedAt:   now,
 		}
 
@@ -296,13 +299,17 @@ func (ing *Ingestor) IngestFiles(ctx context.Context, skillName string, files []
 //   - score ≥ 0.55 (medium): return matched chunks + all split parts of the same section
 //   - score < 0.55 (low):    return only the matched chunks
 func (ing *Ingestor) SearchSkills(ctx context.Context, query string, limit int) ([]skilldomain.SkillSearchResult, error) {
-	// 1. Embed query
-	queryVec, err := ing.provider.GenerateEmbedding(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
+	// 1. Optionally embed query (nil vector → FTS-only mode in store)
+	var queryVec []float32
+	if ing.provider != nil {
+		v, err := ing.provider.GenerateEmbedding(ctx, query)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate query embedding: %w", err)
+		}
+		queryVec = v
 	}
 
-	// 2. Fetch top-k candidate chunks via hybrid search (semantic + keyword RRF).
+	// 2. Fetch top-k candidate chunks via hybrid/FTS search.
 	// Overfetch so there are enough distinct skills after grouping.
 	rawChunks, err := ing.store.SearchChunks(ctx, queryVec, query, limit*5)
 	if err != nil {
