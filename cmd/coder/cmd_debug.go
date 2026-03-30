@@ -52,16 +52,12 @@ func runDebug(args []string) {
 		cfg = &Config{}
 	}
 
-	baseURL := cfg.Memory.BaseURL
-	if baseURL == "" {
-		baseURL = "http://localhost:8080"
-	}
-	debugClient := httpclient.NewDebugClient(baseURL, cfg.Auth.AccessToken)
+	debugClient := getDebugClient(cfg)
 	ctx := context.Background()
 
 	// Interactive mode
 	if *interactive {
-		runDebugInteractive(ctx, baseURL, cfg.Auth.AccessToken, !*noMemory, !*noSkills)
+		runDebugInteractive(ctx, getChatClient(cfg), !*noMemory, !*noSkills)
 		return
 	}
 
@@ -173,8 +169,7 @@ func printDebugResult(r *debugdomain.DebugResult) {
 }
 
 // runDebugInteractive starts an interactive debug REPL using the chat endpoint.
-func runDebugInteractive(ctx context.Context, baseURL, accessToken string, injectMemory, injectSkills bool) {
-	chatClient := httpclient.NewChatClient(baseURL, accessToken)
+func runDebugInteractive(ctx context.Context, chatClient httpclient.ChatClientIface, injectMemory, injectSkills bool) {
 
 	fmt.Print("\ncoder debug — interactive mode\nDescribe the bug or paste an error. Type /done when resolved, /exit to quit.\n\n")
 

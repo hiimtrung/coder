@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	reviewdomain "github.com/trungtran/coder/internal/domain/review"
-	httpclient "github.com/trungtran/coder/internal/transport/http/client"
 )
 
 const reviewUsage = `Usage: coder review [file...] [flags]
@@ -112,11 +111,7 @@ func runReview(args []string) {
 	}
 
 	// --- Call coder-node /v1/review ---
-	baseURL := cfg.Memory.BaseURL
-	if baseURL == "" {
-		baseURL = "http://localhost:8080"
-	}
-	client := httpclient.NewReviewClient(baseURL, cfg.Auth.AccessToken)
+	client := getReviewClient(cfg)
 
 	ctx := context.Background()
 

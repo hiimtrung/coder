@@ -3,6 +3,7 @@
 ## Chat API
 
 ### POST /v1/chat
+
 ```json
 Request:
 {
@@ -25,13 +26,15 @@ Response:
     "memory_hits": ["JWT rotation pattern — stored 2026-01"],
     "skill_hits":  ["golang: error handling"]
   },
-  "model":  "llama3.2:latest",
+  "model":  "qwen3.5:0.8b",
   "tokens": { "prompt": 120, "completion": 340 }
 }
 ```
 
 ### POST /v1/chat/stream
+
 Same request body. Response is SSE:
+
 ```
 data: {"delta":"For","session_id":"ses-abc123","done":false}
 data: {"delta":" JWT","session_id":"ses-abc123","done":false}
@@ -39,6 +42,7 @@ data: {"delta":"","session_id":"ses-abc123","done":true,"context_used":{...}}
 ```
 
 ### GET /v1/sessions
+
 ```json
 Response: [{ "id": "ses-abc123", "title": "JWT discussion", "message_count": 12, "updated_at": "..." }]
 ```
@@ -46,6 +50,7 @@ Response: [{ "id": "ses-abc123", "title": "JWT discussion", "message_count": 12,
 ## Review API
 
 ### POST /v1/review
+
 ```json
 Request:
 {
@@ -75,6 +80,7 @@ Response:
 ## Debug API
 
 ### POST /v1/debug
+
 ```json
 Request:
 {
@@ -90,19 +96,21 @@ Response:
   "suggested_fix": "Add nil check: if m.repo == nil { return ... }",
   "similar_issues": ["nil repo check missing in RegenerateBootstrapToken — fixed 2026-01-15"],
   "confidence":    "HIGH",
-  "model":         "llama3.2:latest"
+  "model":         "qwen3.5:0.8b"
 }
 ```
 
 ## Auth (Secure Mode)
 
 ### POST /auth/login
+
 ```json
 Request:  { "token": "bootstrap-token-here" }
 Response: { "access_token": "client-token-xxx", "client_id": "cli-abc123" }
 ```
 
 ### POST /auth/token/rotate
+
 ```
 Headers: Authorization: Bearer <access_token>
 Response: { "access_token": "new-token-xxx" }
@@ -111,6 +119,7 @@ Response: { "access_token": "new-token-xxx" }
 ## Health
 
 ### GET /health
+
 ```json
 { "status": "ok", "secure_mode": false }
 ```

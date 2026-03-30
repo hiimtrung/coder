@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package chat;
+
+option go_package = "github.com/trungtran/coder/api/grpc/chatpb";
+
+import "google/protobuf/timestamp.proto";
+
+service ChatService {
+  // Blocking completion — returns full reply when done.
+  rpc Chat(ChatRequest) returns (ChatResponse);
+
+  // Server-side streaming — sends delta tokens then a final done frame.
+  rpc ChatStream(ChatRequest) returns (stream ChatStreamResponse);
+
+  // Session management.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc DeleteSession(DeleteSessionRequest) returns (DeleteSessionResponse);
+}
+
+// ── Request / Response ────────────────────────────────────────────────────────
+
+message ChatContext {
+  bool   inject_memory = 1;
+  bool   inject_skills = 2;
+  int32  memory_limit  = 3;
+  int32  skill_limit   = 4;
+  string extra_system  = 5;
+}
+
+message ChatRequest {
+  string      message    = 1;
+  string      session_id = 2; // optional — resume existing session
+  ChatContext context    = 3;
+}
+
+message ContextUsed {
+  repeated string memory_hits = 1;
+  repeated string skill_hits  = 2;
+}
+
+message TokenUsage {
+  int32 prompt     = 1;
+  int32 completion = 2;
+}
+
+message ChatResponse {
+  string      reply        = 1;
+  string      session_id   = 2;
+  ContextUsed context_used = 3;
+  string      model        = 4;
+  TokenUsage  tokens       = 5;
+}
+
+// ChatStreamResponse is sent multiple times during streaming.
+// Each frame carries either a delta token OR the final metadata (done=true).
+message ChatStreamResponse {
+  string      delta        = 1; // token chunk; empty when done=true
+  bool        done         = 2;
+  string      session_id   = 3; // set on the final frame
+  ContextUsed context_used = 4; // set on the final frame
+  TokenUsage  tokens       = 5; // set on the final frame
+  string      error        = 6; // set if an error occurred mid-stream
+}
+
+// ── Session messages ──────────────────────────────────────────────────────────
+
+message Session {
+  string                    id         = 1;
+  string                    client_id  = 2;
+  string                    title      = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message Message {
+  string                    id         = 1;
+  string                    session_id = 2;
+  string                    role       = 3;
+  string                    content    = 4;
+  int32                     tokens_in  = 5;
+  int32                     tokens_out = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message ListSessionsRequest {
+  int32 limit = 1;
+}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message GetSessionRequest {
+  string id = 1;
+}
+
+message GetSessionResponse {
+  Session           session  = 1;
+  repeated Message  messages = 2;
+}
+
+message DeleteSessionRequest {
+  string id = 1;
+}
+
+message DeleteSessionResponse {
+  bool success = 1;
+}

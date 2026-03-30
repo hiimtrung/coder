@@ -8,7 +8,10 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/trungtran/coder/api/grpc/chatpb"
+	"github.com/trungtran/coder/api/grpc/debugpb"
 	"github.com/trungtran/coder/api/grpc/memorypb"
+	"github.com/trungtran/coder/api/grpc/reviewpb"
 	"github.com/trungtran/coder/api/grpc/skillpb"
 	authdomain "github.com/trungtran/coder/internal/domain/auth"
 	"github.com/trungtran/coder/internal/infra/embedding"
@@ -58,7 +61,7 @@ func main() {
 
 	ollamaChatModel := os.Getenv("OLLAMA_CHAT_MODEL")
 	if ollamaChatModel == "" {
-		ollamaChatModel = "llama3.2:latest"
+		ollamaChatModel = "qwen3.5:0.8b"
 	}
 
 	// Initialize Postgres with shared DB handle
@@ -127,6 +130,10 @@ func main() {
 		Model: ollamaChatModel,
 	})
 
+	// Initialize review and debug managers (use cases)
+	reviewMgr := ucreview.NewManager(llmProvider, mgr, skillFacade, ollamaChatModel)
+	debugMgr := ucdebug.NewManager(llmProvider, mgr, skillFacade, ollamaChatModel)
+
 	// 1. Setup gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", grpcPort))
 	if err != nil {
@@ -142,6 +149,15 @@ func main() {
 
 	skillServer := grpcserver.NewSkillServer(skillFacade)
 	skillpb.RegisterSkillServiceServer(grpcServer, skillServer)
+
+	grpcChatServer := grpcserver.NewChatServer(chatMgr)
+	chatpb.RegisterChatServiceServer(grpcServer, grpcChatServer)
+
+	grpcReviewServer := grpcserver.NewReviewServer(reviewMgr)
+	reviewpb.RegisterReviewServiceServer(grpcServer, grpcReviewServer)
+
+	grpcDebugServer := grpcserver.NewDebugServer(debugMgr)
+	debugpb.RegisterDebugServiceServer(grpcServer, grpcDebugServer)
 
 	reflection.Register(grpcServer)
 
@@ -176,12 +192,10 @@ func main() {
 	httpChatServer.RegisterHandlers(httpMux)
 
 	// Review endpoint (Phase 3)
-	reviewMgr := ucreview.NewManager(llmProvider, mgr, skillFacade, ollamaChatModel)
 	httpReviewServer := httpserver.NewReviewServer(reviewMgr)
 	httpReviewServer.RegisterHandlers(httpMux)
 
 	// Debug endpoint (Phase 6)
-	debugMgr := ucdebug.NewManager(llmProvider, mgr, skillFacade, ollamaChatModel)
 	httpDebugServer := httpserver.NewDebugServer(debugMgr)
 	httpDebugServer.RegisterHandlers(httpMux)
 

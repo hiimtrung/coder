@@ -214,6 +214,50 @@ func getSkillClient() skilldomain.SkillClient {
 	}
 }
 
+// getDebugClient returns the appropriate DebugClientIface based on configured protocol.
+func getDebugClient(cfg *Config) httpclient.DebugClientIface {
+	if cfg.Memory.Protocol == "grpc" {
+		addr := cfg.Memory.BaseURL
+		if addr == "" {
+			addr = "localhost:50051"
+		}
+		client, err := grpcclient.NewDebugClient(addr, cfg.Auth.AccessToken)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to create gRPC debug client: %v — falling back to HTTP\n", err)
+		} else {
+			return client
+		}
+	}
+	return httpclient.NewDebugClient(getHTTPBaseURL(cfg), cfg.Auth.AccessToken)
+}
+
+// getReviewClient returns the appropriate ReviewClientIface based on configured protocol.
+func getReviewClient(cfg *Config) httpclient.ReviewClientIface {
+	if cfg.Memory.Protocol == "grpc" {
+		addr := cfg.Memory.BaseURL
+		if addr == "" {
+			addr = "localhost:50051"
+		}
+		client, err := grpcclient.NewReviewClient(addr, cfg.Auth.AccessToken)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to create gRPC review client: %v — falling back to HTTP\n", err)
+		} else {
+			return client
+		}
+	}
+	return httpclient.NewReviewClient(getHTTPBaseURL(cfg), cfg.Auth.AccessToken)
+}
+
+// getHTTPBaseURL returns the correct base URL for HTTP-only transport clients.
+// When protocol is "grpc", the base_url points to the gRPC port so we fall
+// back to localhost:8080 — the default HTTP port for coder-node.
+func getHTTPBaseURL(cfg *Config) string {
+	if cfg.Memory.Protocol != "grpc" && cfg.Memory.BaseURL != "" {
+		return cfg.Memory.BaseURL
+	}
+	return "http://localhost:8080"
+}
+
 // resolveTargetDir returns the given flag value, or the current working directory.
 func resolveTargetDir(flag string) string {
 	if flag != "" {

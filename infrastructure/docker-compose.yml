@@ -36,6 +36,8 @@ services:
         until ollama list > /dev/null 2>&1; do sleep 2; done
         echo "Pulling mxbai-embed-large..."
         ollama pull mxbai-embed-large
+        echo "Pulling qwen3.5:0.8b..."
+        ollama pull qwen3.5:0.8b
         echo "Ollama ready."
         wait
     healthcheck:
@@ -59,6 +61,7 @@ services:
       POSTGRES_DSN: postgres://coder:coder_password@postgres:5432/coder?sslmode=disable
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_EMBEDDING_MODEL: mxbai-embed-large
+      OLLAMA_CHAT_MODEL: qwen3.5:0.8b
       GRPC_PORT: 50051
       HTTP_PORT: 8080
       # Set SECURE_MODE=true to require client authentication.

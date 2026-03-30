@@ -58,7 +58,7 @@ func NewManager(
 		cfg.HistoryLimit = defaultHistoryLimit
 	}
 	if cfg.Model == "" {
-		cfg.Model = "llama3.2:latest"
+		cfg.Model = "qwen3.5:0.8b"
 	}
 	return &Manager{repo: repo, llm: llm, memory: memory, skills: skills, cfg: cfg}
 }

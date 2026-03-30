@@ -472,7 +472,7 @@ Write a VERIFICATION.md and state: PASS or NEEDS_FIXES.`,
 
 // executePlan runs all tasks for a single plan, commits after each task, and
 // writes a SUMMARY.md. Returns the summary markdown content.
-func executePlan(ctx context.Context, plan *Plan, phaseNum int, client *httpclient.ChatClient, interactive bool) (string, error) {
+func executePlan(ctx context.Context, plan *Plan, phaseNum int, client httpclient.ChatClientIface, interactive bool) (string, error) {
 	fmt.Printf("\n━━━ Executing: %s (%s) ━━━\n", plan.Name, plan.EstimatedTime)
 
 	filesStr := strings.Join(plan.Files, "\n")

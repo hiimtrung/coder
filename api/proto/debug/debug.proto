@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package debug;
+
+option go_package = "github.com/trungtran/coder/api/grpc/debugpb";
+
+service DebugService {
+  rpc Debug(DebugRequest) returns (DebugResponse);
+}
+
+message DebugContext {
+  bool inject_memory = 1;
+  bool inject_skills = 2;
+}
+
+message DebugRequest {
+  string       error_message = 1;
+  string       file_context  = 2; // optional source file content
+  string       diff_context  = 3; // optional git diff
+  DebugContext context       = 4;
+}
+
+message ContextUsed {
+  repeated string memory_hits = 1;
+  repeated string skill_hits  = 2;
+}
+
+message DebugResponse {
+  string          root_cause     = 1;
+  string          location       = 2;
+  string          confidence     = 3; // HIGH | MEDIUM | LOW
+  string          suggested_fix  = 4;
+  repeated string similar_issues = 5;
+  string          follow_up      = 6;
+  ContextUsed     context_used   = 7;
+  string          model          = 8;
+}

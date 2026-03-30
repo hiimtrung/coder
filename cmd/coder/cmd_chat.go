@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	grpcclient "github.com/trungtran/coder/internal/transport/grpc/client"
 	httpclient "github.com/trungtran/coder/internal/transport/http/client"
 )
 
@@ -125,7 +126,7 @@ func runChat(args []string) {
 }
 
 // runChatSingle sends one message and prints the streamed response.
-func runChatSingle(ctx context.Context, client *httpclient.ChatClient, message, sessionID string, injectMemory, injectSkills bool) {
+func runChatSingle(ctx context.Context, client httpclient.ChatClientIface, message, sessionID string, injectMemory, injectSkills bool) {
 	fmt.Print("\n")
 	var lastCtx *httpclient.ChatStreamDelta
 	var err error
@@ -147,7 +148,7 @@ func runChatSingle(ctx context.Context, client *httpclient.ChatClient, message, 
 }
 
 // runChatREPL starts the interactive chat loop.
-func runChatREPL(ctx context.Context, client *httpclient.ChatClient, sessionID string, injectMemory, injectSkills bool) {
+func runChatREPL(ctx context.Context, client httpclient.ChatClientIface, sessionID string, injectMemory, injectSkills bool) {
 	printChatBanner(sessionID)
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -209,7 +210,7 @@ func runChatREPL(ctx context.Context, client *httpclient.ChatClient, sessionID s
 
 // handleSlashCommand processes /commands in the REPL.
 // Returns (handled bool, newSessionID string).
-func handleSlashCommand(ctx context.Context, client *httpclient.ChatClient, cmd, _ string, lastCtx *httpclient.ContextUsed) (bool, string) {
+func handleSlashCommand(ctx context.Context, client httpclient.ChatClientIface, cmd, _ string, lastCtx *httpclient.ContextUsed) (bool, string) {
 	parts := strings.Fields(cmd)
 	switch parts[0] {
 	case "/help":
@@ -262,7 +263,7 @@ func handleSlashCommand(ctx context.Context, client *httpclient.ChatClient, cmd,
 }
 
 // runChatList prints recent sessions.
-func runChatList(ctx context.Context, client *httpclient.ChatClient) {
+func runChatList(ctx context.Context, client httpclient.ChatClientIface) {
 	sessions, err := client.ListSessions(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error listing sessions: %v\n", err)
@@ -289,13 +290,20 @@ func runChatList(ctx context.Context, client *httpclient.ChatClient) {
 }
 
 // getChatClient returns a configured ChatClient from the CLI config.
-func getChatClient(cfg *Config) *httpclient.ChatClient {
-	baseURL := cfg.Memory.BaseURL
-	if baseURL == "" {
-		baseURL = "http://localhost:8080"
+func getChatClient(cfg *Config) httpclient.ChatClientIface {
+	if cfg.Memory.Protocol == "grpc" {
+		addr := cfg.Memory.BaseURL
+		if addr == "" {
+			addr = "localhost:50051"
+		}
+		client, err := grpcclient.NewChatClient(addr, cfg.Auth.AccessToken)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to create gRPC chat client: %v — falling back to HTTP\n", err)
+		} else {
+			return client
+		}
 	}
-	// For HTTP protocol, use same base URL as memory
-	return httpclient.NewChatClient(baseURL, cfg.Auth.AccessToken)
+	return httpclient.NewChatClient(getHTTPBaseURL(cfg), cfg.Auth.AccessToken)
 }
 
 // printChatBanner displays the welcome banner.

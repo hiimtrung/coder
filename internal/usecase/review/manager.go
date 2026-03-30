@@ -53,7 +53,7 @@ type Manager struct {
 
 func NewManager(llm chatdomain.LLMProvider, memory memdomain.MemoryManager, skills skilldomain.SkillUseCase, model string) *Manager {
 	if model == "" {
-		model = "llama3.2:latest"
+		model = "qwen3.5:0.8b"
 	}
 	return &Manager{llm: llm, memory: memory, skills: skills, model: model}
 }

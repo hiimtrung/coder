@@ -23,7 +23,7 @@ func NewOllamaProvider(baseURL, model string) *OllamaProvider {
 		baseURL = "http://localhost:11434"
 	}
 	if model == "" {
-		model = "llama3.2:latest"
+		model = "qwen3.5:0.8b"
 	}
 	return &OllamaProvider{BaseURL: strings.TrimSuffix(baseURL, "/"), Model: model}
 }

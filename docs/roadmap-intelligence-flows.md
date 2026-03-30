@@ -6,26 +6,26 @@
 
 ## Implementation Status
 
-| Phase | Feature | Status |
-|-------|---------|--------|
-| 1 | LLM Backbone (coder-node) | ✅ Done |
-| 2 | coder chat | ✅ Done |
-| 3 | coder review | ✅ Done |
-| 4 | coder plan | ✅ Done |
-| 5 | coder qa | ✅ Done |
-| 6 | coder debug | ✅ Done |
-| 7 | coder session | ✅ Done |
-| 8 | coder workflow | ✅ Done |
-| 9 | coder new-project | 🔲 Planned |
-| 10 | coder map-codebase | 🔲 Planned |
-| 11 | coder discuss-phase | 🔲 Planned |
-| 12 | coder plan-phase (upgrade) | 🔲 Planned |
-| 13 | coder execute-phase (subagent execution) | 🔲 Planned |
-| 14 | coder ship | 🔲 Planned |
-| 15 | coder progress / coder next | 🔲 Planned |
-| 16 | coder milestone | 🔲 Planned |
-| 17 | Utilities (todo, stats, health, do, note) | 🔲 Planned |
-| 18 | Subagent agent definitions (.claude/agents/) | 🔲 Planned |
+| Phase | Feature                                      | Status     |
+| ----- | -------------------------------------------- | ---------- |
+| 1     | LLM Backbone (coder-node)                    | ✅ Done    |
+| 2     | coder chat                                   | ✅ Done    |
+| 3     | coder review                                 | ✅ Done    |
+| 4     | coder plan                                   | ✅ Done    |
+| 5     | coder qa                                     | ✅ Done    |
+| 6     | coder debug                                  | ✅ Done    |
+| 7     | coder session                                | ✅ Done    |
+| 8     | coder workflow                               | ✅ Done    |
+| 9     | coder new-project                            | 🔲 Planned |
+| 10    | coder map-codebase                           | 🔲 Planned |
+| 11    | coder discuss-phase                          | 🔲 Planned |
+| 12    | coder plan-phase (upgrade)                   | 🔲 Planned |
+| 13    | coder execute-phase (subagent execution)     | 🔲 Planned |
+| 14    | coder ship                                   | 🔲 Planned |
+| 15    | coder progress / coder next                  | 🔲 Planned |
+| 16    | coder milestone                              | 🔲 Planned |
+| 17    | Utilities (todo, stats, health, do, note)    | 🔲 Planned |
+| 18    | Subagent agent definitions (.claude/agents/) | 🔲 Planned |
 
 ---
 
@@ -116,7 +116,7 @@ Response:
     "memory_hits": ["JWT auth pattern (2025-11)", "Token rotation fix"],
     "skill_hits":  ["nestjs:auth", "general-patterns:security"]
   },
-  "model":  "llama3.2:latest",
+  "model":  "qwen3.5:0.8b",
   "tokens": { "prompt": 1240, "completion": 380 }
 }
 ```
@@ -124,6 +124,7 @@ Response:
 #### `POST /v1/chat/stream`
 
 Same as `/v1/chat` but Server-Sent Events:
+
 ```
 data: {"delta": "For JWT"}
 data: {"delta": " refresh tokens, the recommended"}
@@ -255,13 +256,13 @@ internal/transport/http/server/
 // ~/.coder/config.json — new section added
 {
   "chat": {
-    "model":          "llama3.2:latest",
-    "stream":         true,
-    "inject_memory":  true,
-    "inject_skills":  true,
-    "memory_limit":   5,
-    "skill_limit":    3,
-    "history_limit":  20
+    "model": "qwen3.5:0.8b",
+    "stream": true,
+    "inject_memory": true,
+    "inject_skills": true,
+    "memory_limit": 5,
+    "skill_limit": 3,
+    "history_limit": 20
   }
 }
 ```
@@ -358,16 +359,16 @@ Session saved: abc123 — "error handling in NestJS" (2 messages)
 
 ### 2.3 — Slash commands in REPL
 
-| Command | Action |
-|---|---|
-| `/help` | Show available commands |
-| `/sessions` | List recent sessions |
-| `/resume <id>` | Load a session |
-| `/clear` | Clear conversation history (keep session ID) |
-| `/context` | Show currently injected context |
-| `/model <name>` | Switch model for this session |
-| `/save <note>` | Save session with a custom title |
-| `/exit` or Ctrl+C | Exit and auto-save session |
+| Command           | Action                                       |
+| ----------------- | -------------------------------------------- |
+| `/help`           | Show available commands                      |
+| `/sessions`       | List recent sessions                         |
+| `/resume <id>`    | Load a session                               |
+| `/clear`          | Clear conversation history (keep session ID) |
+| `/context`        | Show currently injected context              |
+| `/model <name>`   | Switch model for this session                |
+| `/save <note>`    | Save session with a custom title             |
+| `/exit` or Ctrl+C | Exit and auto-save session                   |
 
 ### 2.4 — Internal CLI flow
 
@@ -390,6 +391,7 @@ coder chat "question"
 ### 2.5 — File: `cmd/coder/cmd_chat.go`
 
 Key functions:
+
 ```go
 func runChat(args []string)
 func runChatREPL(cfg Config, sessionID string)
@@ -502,7 +504,7 @@ SUGGESTIONS
 
 ──────────────────────────────────────────────────────────
   3 files reviewed · 4 concerns (2 HIGH, 1 MEDIUM, 1 LOW)
-  Model: llama3.2:latest · Context: auth patterns (memory)
+  Model: qwen3.5:0.8b · Context: auth patterns (memory)
 ══════════════════════════════════════════════════════════
 ```
 
@@ -589,7 +591,7 @@ When multiple models are configured or `--all-models` is passed:
 ```
 coder review --all-models
 
-  ⟳ Reviewing with llama3.2:latest...  done
+  ⟳ Reviewing with qwen3.5:0.8b...  done
   ⟳ Reviewing with gemma2:9b...        done
 
 Synthesizing consensus...
@@ -599,9 +601,9 @@ Synthesizing consensus...
 ══════════════════════════════════════════
 
 AGREED CONCERNS (raised by 2+ models)
-  ● [HIGH] Token refresh expiry not checked  ← llama3.2 + gemma2
+  ● [HIGH] Token refresh expiry not checked  ← qwen3.5 + gemma2
 
-UNIQUE CONCERNS — llama3.2 only
+UNIQUE CONCERNS — qwen3.5 only
   ● [LOW] Variable naming on line 89
 
 UNIQUE CONCERNS — gemma2 only
@@ -831,26 +833,32 @@ estimated_hours: 3.5
 # Plan: User Authentication with JWT
 
 ## Context (decisions from Q&A)
+
 - Token storage: httpOnly cookie
 - Session length: 15min access + 7d refresh with rotation
 - Multi-device: yes, each device gets own refresh token
 - Invalidation: logout clears all sessions for the device
 
 ## Research findings
+
 - Existing auth patterns: SHA-256 token hash (already in codebase)
 - JWT library: golang-jwt/jwt/v5 (community standard for Go)
 - Refresh rotation: recommended by OWASP session mgmt guide
 
 ## Tasks
+
 [... tasks with time estimates ...]
 
 ## Files
+
 [... create/modify list ...]
 
 ## Risks
+
 [... with severity ...]
 
 ## Deferred (out of scope — noted for later)
+
 - OAuth2/social login (separate feature)
 - 2FA/TOTP (separate feature)
 ```
@@ -966,29 +974,34 @@ Ready to fix:
 ---
 id: qa-abc123
 plan: .coder/plans/PLAN-auth-jwt.md
-status: in_progress    # new | in_progress | complete
+status: in_progress # new | in_progress | complete
 started: 2026-03-20T10:00Z
 updated: 2026-03-20T10:45Z
 ---
 
 ## Progress
+
 total: 8 · passed: 7 · issues: 1 · skipped: 0 · pending: 0
 
 ## Current Test
+
 number: 3
 status: complete
 
 ## Tests
 
 ### 1. Login flow
+
 expected: POST /v1/auth/login with valid credentials sets httpOnly cookie
 result: pass
 
 ### 2. Invalid credentials
+
 expected: POST /v1/auth/login with wrong password returns 401 AUTH_INVALID_CREDENTIALS
 result: pass
 
 ### 3. Token refresh
+
 expected: POST /v1/auth/refresh returns new tokens, invalidates old refresh token
 result: issue
 reported: "the old refresh token is NOT being invalidated"
@@ -1121,7 +1134,7 @@ SIMILAR PAST ISSUES
     (same pattern, same file)
 
 ──────────────────────────────────────────────────────────
-  Confidence: HIGH · Model: llama3.2 · Context: 2 memory hits
+  Confidence: HIGH · Model: qwen3.5 · Context: 2 memory hits
 ══════════════════════════════════════════════════════════
 ```
 
@@ -1254,30 +1267,36 @@ status: active
 # Session: JWT Refresh Token Implementation
 
 ## Current Task
+
 Implementing refresh token rotation — need to add the missing
 DeleteRefreshToken call after UpdateAccessTokenHash.
 
 ## Next Steps
+
 1. Fix manager.go:182 — add nil check + DeleteRefreshToken call
 2. Add integration test for concurrent rotation
 3. Run: go test ./internal/usecase/auth/...
 
 ## Open Files
+
 - internal/usecase/auth/manager.go (line 182 — main fix)
 - internal/infra/postgres/auth.go (need DeleteRefreshToken impl)
 - internal/domain/auth/port.go (add DeleteRefreshToken to interface)
 
 ## Recent Decisions
+
 - Using optimistic locking for concurrent rotation (not mutex)
 - Old refresh token deleted immediately after new one issued
 - No grace period for old tokens (security > convenience)
 
 ## Context
+
 - Started from: coder qa issue report "old token not invalidated"
 - Root cause: missing DeleteRefreshToken in RotateToken flow
 - Related PR: #42 (auth refactor) merged 2026-01-15
 
 ## Blockers
+
 - None currently
 ```
 
@@ -1380,16 +1399,16 @@ Step 7: DONE
 # .coder/workflows/WF-auth-jwt-2026-03-20.yaml
 id: wf-abc123
 feature: "implement JWT refresh tokens"
-status: qa         # plan | review | implement | qa | fix | done
+status: qa # plan | review | implement | qa | fix | done
 created: 2026-03-20T09:00Z
 updated: 2026-03-20T14:00Z
 
 steps:
-  plan:      { status: done, artifact: .coder/plans/PLAN-auth-jwt.md }
-  review:    { status: done, concerns: 2, approved: true }
+  plan: { status: done, artifact: .coder/plans/PLAN-auth-jwt.md }
+  review: { status: done, concerns: 2, approved: true }
   implement: { status: done }
-  qa:        { status: in_progress, session: qa-abc123 }
-  fix:       { status: pending }
+  qa: { status: in_progress, session: qa-abc123 }
+  fix: { status: pending }
 ```
 
 ### 8.4 — Acceptance criteria
@@ -1409,6 +1428,7 @@ steps:
 ### Phase 2+ — Chat Dashboard Page
 
 Add `/dashboard/chat` page displaying:
+
 - Recent sessions (title, message count, last active)
 - Click a session → view conversation history
 - Stats: total sessions, total messages, average session length
@@ -1417,6 +1437,7 @@ Add `/dashboard/chat` page displaying:
 ### Phase 3+ — Review History Page
 
 Add `/dashboard/reviews` page displaying:
+
 - Recent reviews (file/PR, concern counts by severity)
 - Trend: HIGH concerns over time
 - Top recurring issues
@@ -1498,19 +1519,23 @@ updated: 2026-03-23T10:00Z
 ---
 
 ## Current Position
+
 Phase: 1 — Auth foundation
 Step: plan
 Last action: discuss-phase completed
 
 ## Decisions
+
 - JWT with httpOnly cookies (not localStorage)
 - PostgreSQL row-level security for tenancy
 - No refresh token rotation grace period
 
 ## Blockers
+
 - None
 
 ## Backlog (deferred ideas)
+
 - OAuth2 social login (v2)
 - Multi-region support (v3)
 ```
@@ -1571,6 +1596,7 @@ Wait for all 4 → verify 7 documents exist → commit map
 ```
 
 **Runtime compatibility:**
+
 - **Claude Code**: `Agent(subagent_type="coder-codebase-mapper", ...)` — true parallel
 - **Copilot**: `@coder-codebase-mapper` — parallel with sequential fallback
 - **Standalone CLI (no agent runtime)**: sequential inline execution, same output
@@ -1647,16 +1673,19 @@ coder discuss-phase 1 --batch      # grouped questions, answer in bulk
 # Phase 1 Context — Auth Foundation
 
 ## Token Storage
+
 Decision: httpOnly cookie (not localStorage)
 Rationale: security, XSS protection
 Impact: all auth endpoints must set cookie header
 
 ## Refresh Token Behavior
+
 Decision: rotate on every use, no grace period
 Rationale: security > convenience
 Impact: DeleteRefreshToken called in RotateToken flow
 
 ## Multi-Device Support
+
 Decision: NOT in v1 — each login invalidates all previous sessions
 Deferred to: v2
 ```
@@ -1855,6 +1884,7 @@ Types: feat | fix | refactor | test | docs | chore
 ### 13.5 — Post-execution verification
 
 After all waves complete, orchestrator spawns `coder-verifier`:
+
 ```
 coder-verifier reads:
   - REQUIREMENTS.md (phase requirements)
@@ -1919,22 +1949,26 @@ coder ship                # ship current phase (reads STATE.md)
 
 ```markdown
 ## Summary
+
 Phase 1 — Auth Foundation
 
 Implements JWT-based authentication with refresh token rotation.
 
 ## Changes
+
 - Token domain types (entity.go)
 - Postgres schema: tokens + refresh_tokens tables
 - Manager.RotateToken with nil guard + DeleteRefreshToken
 - HTTP handlers: /v1/auth/login, /v1/auth/refresh, /v1/auth/logout
 
 ## Tests
+
 - 12 unit tests added
 - 2 integration tests added
 - All passing: go test ./...
 
 ## Verification
+
 - [x] Login flow works
 - [x] Token refresh invalidates old token
 - [x] Invalid credentials return 401 AUTH_INVALID_CREDENTIALS
@@ -2093,6 +2127,7 @@ coder stats
 ```
 
 Output:
+
 ```
 PROJECT: multi-tenant SaaS
   Phases:       4 total  |  2 complete  |  1 in-progress  |  1 planned
@@ -2112,6 +2147,7 @@ coder health --repair # auto-repair missing/corrupted files
 ```
 
 Checks:
+
 - STATE.md parseable and consistent with filesystem
 - All PLAN.md files referenced in ROADMAP.md exist
 - All SUMMARY.md files exist for executed plans
@@ -2166,15 +2202,15 @@ Each agent is a markdown file describing role, tools, and behavior.
 
 ### 18.1 — Agent definitions to create
 
-| Agent file | Role | Used by |
-|-----------|------|---------|
-| `.claude/agents/coder-executor.md` | Executes one PLAN.md, commits per task, writes SUMMARY.md | execute-phase |
-| `.claude/agents/coder-planner.md` | Creates XML plan from CONTEXT.md + RESEARCH.md | plan-phase |
-| `.claude/agents/coder-plan-checker.md` | Verifies plan covers requirements, no gaps | plan-phase |
-| `.claude/agents/coder-phase-researcher.md` | Researches implementation approaches for a phase | plan-phase |
-| `.claude/agents/coder-verifier.md` | Checks codebase against requirements after execution | execute-phase |
-| `.claude/agents/coder-codebase-mapper.md` | Analyzes one aspect of codebase, writes structured doc | map-codebase |
-| `.claude/agents/coder-debugger.md` | Deep root cause analysis with persistent state | debug, qa |
+| Agent file                                 | Role                                                      | Used by       |
+| ------------------------------------------ | --------------------------------------------------------- | ------------- |
+| `.claude/agents/coder-executor.md`         | Executes one PLAN.md, commits per task, writes SUMMARY.md | execute-phase |
+| `.claude/agents/coder-planner.md`          | Creates XML plan from CONTEXT.md + RESEARCH.md            | plan-phase    |
+| `.claude/agents/coder-plan-checker.md`     | Verifies plan covers requirements, no gaps                | plan-phase    |
+| `.claude/agents/coder-phase-researcher.md` | Researches implementation approaches for a phase          | plan-phase    |
+| `.claude/agents/coder-verifier.md`         | Checks codebase against requirements after execution      | execute-phase |
+| `.claude/agents/coder-codebase-mapper.md`  | Analyzes one aspect of codebase, writes structured doc    | map-codebase  |
+| `.claude/agents/coder-debugger.md`         | Deep root cause analysis with persistent state            | debug, qa     |
 
 ### 18.2 — Agent spawning (runtime-specific)
 
@@ -2200,15 +2236,17 @@ Standalone CLI:
 ---
 name: coder-executor
 description: Execute one PLAN.md — read tasks, implement in order,
-             commit after each task, write SUMMARY.md when done.
+  commit after each task, write SUMMARY.md when done.
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 ## Role
+
 You are a focused implementer. You receive exactly one PLAN.md and
 execute it completely. You do not ask questions — decisions are in the plan.
 
 ## Process
+
 1. Read the full plan XML
 2. For each <task>:
    a. Read referenced files (from <files>)
@@ -2219,6 +2257,7 @@ execute it completely. You do not ask questions — decisions are in the plan.
 4. Return: done | failed (with reason)
 
 ## Rules
+
 - Never expand scope beyond the plan
 - If a <verify> fails twice, write failure to SUMMARY.md and stop
 - Commit message format: feat|fix|refactor|test({plan_id}): {name}
@@ -2238,30 +2277,31 @@ execute it completely. You do not ask questions — decisions are in the plan.
 
 ## Implementation Priority Summary
 
-| Phase | Feature | Priority | Effort | Status |
-|-------|---------|----------|--------|--------|
-| 1 | LLM Backbone | P0 | 5d | ✅ Done |
-| 2 | coder chat | P1 | 3d | ✅ Done |
-| 3 | coder review | P1 | 4d | ✅ Done |
-| 4 | coder plan | P2 | 6d | ✅ Done |
-| 5 | coder qa | P2 | 5d | ✅ Done |
-| 6 | coder debug | P2 | 4d | ✅ Done |
-| 7 | coder session | P3 | 3d | ✅ Done |
-| 8 | coder workflow | P3 | 5d | ✅ Done |
-| **9** | **coder new-project** | **P0** | **4d** | 🔲 |
-| **10** | **coder map-codebase** | **P0** | **3d** | 🔲 |
-| **11** | **coder discuss-phase** | **P1** | **2d** | 🔲 |
-| **12** | **coder plan-phase (upgrade)** | **P1** | **3d** | 🔲 |
-| **13** | **coder execute-phase** | **P0** | **6d** | 🔲 |
-| **14** | **coder ship** | **P1** | **1d** | 🔲 |
-| **15** | **coder progress / next** | **P1** | **2d** | 🔲 |
-| **16** | **coder milestone** | **P2** | **2d** | 🔲 |
-| **17** | **Utilities (todo/stats/health/do/note)** | **P2** | **3d** | 🔲 |
-| **18** | **Subagent definitions** | **P0** | **4d** | 🔲 |
+| Phase  | Feature                                   | Priority | Effort | Status  |
+| ------ | ----------------------------------------- | -------- | ------ | ------- |
+| 1      | LLM Backbone                              | P0       | 5d     | ✅ Done |
+| 2      | coder chat                                | P1       | 3d     | ✅ Done |
+| 3      | coder review                              | P1       | 4d     | ✅ Done |
+| 4      | coder plan                                | P2       | 6d     | ✅ Done |
+| 5      | coder qa                                  | P2       | 5d     | ✅ Done |
+| 6      | coder debug                               | P2       | 4d     | ✅ Done |
+| 7      | coder session                             | P3       | 3d     | ✅ Done |
+| 8      | coder workflow                            | P3       | 5d     | ✅ Done |
+| **9**  | **coder new-project**                     | **P0**   | **4d** | 🔲      |
+| **10** | **coder map-codebase**                    | **P0**   | **3d** | 🔲      |
+| **11** | **coder discuss-phase**                   | **P1**   | **2d** | 🔲      |
+| **12** | **coder plan-phase (upgrade)**            | **P1**   | **3d** | 🔲      |
+| **13** | **coder execute-phase**                   | **P0**   | **6d** | 🔲      |
+| **14** | **coder ship**                            | **P1**   | **1d** | 🔲      |
+| **15** | **coder progress / next**                 | **P1**   | **2d** | 🔲      |
+| **16** | **coder milestone**                       | **P2**   | **2d** | 🔲      |
+| **17** | **Utilities (todo/stats/health/do/note)** | **P2**   | **3d** | 🔲      |
+| **18** | **Subagent definitions**                  | **P0**   | **4d** | 🔲      |
 
 **Total remaining effort:** ~30 engineer-days
 
 **Recommended execution order (next sprint):**
+
 1. Phase 18 (subagent definitions) — unblocks 10, 12, 13
 2. Phase 9 (new-project + STATE.md) — unblocks everything else
 3. Phase 10 + 11 in parallel (independent after 9 + 18)

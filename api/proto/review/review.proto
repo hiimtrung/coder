@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package review;
+
+option go_package = "github.com/trungtran/coder/api/grpc/reviewpb";
+
+service ReviewService {
+  rpc Review(ReviewRequest) returns (ReviewResponse);
+}
+
+message ReviewContext {
+  bool inject_memory = 1;
+  bool inject_skills = 2;
+}
+
+message ReviewRequest {
+  string        type    = 1; // diff | file | pr
+  string        content = 2;
+  string        focus   = 3; // optional: security, performance, etc.
+  ReviewContext context = 4;
+}
+
+message ReviewConcern {
+  string severity    = 1; // HIGH | MEDIUM | LOW
+  string description = 2;
+  string location    = 3;
+  string suggestion  = 4;
+}
+
+message ReviewStats {
+  int32 files_reviewed   = 1;
+  int32 concerns_high    = 2;
+  int32 concerns_medium  = 3;
+  int32 concerns_low     = 4;
+}
+
+message ContextUsed {
+  repeated string memory_hits = 1;
+  repeated string skill_hits  = 2;
+}
+
+message ReviewResponse {
+  string                   summary     = 1;
+  repeated string          strengths   = 2;
+  repeated ReviewConcern   concerns    = 3;
+  repeated string          suggestions = 4;
+  ReviewStats              stats       = 5;
+  ContextUsed              context_used = 6;
+  string                   model       = 7;
+}
