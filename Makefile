@@ -68,5 +68,5 @@ tag:
 	git add .
 	git commit -m "chore: bump version to $(VERSION)" || true
 	git tag -a $(VERSION) -m "Release $(VERSION)"
-	git push origin main && git push origin $(VERSION)
+	git push origin $$(git rev-parse --abbrev-ref HEAD) && git push origin $(VERSION)
 	@echo "Version bumped to $(VERSION), committed, and tagged. GitHub Actions will build and release."
