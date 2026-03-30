@@ -181,6 +181,12 @@ By default, the release targets `origin/main` and verifies:
 make release-check VERSION=v0.3.6
 ```
 
+If the changelog block does not exist yet, scaffold it first:
+
+```bash
+make release-note VERSION=v0.3.6
+```
+
 You can point at a specific merged commit or ref if needed:
 
 ```bash
