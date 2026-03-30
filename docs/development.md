@@ -143,26 +143,65 @@ protoc --go_out=../../api/grpc/skillpb --go-grpc_out=../../api/grpc/skillpb \
 
 ## Release process
 
-### 1. Update `VERSION`
+`main` is branch-protected, so releases must be cut from a commit that is already merged. Do not use a release command that edits files, commits for you, or pushes to `main`.
+
+### 1. Prepare the release in a PR
+
+Update the release metadata on your feature or release branch:
 
 ```bash
 echo "v0.3.6" > VERSION
 ```
 
-### 2. Update `CHANGELOG.md`
+Then add a matching section to `CHANGELOG.md`:
 
-Add a `## [v0.3.6] — YYYY-MM-DD` section. The release workflow extracts this block automatically and uses it as the GitHub Release body.
-
-### 3. Commit and tag
-
-```bash
-git add VERSION CHANGELOG.md
-git commit -m "chore: bump version to v0.3.6"
-git tag v0.3.6
-git push origin main --tags
+```md
+## [v0.3.6] — 2026-03-30
 ```
 
-### 4. CI takes over
+Merge that PR into `main` through the normal review flow.
+
+### 2. Sync your local repository
+
+```bash
+git fetch origin --tags
+git checkout main
+git pull --ff-only origin main
+```
+
+### 3. Validate the release target
+
+By default, the release targets `origin/main` and verifies:
+- working tree is clean
+- `VERSION` exactly matches the requested tag
+- `CHANGELOG.md` contains a matching `## [vX.Y.Z]` section
+- the tag does not already exist locally or on `origin`
+
+```bash
+make release-check VERSION=v0.3.6
+```
+
+You can point at a specific merged commit or ref if needed:
+
+```bash
+make release-check VERSION=v0.3.6 REF=<commit-or-ref>
+```
+
+### 4. Create and push the tag only
+
+```bash
+make release-tag VERSION=v0.3.6
+```
+
+This creates an annotated tag from `origin/main` and pushes only:
+
+```bash
+git push origin refs/tags/v0.3.6
+```
+
+`make tag` is kept as a backward-compatible alias for `make release-tag`, but the old behavior of auto-committing and pushing the current branch is gone.
+
+### 5. CI takes over
 
 `.github/workflows/release.yml` runs three parallel jobs on a tag push:
 

@@ -2,6 +2,9 @@ BINARY  := coder
 CMD     := ./cmd/coder
 DIST    := dist
 PKG     := github.com/trungtran/coder/internal/version
+VERSION_FILE := VERSION
+CHANGELOG_FILE := CHANGELOG.md
+REF ?= origin/main
 
 # Version from git tag or "dev"
 VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -9,7 +12,7 @@ COMMIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS    := -ldflags "-X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).BuildDate=$(BUILD_DATE) -s -w"
 
-.PHONY: build build-all install clean test
+.PHONY: build build-all install clean test release-check release-tag tag
 
 ## build: Build for the current platform
 build:
@@ -61,12 +64,43 @@ test: build
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## /  /'
 
-## tag: Create and push a new version tag (usage: make tag VERSION=v0.2.7)
+## release-check: Validate release metadata and target ref (usage: make release-check VERSION=v0.5.1 [REF=origin/main])
+release-check:
+	@test -n "$(VERSION)" || (echo "Usage: make release-check VERSION=v0.5.1 [REF=origin/main]" && exit 1)
+	@printf '%s\n' "$(VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$$' || \
+		(echo "Error: VERSION must look like v1.2.3 or v1.2.3-rc.1" && exit 1)
+	@test -f "$(VERSION_FILE)" || (echo "Error: $(VERSION_FILE) is missing" && exit 1)
+	@test -f "$(CHANGELOG_FILE)" || (echo "Error: $(CHANGELOG_FILE) is missing" && exit 1)
+	@git rev-parse --verify "$(REF)" >/dev/null 2>&1 || \
+		(echo "Error: REF '$(REF)' does not exist locally. Try: git fetch origin --tags" && exit 1)
+	@git diff --quiet || (echo "Error: working tree has unstaged changes. Commit or stash them first." && exit 1)
+	@git diff --cached --quiet || (echo "Error: index has staged changes. Commit or stash them first." && exit 1)
+	@test "$$(tr -d '[:space:]' < $(VERSION_FILE))" = "$(VERSION)" || \
+		(echo "Error: $(VERSION_FILE) must contain $(VERSION) before releasing." && exit 1)
+	@grep -Eq '^## \[$(VERSION)\] ' "$(CHANGELOG_FILE)" || \
+		(echo "Error: $(CHANGELOG_FILE) is missing a '## [$(VERSION)]' section." && exit 1)
+	@git rev-parse -q --verify "refs/tags/$(VERSION)" >/dev/null 2>&1 && \
+		(echo "Error: local tag $(VERSION) already exists." && exit 1) || true
+	@git ls-remote --exit-code --tags origin "refs/tags/$(VERSION)" >/dev/null 2>&1 && \
+		(echo "Error: remote tag $(VERSION) already exists on origin." && exit 1) || true
+	@echo "Release checks passed:"
+	@echo "  version : $(VERSION)"
+	@echo "  ref     : $(REF)"
+	@echo "  commit  : $$(git rev-parse --short $(REF))"
+	@echo "  subject : $$(git log -1 --format=%s $(REF))"
+
+## release-tag: Create and push an annotated tag from a merged ref (usage: make release-tag VERSION=v0.5.1 [REF=origin/main])
+release-tag: release-check
+	@echo "Creating annotated tag $(VERSION) from $(REF)..."
+	@git tag -a "$(VERSION)" "$(REF)" -m "Release $(VERSION)"
+	@echo "Pushing tag $(VERSION) to origin..."
+	@git push origin "refs/tags/$(VERSION)"
+	@echo "Release tag pushed:"
+	@echo "  version : $(VERSION)"
+	@echo "  ref     : $(REF)"
+	@echo "GitHub Actions will build and publish the release from this tag."
+
+## tag: Backward-compatible alias for release-tag (usage: make tag VERSION=v0.5.1 [REF=origin/main])
 tag:
-	@test -n "$(VERSION)" || (echo "Usage: make tag VERSION=v0.2.7" && exit 1)
-	@echo "$(VERSION)" > VERSION
-	git add .
-	git commit -m "chore: bump version to $(VERSION)" || true
-	git tag -a $(VERSION) -m "Release $(VERSION)"
-	git push origin $$(git rev-parse --abbrev-ref HEAD) && git push origin $(VERSION)
-	@echo "Version bumped to $(VERSION), committed, and tagged. GitHub Actions will build and release."
+	@echo "make tag is deprecated; using release-tag instead."
+	@$(MAKE) release-tag VERSION="$(VERSION)" REF="$(REF)"
