@@ -163,14 +163,22 @@ func registerAuth(cfg *Config) *Config {
 		return cfg
 	}
 
-	// Build HTTP base from whatever URL is configured
-	httpBase := cfg.Memory.BaseURL
-	if !strings.HasPrefix(httpBase, "http://") && !strings.HasPrefix(httpBase, "https://") {
-		// gRPC URL like "host:50051" → swap to HTTP :8080
-		host := strings.Split(httpBase, ":")[0]
-		httpBase = "http://" + host + ":8080"
-		fmt.Printf("(Using HTTP endpoint for registration: %s)\n", httpBase)
+	// Secure-mode bootstrap registration is always done over HTTP, even if the
+	// primary transport is gRPC. Let the user confirm or override the derived
+	// auth URL because the HTTP port may not be 8080 in real deployments.
+	httpBase := toHTTPBase(cfg.Memory.BaseURL)
+	if cfg.Memory.Protocol == "grpc" {
+		fmt.Printf("Enter coder-node HTTP URL for registration/auth [%s]: ", httpBase)
+		var input string
+		fmt.Scanln(&input)
+		if strings.TrimSpace(input) != "" {
+			httpBase = strings.TrimSpace(input)
+			if !strings.HasPrefix(httpBase, "http://") && !strings.HasPrefix(httpBase, "https://") {
+				httpBase = "http://" + httpBase
+			}
+		}
 	}
+	fmt.Printf("(Using HTTP endpoint for registration: %s)\n", httpBase)
 
 	fmt.Print("Enter bootstrap token (from server logs): ")
 	var bootstrapToken string
@@ -205,7 +213,7 @@ func registerAuth(cfg *Config) *Config {
 	rawToken, regErr := registerClient(httpBase, bootstrapToken, gitName, gitEmail)
 	if regErr != nil {
 		fmt.Fprintf(os.Stderr, "✗ Registration failed: %v\n", regErr)
-		fmt.Fprintln(os.Stderr, "  Check the bootstrap token and that the HTTP port (8080) is reachable.")
+		fmt.Fprintln(os.Stderr, "  Check the bootstrap token and that the HTTP auth URL is correct and reachable.")
 		fmt.Fprintln(os.Stderr, "  You can retry registration by selecting option 2 after verification fails.")
 	} else {
 		cfg.Auth.AccessToken = rawToken
@@ -234,6 +242,9 @@ func registerClient(httpBase, bootstrapToken, gitName, gitEmail string) (string,
 		json.NewDecoder(resp.Body).Decode(&errBody)
 		if msg, ok := errBody["error"].(string); ok && msg != "" {
 			return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, msg)
+		}
+		if resp.StatusCode == http.StatusNotFound {
+			return "", fmt.Errorf("HTTP 404: register-client endpoint not found at %s", httpBase)
 		}
 		return "", fmt.Errorf("server returned HTTP %d", resp.StatusCode)
 	}

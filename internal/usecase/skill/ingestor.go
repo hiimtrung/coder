@@ -241,7 +241,9 @@ func (ing *Ingestor) IngestSkill(ctx context.Context, name string, skillMD strin
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate embedding for chunk %d of %q: %w", item.index, name, err)
 			}
-			vec = v
+			if len(v) > 0 {
+				vec = v
+			}
 		}
 
 		chunk := &skilldomain.SkillChunk{
@@ -306,7 +308,9 @@ func (ing *Ingestor) SearchSkills(ctx context.Context, query string, limit int) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 		}
-		queryVec = v
+		if len(v) > 0 {
+			queryVec = v
+		}
 	}
 
 	// 2. Fetch top-k candidate chunks via hybrid/FTS search.

@@ -134,7 +134,10 @@ func (s *postgresSkillStore) UpsertSkill(ctx context.Context, sk *skilldomain.Sk
 }
 
 func (s *postgresSkillStore) StoreChunk(ctx context.Context, c *skilldomain.SkillChunk) error {
-	vec := pgvector.NewVector(c.Vector)
+	var vec any
+	if len(c.Vector) > 0 {
+		vec = pgvector.NewVector(c.Vector)
+	}
 
 	query := `
 	INSERT INTO skill_chunks (id, skill_id, section_id, chunk_type, title, content, chunk_index, content_hash, vector, created_at)
