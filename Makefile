@@ -12,7 +12,7 @@ COMMIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS    := -ldflags "-X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).BuildDate=$(BUILD_DATE) -s -w"
 
-.PHONY: build build-all install clean test release-check release-tag tag
+.PHONY: build build-all install clean test release-note release-check release-tag tag
 
 ## build: Build for the current platform
 build:
@@ -63,6 +63,38 @@ test: build
 
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## /  /'
+
+## release-note: Scaffold a changelog section (usage: make release-note VERSION=v0.5.1)
+release-note:
+	@test -n "$(VERSION)" || (echo "Usage: make release-note VERSION=v0.5.1" && exit 1)
+	@printf '%s\n' "$(VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$$' || \
+		(echo "Error: VERSION must look like v1.2.3 or v1.2.3-rc.1" && exit 1)
+	@test -f "$(CHANGELOG_FILE)" || (echo "Error: $(CHANGELOG_FILE) is missing" && exit 1)
+	@grep -Eq '^## \[$(VERSION)\] ' "$(CHANGELOG_FILE)" && \
+		(echo "Error: $(CHANGELOG_FILE) already has a '## [$(VERSION)]' section." && exit 1) || true
+	@tmp_file="$$(mktemp)"; \
+	awk -v version="$(VERSION)" -v today="$$(date +%Y-%m-%d)" '\
+		BEGIN { inserted = 0 } \
+		{ print } \
+		!inserted && $$0 == "---" { \
+			print ""; \
+			print "## [" version "] — " today; \
+			print ""; \
+			print "### Added"; \
+			print "- "; \
+			print ""; \
+			print "### Changed"; \
+			print "- "; \
+			print ""; \
+			print "### Fixed"; \
+			print "- "; \
+			print ""; \
+			inserted = 1; \
+		} \
+	' "$(CHANGELOG_FILE)" > "$$tmp_file" && mv "$$tmp_file" "$(CHANGELOG_FILE)"
+	@echo "Scaffolded changelog section for $(VERSION) in $(CHANGELOG_FILE)"
+	@echo "Edit the bullets, commit the changelog update, then run:"
+	@echo "  make release-tag VERSION=$(VERSION)"
 
 ## release-check: Validate release metadata and target ref (usage: make release-check VERSION=v0.5.1 [REF=origin/main])
 release-check:

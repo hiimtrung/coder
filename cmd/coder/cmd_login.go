@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	grpcclient "github.com/trungtran/coder/internal/transport/grpc/client"
 )
 
 func runLogin(_ []string) {
@@ -66,8 +68,8 @@ loop:
 			fmt.Fprintln(os.Stderr, "✗ Authentication failed (HTTP 401).")
 			fmt.Fprintln(os.Stderr, "  The server is running in secure mode but the request was rejected.")
 			fmt.Fprintln(os.Stderr, "  Possible causes:")
-			fmt.Fprintln(os.Stderr, "    • You selected gRPC but need HTTP for secure-mode servers.")
 			fmt.Fprintln(os.Stderr, "    • The bootstrap token was incorrect — registration did not complete.")
+			fmt.Fprintln(os.Stderr, "    • The access token in your config is missing, revoked, or stale.")
 			fmt.Fprintln(os.Stderr, "    • Your access token has been revoked.")
 
 		case strings.Contains(errMsg, "connection refused") || strings.Contains(errMsg, "no such host") ||
@@ -122,7 +124,7 @@ func configureConnection(cfg *Config) *Config {
 	fmt.Println()
 	fmt.Println("Choose protocol:")
 	fmt.Println("  1) gRPC  — recommended (faster, lower overhead)")
-	fmt.Println("  2) HTTP  — use this when the server runs --secure")
+	fmt.Println("  2) HTTP  — use this if your deployment exposes HTTP only")
 	fmt.Print("Selection [1]: ")
 
 	var choice string
@@ -163,23 +165,6 @@ func registerAuth(cfg *Config) *Config {
 		return cfg
 	}
 
-	// Secure-mode bootstrap registration is always done over HTTP, even if the
-	// primary transport is gRPC. Let the user confirm or override the derived
-	// auth URL because the HTTP port may not be 8080 in real deployments.
-	httpBase := toHTTPBase(cfg.Memory.BaseURL)
-	if cfg.Memory.Protocol == "grpc" {
-		fmt.Printf("Enter coder-node HTTP URL for registration/auth [%s]: ", httpBase)
-		var input string
-		fmt.Scanln(&input)
-		if strings.TrimSpace(input) != "" {
-			httpBase = strings.TrimSpace(input)
-			if !strings.HasPrefix(httpBase, "http://") && !strings.HasPrefix(httpBase, "https://") {
-				httpBase = "http://" + httpBase
-			}
-		}
-	}
-	fmt.Printf("(Using HTTP endpoint for registration: %s)\n", httpBase)
-
 	fmt.Print("Enter bootstrap token (from server logs): ")
 	var bootstrapToken string
 	fmt.Scanln(&bootstrapToken)
@@ -210,10 +195,10 @@ func registerAuth(cfg *Config) *Config {
 
 	fmt.Printf("Registering client as %s <%s>...\n", gitName, gitEmail)
 
-	rawToken, regErr := registerClient(httpBase, bootstrapToken, gitName, gitEmail)
+	rawToken, regErr := registerClient(cfg, bootstrapToken, gitName, gitEmail)
 	if regErr != nil {
 		fmt.Fprintf(os.Stderr, "✗ Registration failed: %v\n", regErr)
-		fmt.Fprintln(os.Stderr, "  Check the bootstrap token and that the HTTP auth URL is correct and reachable.")
+		fmt.Fprintln(os.Stderr, "  Check the bootstrap token and that the selected coder-node endpoint is correct and reachable.")
 		fmt.Fprintln(os.Stderr, "  You can retry registration by selecting option 2 after verification fails.")
 	} else {
 		cfg.Auth.AccessToken = rawToken
@@ -223,8 +208,22 @@ func registerAuth(cfg *Config) *Config {
 	return cfg
 }
 
-// registerClient calls POST /v1/auth/register-client and returns the raw access token.
-func registerClient(httpBase, bootstrapToken, gitName, gitEmail string) (string, error) {
+func registerClient(cfg *Config, bootstrapToken, gitName, gitEmail string) (string, error) {
+	if cfg != nil && cfg.Memory.Protocol == "grpc" {
+		client, err := grpcclient.NewAuthClient(cfg.Memory.BaseURL, "")
+		if err != nil {
+			return "", fmt.Errorf("could not reach gRPC server: %w", err)
+		}
+		defer client.Close()
+
+		rawToken, _, err := client.RegisterClient(context.Background(), bootstrapToken, gitName, gitEmail)
+		return rawToken, err
+	}
+
+	httpBase := ""
+	if cfg != nil {
+		httpBase = toHTTPBase(cfg.Memory.BaseURL)
+	}
 	payload, _ := json.Marshal(map[string]string{
 		"bootstrap_token": bootstrapToken,
 		"git_name":        gitName,

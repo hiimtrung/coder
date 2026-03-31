@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	authpb "github.com/trungtran/coder/api/grpc/authpb/auth"
 	"github.com/trungtran/coder/api/grpc/memorypb"
 	"github.com/trungtran/coder/api/grpc/skillpb"
 	authdomain "github.com/trungtran/coder/internal/domain/auth"
@@ -154,6 +155,7 @@ func main() {
 		grpc.ChainUnaryInterceptor(grpcinterceptor.UnaryAuth(authMgr)),
 		grpc.ChainStreamInterceptor(grpcinterceptor.StreamAuth(authMgr)),
 	)
+	authpb.RegisterAuthServiceServer(grpcServer, grpcserver.NewAuthServer(authMgr))
 	memorypb.RegisterMemoryServiceServer(grpcServer, grpcserver.NewMemoryServer(mgr))
 	skillpb.RegisterSkillServiceServer(grpcServer, grpcserver.NewSkillServer(skillFacade))
 	reflection.Register(grpcServer)
