@@ -6,6 +6,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [v0.5.4] — 2026-03-31
+
+### Added
+- **`make release-prepare`**: Added a branch-side release preparation command that updates `VERSION` and scaffolds a matching `CHANGELOG.md` section in one step.
+- **`make release-main`**: Added a main-only release command that validates `origin/main` and delegates to tag creation after the release branch has been merged.
+
+### Changed
+- **Protected-main release flow**: Release operations are now split into two explicit phases: prepare metadata on your branch, then cut the tag from `origin/main` after merge.
+- **Release instructions**: Updated the development guide to document the new two-command workflow for protected `main` branches.
+
+### Fixed
+- **Release operator confusion**: Removed the old ambiguous flow where release preparation and release cutting were mixed together, making it clearer when work happens on a branch versus on merged `main`.
+
+
+## [v0.5.3] — 2026-03-31
+
+### Added
+- **gRPC auth service**: Added `AuthService` over gRPC for client registration, token rotation, identity lookup, and activity logging, so secure-mode CLI flows can stay on a single gRPC endpoint and port.
+- **Release note scaffold**: Added `make release-note VERSION=vX.Y.Z` to scaffold a new changelog section in the correct format.
+
+### Changed
+- **Single-protocol login flow**: `coder login` now uses the selected protocol consistently. When `gRPC` is selected, bootstrap registration no longer jumps to HTTP or asks for a separate HTTP auth URL.
+- **Token commands respect configured protocol**: `coder token show` and `coder token rotate` now use gRPC when the CLI is configured for gRPC, instead of always calling HTTP auth endpoints.
+- **Release tagging flow**: Reworked `Makefile` release targets so releases are cut from a merged ref via annotated tag push only. Removed the old behavior that auto-staged files, auto-committed, and pushed the current branch.
+
+### Fixed
+- **Secure-mode login 404s**: Fixed the CLI auth flow that incorrectly derived an HTTP registration URL from a gRPC endpoint, which caused bootstrap registration to fail in deployments that did not expose the assumed HTTP port.
+- **Skill ingest with empty embeddings**: Skill ingestion now falls back to FTS-only storage when an embedding provider returns an empty vector, instead of failing with `pq: vector must have at least 1 dimension`.
+
+
 ## [v0.5.2] — 2026-03-30
 
 ### Added
