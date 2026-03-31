@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [v0.5.4] — 2026-03-31
+
+### Added
+- **`make release-prepare`**: Added a branch-side release preparation command that updates `VERSION` and scaffolds a matching `CHANGELOG.md` section in one step.
+- **`make release-main`**: Added a main-only release command that validates `origin/main` and delegates to tag creation after the release branch has been merged.
+
+### Changed
+- **Protected-main release flow**: Release operations are now split into two explicit phases: prepare metadata on your branch, then cut the tag from `origin/main` after merge.
+- **Release instructions**: Updated the development guide to document the new two-command workflow for protected `main` branches.
+
+### Fixed
+- **Release operator confusion**: Removed the old ambiguous flow where release preparation and release cutting were mixed together, making it clearer when work happens on a branch versus on merged `main`.
+
+
 ## [v0.5.3] — 2026-03-31
 
 ### Added
