@@ -12,7 +12,7 @@ COMMIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS    := -ldflags "-X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).BuildDate=$(BUILD_DATE) -s -w"
 
-.PHONY: build build-all install clean test release-note release-check release-tag tag
+.PHONY: build build-all install clean test release-prepare release-note release-check release-main release-tag tag
 
 ## build: Build for the current platform
 build:
@@ -64,6 +64,27 @@ test: build
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## /  /'
 
+## release-prepare: Update VERSION and scaffold CHANGELOG on your working branch (usage: make release-prepare VERSION=v0.5.1)
+release-prepare:
+	@test -n "$(VERSION)" || (echo "Usage: make release-prepare VERSION=v0.5.1" && exit 1)
+	@printf '%s\n' "$(VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$$' || \
+		(echo "Error: VERSION must look like v1.2.3 or v1.2.3-rc.1" && exit 1)
+	@test -f "$(VERSION_FILE)" || (echo "Error: $(VERSION_FILE) is missing" && exit 1)
+	@test -f "$(CHANGELOG_FILE)" || (echo "Error: $(CHANGELOG_FILE) is missing" && exit 1)
+	@printf '%s\n' "$(VERSION)" > "$(VERSION_FILE)"
+	@if grep -Eq '^## \[$(VERSION)\] ' "$(CHANGELOG_FILE)"; then \
+		echo "$(CHANGELOG_FILE) already has a '## [$(VERSION)]' section."; \
+	else \
+		$(MAKE) release-note VERSION="$(VERSION)"; \
+	fi
+	@echo "Release branch metadata prepared:"
+	@echo "  version : $(VERSION)"
+	@echo "  files   : $(VERSION_FILE), $(CHANGELOG_FILE)"
+	@echo "Next:"
+	@echo "  1. Fill in $(CHANGELOG_FILE)"
+	@echo "  2. Commit and merge your branch into main"
+	@echo "  3. Run: make release-main VERSION=$(VERSION)"
+
 ## release-note: Scaffold a changelog section (usage: make release-note VERSION=v0.5.1)
 release-note:
 	@test -n "$(VERSION)" || (echo "Usage: make release-note VERSION=v0.5.1" && exit 1)
@@ -94,7 +115,7 @@ release-note:
 	' "$(CHANGELOG_FILE)" > "$$tmp_file" && mv "$$tmp_file" "$(CHANGELOG_FILE)"
 	@echo "Scaffolded changelog section for $(VERSION) in $(CHANGELOG_FILE)"
 	@echo "Edit the bullets, commit the changelog update, then run:"
-	@echo "  make release-tag VERSION=$(VERSION)"
+	@echo "  make release-main VERSION=$(VERSION)"
 
 ## release-check: Validate release metadata and target ref (usage: make release-check VERSION=v0.5.1 [REF=origin/main])
 release-check:
@@ -120,6 +141,10 @@ release-check:
 	@echo "  ref     : $(REF)"
 	@echo "  commit  : $$(git rev-parse --short $(REF))"
 	@echo "  subject : $$(git log -1 --format=%s $(REF))"
+
+## release-main: Validate origin/main and push the release tag (usage: make release-main VERSION=v0.5.1 [REF=origin/main])
+release-main:
+	@$(MAKE) release-tag VERSION="$(VERSION)" REF="$(REF)"
 
 ## release-tag: Create and push an annotated tag from a merged ref (usage: make release-tag VERSION=v0.5.1 [REF=origin/main])
 release-tag: release-check
