@@ -143,23 +143,17 @@ protoc --go_out=../../api/grpc/skillpb --go-grpc_out=../../api/grpc/skillpb \
 
 ## Release process
 
-`main` is branch-protected, so releases must be cut from a commit that is already merged. Do not use a release command that edits files, commits for you, or pushes to `main`.
+`main` is branch-protected, so the release flow is split into two commands: prepare metadata on your branch, then cut the release only after that branch is merged into `main`.
 
-### 1. Prepare the release in a PR
+### 1. Prepare the release on your branch
 
-Update the release metadata on your feature or release branch:
+Run one command on your feature or release branch:
 
 ```bash
-echo "v0.3.6" > VERSION
+make release-prepare VERSION=v0.3.6
 ```
 
-Then add a matching section to `CHANGELOG.md`:
-
-```md
-## [v0.3.6] — 2026-03-30
-```
-
-Merge that PR into `main` through the normal review flow.
+This updates `VERSION` and scaffolds a matching `CHANGELOG.md` section if it does not exist yet. Fill in the changelog bullets, commit the changes, and merge that branch into `main` through the normal review flow.
 
 ### 2. Sync your local repository
 
@@ -169,37 +163,27 @@ git checkout main
 git pull --ff-only origin main
 ```
 
-### 3. Validate the release target
+### 3. Cut the release from `main`
 
-By default, the release targets `origin/main` and verifies:
+Run one command after the merge is already on `main`:
+
+```bash
+make release-main VERSION=v0.3.6
+```
+
+By default, this targets `origin/main` and verifies:
 - working tree is clean
 - `VERSION` exactly matches the requested tag
 - `CHANGELOG.md` contains a matching `## [vX.Y.Z]` section
 - the tag does not already exist locally or on `origin`
 
-```bash
-make release-check VERSION=v0.3.6
-```
-
-If the changelog block does not exist yet, scaffold it first:
-
-```bash
-make release-note VERSION=v0.3.6
-```
-
 You can point at a specific merged commit or ref if needed:
 
 ```bash
-make release-check VERSION=v0.3.6 REF=<commit-or-ref>
+make release-main VERSION=v0.3.6 REF=<commit-or-ref>
 ```
 
-### 4. Create and push the tag only
-
-```bash
-make release-tag VERSION=v0.3.6
-```
-
-This creates an annotated tag from `origin/main` and pushes only:
+`make release-main` is a thin wrapper around `make release-tag`; it creates an annotated tag from `origin/main` and pushes only:
 
 ```bash
 git push origin refs/tags/v0.3.6
@@ -207,7 +191,7 @@ git push origin refs/tags/v0.3.6
 
 `make tag` is kept as a backward-compatible alias for `make release-tag`, but the old behavior of auto-committing and pushing the current branch is gone.
 
-### 5. CI takes over
+### 4. CI takes over
 
 `.github/workflows/release.yml` runs three parallel jobs on a tag push:
 
