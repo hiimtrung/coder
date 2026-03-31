@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/trungtran/coder/api/grpc/authpb;authpb";
+
+import "google/protobuf/timestamp.proto";
+
+service AuthService {
+  rpc RegisterClient(RegisterClientRequest) returns (RegisterClientResponse);
+  rpc Me(MeRequest) returns (MeResponse);
+  rpc RotateToken(RotateTokenRequest) returns (RotateTokenResponse);
+  rpc LogActivity(LogActivityRequest) returns (LogActivityResponse);
+}
+
+message RegisterClientRequest {
+  string bootstrap_token = 1;
+  string git_name = 2;
+  string git_email = 3;
+}
+
+message RegisterClientResponse {
+  string access_token = 1;
+  string message = 2;
+}
+
+message MeRequest {}
+
+message MeResponse {
+  string id = 1;
+  string git_name = 2;
+  string git_email = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp last_seen_at = 5;
+  bool secure_mode = 6;
+}
+
+message RotateTokenRequest {}
+
+message RotateTokenResponse {
+  string access_token = 1;
+  string message = 2;
+}
+
+message LogActivityRequest {
+  string command = 1;
+  string repo = 2;
+  string branch = 3;
+}
+
+message LogActivityResponse {
+  bool success = 1;
+}

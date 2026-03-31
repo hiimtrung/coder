@@ -2,10 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"os/exec"
 	"strings"
+
+	grpcclient "github.com/trungtran/coder/internal/transport/grpc/client"
 )
 
 // logActivity sends a fire-and-forget activity log to coder-node.
@@ -17,10 +20,22 @@ func logActivity(command string) {
 		return
 	}
 	go func() {
-		repo    := sanitiseRepoURL(gitOutput("config", "--get", "remote.origin.url"))
-		branch  := gitOutput("rev-parse", "--abbrev-ref", "HEAD")
-		commit  := gitOutput("rev-parse", "--short", "HEAD")
+		repo := sanitiseRepoURL(gitOutput("config", "--get", "remote.origin.url"))
+		branch := gitOutput("rev-parse", "--abbrev-ref", "HEAD")
+		commit := gitOutput("rev-parse", "--short", "HEAD")
 		project := gitProjectName()
+
+		if cfg.Memory.Protocol == "grpc" {
+			client, err := grpcclient.NewAuthClient(cfg.Memory.BaseURL, cfg.Auth.AccessToken)
+			if err != nil {
+				return
+			}
+			defer client.Close()
+			_ = commit
+			_ = project
+			_ = client.LogActivity(context.Background(), command, repo, branch)
+			return
+		}
 
 		httpBase := toHTTPBase(cfg.Memory.BaseURL)
 
