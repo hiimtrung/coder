@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [v0.5.5] — 2026-03-31
+
+### Added
+- **Dynamic skill resolution commands**: Added `coder skill resolve` to select the active skill set for the current task, compute `keep/add/drop`, and persist session skill state in `.coder/active-skills.json`.
+- **Active skill inspection**: Added `coder skill active` to inspect the current resolved skill set in human-readable or JSON form.
+- **Structured skill output**: Added `coder skill search --format json` and `coder skill info --format raw|json` so agents can consume machine-readable results and raw markdown without relying on terminal-formatted output.
+- **Resolver test coverage**: Added focused CLI tests for skill normalization and active-skill selection/diff logic.
+
+### Changed
+- **Skill retrieval model**: Shifted from one-shot `coder skill search` guidance to a dynamic retrieval loop built around `coder skill resolve` with explicit triggers: `initial`, `clarified`, `execution`, `error-recovery`, and `review`.
+- **Agent and workflow instructions**: Updated GitHub agents, Claude agents, Copilot instructions, and `.agents/workflows` to re-resolve skills as the task changes instead of freezing the initial retrieval for the whole session.
+- **Session state conventions**: Standardized `.coder/active-skills.json` as the session-scoped source of truth for active skills and re-resolve history.
+- **Subagent execution contract**: Clarified that spawned workers must resolve skills for their own subtasks and update `.coder` task/checkpoint state before handing control back.
+
+### Fixed
+- **Stale skill context during long tasks**: Agents can now swap or drop irrelevant skills after clarification, domain shifts, and repeated errors instead of staying stuck with the first retrieval result.
+- **Markdown loss in injected skill context**: Raw skill output is now available directly from the CLI, avoiding the previous pattern where terminal-rendered output flattened markdown structure before it reached the LLM.
+
+
 ## [v0.5.4] — 2026-03-31
 
 ### Added
