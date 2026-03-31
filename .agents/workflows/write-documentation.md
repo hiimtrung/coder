@@ -16,7 +16,7 @@ This workflow produces the documentation artifacts required before a feature is 
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "technical writing documentation"
+coder skill resolve "technical writing documentation" --trigger execution --budget 3
 coder memory search "<feature or component name>"
 ```
 
@@ -203,7 +203,7 @@ coder memory store "Documentation: <Feature Name>" "Docs written: API reference,
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] API documentation written for each new/changed endpoint
 - [ ] Runbook written with health checks and remediation steps

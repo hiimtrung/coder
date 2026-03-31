@@ -16,7 +16,7 @@ A structured approach to diagnosing and resolving bugs, errors, and unexpected b
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "<error type or component>"
+coder skill resolve "<error type or component>" --trigger error-recovery --budget 3
 coder memory search "<error message or symptom keywords>"
 ```
 
@@ -192,7 +192,7 @@ coder memory store "Bug Fix: <Issue Title>" "Root cause: <precise cause>. Fix: <
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run (check if issue was seen before)
 - [ ] Symptoms fully documented
 - [ ] Issue reproduced in controlled environment

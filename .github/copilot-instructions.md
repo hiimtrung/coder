@@ -43,7 +43,7 @@ All projects follow **Clean Architecture + Event-Driven Design** with standardiz
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  GATE 1 (START) — Before touching any code                   │
-│  coder skill search "<topic>"                                │
+│  coder skill resolve "<topic>" --trigger initial --budget 3                                │
 │  coder memory search "<topic>"                               │
 ├──────────────────────────────────────────────────────────────┤
 │  EXECUTE (implement, test, commit)                           │
@@ -55,9 +55,16 @@ All projects follow **Clean Architecture + Event-Driven Design** with standardiz
 
 Both gates are **blocking**. Skipping either is a workflow violation.
 
+Dynamic retrieval is mandatory:
+- Run `coder skill resolve "<topic>" --trigger initial --budget 3` at task start.
+- Re-run `coder skill resolve` with a more precise query after clarification, before switching phase, when a new language/framework appears, after repeated errors, and before review/release.
+- Use `coder skill resolve "<topic>" --trigger execution --budget 3 --format raw` when you need markdown-preserving skill context for prompt injection.
+- Inspect the current session skill set with `coder skill active --format json`.
+- Treat `.coder/active-skills.json` as the current active-skill record for the session.
+
 **Todo list rule** — every task list MUST be:
 ```
-1. [GATE 1] coder skill search "<topic>"
+1. [GATE 1] coder skill resolve "<topic>" --trigger initial --budget 3
 2. [GATE 1] coder memory search "<topic>"
    ... implementation tasks ...
 N. [GATE 2] coder memory store "<title>"
@@ -176,9 +183,12 @@ coder memory list
 coder memory compact --revector
 
 # Skills — knowledge base retrieval
-coder skill search "<topic>"
+coder skill resolve "<topic>" --trigger initial --budget 3
+coder skill resolve "<topic>" --trigger execution --budget 3 --format raw
+coder skill active --format json
+coder skill search "<topic>" --format json
 coder skill list
-coder skill info <name>
+coder skill info <name> --format raw
 
 # Session — checkpointing
 coder session save
@@ -194,6 +204,12 @@ coder version                  # show version
 ```
 
 **DO NOT call**: `coder chat`, `coder debug`, `coder review`, `coder qa`, `coder workflow`, `coder plan-phase`, `coder execute-phase` — these have been removed. All reasoning is handled by your AI agent (Claude / Copilot).
+
+## 🤖 Subagents And `.coder`
+
+- When handing a bounded task to a subagent, the subagent must run its own `coder skill resolve` for that subtask instead of inheriting stale skills blindly.
+- Subagents must update the task file or checkpoint they own under `.coder/` before handing control back.
+- Phase, plan, run status, and task ownership live in `.coder/`; do not treat them as optional notes.
 
 ---
 

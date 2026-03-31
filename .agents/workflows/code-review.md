@@ -15,7 +15,7 @@ A structured code review that enforces production quality standards. This workfl
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "<language or module being reviewed>"
+coder skill resolve "<language or module being reviewed>" --trigger review --budget 3
 coder memory search "<feature or module name>"
 ```
 
@@ -161,7 +161,7 @@ coder memory store "Code Review: <Feature Name>" "Verdict: <APPROVED/CHANGES>. B
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] All 6 review categories completed
 - [ ] Each finding classified as BLOCKING / RECOMMENDED / SUGGESTION

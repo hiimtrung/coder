@@ -15,7 +15,7 @@ A structured gate review that confirms a feature or release is safe to deploy. N
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "release deployment"
+coder skill resolve "release deployment" --trigger review --budget 3
 coder memory search "<feature or release name>"
 ```
 

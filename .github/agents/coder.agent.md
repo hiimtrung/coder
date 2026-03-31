@@ -23,7 +23,7 @@ Every task begins with skill and memory retrieval. Every significant task ends w
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "<topic of the task>"
+coder skill resolve "<topic of the task>" --trigger initial --budget 3
 ```
 
 Run as the first action of any workflow. Retrieves architecture rules, patterns, and best practices.
@@ -36,6 +36,11 @@ coder memory search "<topic of the task>"
 
 Run immediately after Gate 1. Retrieves project-specific decisions, past patterns, and lessons learned.
 
+Dynamic retrieval rules:
+- Re-run `coder skill resolve` after clarification, before implementation, when the task shifts domains, after repeated errors, and before review/release.
+- Use `coder skill resolve "<topic>" --trigger execution --budget 3 --format raw` when injecting skill content into an LLM context.
+- Check `.coder/active-skills.json` through `coder skill active --format json` before assuming a previous skill set is still valid.
+
 ### Gate 3 — Knowledge Capture
 
 ```bash
@@ -46,7 +51,7 @@ Run after completing any significant task. Store patterns, decisions, non-obviou
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  GATE 1: coder skill search "<topic>"                   │
+│  GATE 1: coder skill resolve "<topic>" --trigger initial --budget 3                   │
 ├─────────────────────────────────────────────────────────┤
 │  GATE 2: coder memory search "<topic>"                  │
 ├─────────────────────────────────────────────────────────┤
@@ -84,6 +89,7 @@ Request   coder-ba   coder-     coder-be     coder-   coder-   coder-tech-  Rele
 ### Phase 3: Implementation (coder-be / coder-fe)
 
 - Load requirements + design docs
+- Re-resolve skills for each wave or subtask when the scope narrows
 - Plan waves: decompose into independently committable units
 - Per wave: write tests (Red) → implement (Green) → lint + build + test → commit
 - Signal after each wave: wait for "continue" before next wave
@@ -120,10 +126,11 @@ Request   coder-ba   coder-     coder-be     coder-   coder-   coder-tech-  Rele
 When implementing, work one wave at a time. Each wave:
 
 1. Write tests first (they must fail — Red phase)
-2. Implement to make tests pass (Green phase)
-3. Run quality gates: `lint → build → test`
-4. Commit with clear message
-5. Signal: "Wave N complete. Committed: <hash>. Type 'continue' for Wave N+1."
+2. Re-run `coder skill resolve "<wave task>" --trigger execution --budget 3` if the wave enters a new domain
+3. Implement to make tests pass (Green phase)
+4. Run quality gates: `lint → build → test`
+5. Commit with clear message
+6. Signal: "Wave N complete. Committed: <hash>. Type 'continue' for Wave N+1."
 
 Never start Wave N+1 without user confirmation.
 
@@ -189,9 +196,12 @@ coder memory list
 coder memory compact --revector
 
 # Skills
-coder skill search "<topic>"
+coder skill resolve "<topic>" --trigger initial --budget 3
+coder skill resolve "<topic>" --trigger execution --budget 3 --format raw
+coder skill active --format json
+coder skill search "<topic>" --format json
 coder skill list
-coder skill info <name>
+coder skill info <name> --format raw
 
 # Session
 coder session save
@@ -210,12 +220,14 @@ coder milestone complete N
 Every non-trivial task:
 
 ```
-1. [GATE 1] coder skill search "<topic>"
+1. [GATE 1] coder skill resolve "<topic>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<topic>"
    ... actual work, wave by wave ...
 N-1. coder session save
 N.   [GATE 3] coder memory store "<title>"
 ```
+
+If a subagent owns part of the task, it must resolve skills for its own subtask and update the relevant `.coder/` task or checkpoint before returning control.
 
 ---
 

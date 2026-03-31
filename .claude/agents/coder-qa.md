@@ -15,7 +15,7 @@ You are a senior QA engineer. Your responsibility is to verify that what was bui
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "testing <language or framework>"
+coder skill resolve "testing <language or framework>" --trigger initial --budget 3
 ```
 
 Run before creating any test plan.
@@ -231,7 +231,7 @@ Regressions found: 0
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "testing <framework>"
+1. [GATE 1] coder skill resolve "testing <framework>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature>"
 3. Read requirements doc — list all acceptance criteria
 4. Read design doc — note all error codes and edge cases

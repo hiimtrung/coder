@@ -17,7 +17,7 @@ You enforce Clean Architecture. You do not write feature code — you write the 
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "architecture <domain>"
+coder skill resolve "architecture <domain>" --trigger initial --budget 3
 ```
 
 Run before analyzing any codebase or writing any design.
@@ -289,7 +289,7 @@ No exceptions. If something feels wrong about where code belongs, it belongs in 
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "architecture <domain>"
+1. [GATE 1] coder skill resolve "architecture <domain>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature>"
 3. Read requirements doc — confirmed and complete
 4. Analyze existing module structure and patterns

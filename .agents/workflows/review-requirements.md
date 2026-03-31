@@ -15,7 +15,7 @@ A structured review of a requirements document before it is used to drive design
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "requirements analysis <domain>"
+coder skill resolve "requirements analysis <domain>" --trigger review --budget 3
 coder memory search "<feature or product area>"
 ```
 
@@ -122,7 +122,7 @@ coder memory store "Requirements Review: <Feature Name>" "Verdict: <verdict>. Us
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Requirements doc read in full
 - [ ] All review categories evaluated

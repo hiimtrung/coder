@@ -63,17 +63,19 @@ It gives every AI agent in your team access to the same centralized brain: a vec
 
 | Document | Description |
 |----------|-------------|
-| [**Usage Guide**](docs/GUIDE.md) | Complete guide: all commands, flags, examples |
-| [**CLI Reference**](docs/cli.md) | Every command with flags and examples |
+| [**Usage Guide**](docs/GUIDE.md) | Quick guide for the current working CLI |
+| [**CLI Reference**](docs/cli.md) | Current implemented commands and examples |
 | [**Installation**](docs/installation.md) | CLI + coder-node setup, secure mode, env vars |
 | [**Architecture**](docs/architecture.md) | System design, data flows, layer structure |
 | [**Skill System**](docs/skill_system.md) | How the vector RAG works |
 | [**Memory System**](docs/memory_system.md) | Semantic memory internals |
 | [**Memory Lifecycle Plan**](docs/memory_lifecycle_plan.md) | Freshness, validity, and superseded memory handling |
+| [**Dynamic Skill Retrieval Plan**](docs/dynamic_skill_retrieval_plan.md) | Proposed upgrade for mid-task skill loading and context budgeting |
 | [**Skill Files**](docs/skill_files.md) | Bundling and executing binary assets |
 | [**Secure Mode**](docs/secure_mode.md) | Node-level security and client registration |
 | [**Web Dashboard**](docs/dashboard.md) | HTMX-powered visual management console |
 | [**Development**](docs/development.md) | Building from source, release process |
+| [**Intelligence Roadmap**](docs/roadmap-intelligence-flows.md) | Future design ideas; not the current command surface |
 | [**Changelog**](CHANGELOG.md) | Release history |
 
 ---
@@ -121,7 +123,9 @@ coder skill ingest --source local   # load 20+ built-in skills into the vector D
 
 ### 5 — Use it with your AI agent
 
-Open Claude Code, GitHub Copilot, or any MCP-compatible AI agent. The agent will automatically use `coder memory` and `coder skill` commands to retrieve context before each task.
+Open Claude Code, GitHub Copilot, or any MCP-compatible AI agent and instruct it to use `coder memory` and `coder skill` commands as part of its workflow.
+
+The current binary is centered on knowledge retrieval and storage. Roadmap commands documented elsewhere are not automatically available unless they are wired in `cmd/coder/main.go`.
 
 ---
 
@@ -235,6 +239,17 @@ coder login                                      # Connect to coder-node
 coder install fullstack                          # Scaffold agent engine into project
 coder self-update                                # Update the CLI binary
 ```
+
+### Current Command Surface
+
+The current CLI exposes:
+
+```text
+install, update, list, version, check-update, self-update,
+login, token, skill, memory, remove, session, progress, next, milestone
+```
+
+If another document mentions `chat`, `review`, `debug`, `plan`, `workflow`, `new-project`, or similar commands, treat those as roadmap concepts unless they are present in `cmd/coder/main.go`.
 
 ---
 

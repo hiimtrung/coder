@@ -16,7 +16,7 @@ This workflow produces the technical design document that implementation follows
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "architecture <domain or feature>"
+coder skill resolve "architecture <domain or feature>" --trigger initial --budget 3
 coder memory search "<feature name or component>"
 ```
 
@@ -24,6 +24,12 @@ Also read:
 - `docs/requirements/<feature>.md` — confirmed requirements
 - `docs/design/` — existing design documents for the system
 - Relevant source files: existing modules, entity definitions, repository interfaces
+
+When requirements or constraints sharpen the scope, re-run:
+
+```bash
+coder skill resolve "architecture <clarified domain or feature>" --trigger clarified --budget 3
+```
 
 ## Step 2 — Analyze Existing Architecture
 
@@ -222,7 +228,7 @@ coder memory store "Design: <Feature Name>" "Architecture: <key decisions>. API:
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Requirements doc read and understood
 - [ ] Existing architecture analyzed

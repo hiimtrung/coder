@@ -20,7 +20,7 @@ Every finding is classified as:
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "<language or module being reviewed>"
+coder skill resolve "<language or module being reviewed>" --trigger initial --budget 3
 ```
 
 Run before reading any source files.
@@ -198,7 +198,7 @@ Examine each file for:
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "<language or module>"
+1. [GATE 1] coder skill resolve "<language or module>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature>"
 3. Get list of modified files (git diff)
 4. Read design doc if available

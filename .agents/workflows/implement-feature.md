@@ -15,7 +15,7 @@ This workflow governs all code implementation. It requires a confirmed requireme
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "<language> <feature domain>"
+coder skill resolve "<language> <feature domain>" --trigger initial --budget 3
 coder memory search "<feature name>"
 ```
 
@@ -24,12 +24,22 @@ Then read:
 - `docs/design/<feature>.md` — how to build it
 - Existing source files for the target module — understand current patterns
 
+Use `coder skill resolve ... --format raw` if the current wave needs markdown-preserving skill context in the LLM prompt.
+
 ## Step 2 — Plan Implementation Waves
 
 Decompose the implementation into independent, committable waves. Each wave must:
 - Compile and pass all tests
 - Be independently revertable
 - Represent one logical slice of functionality
+
+Before starting each wave or spawning a worker for a subtask, re-run:
+
+```bash
+coder skill resolve "<wave or subtask>" --trigger execution --budget 3
+```
+
+If a worker/subagent owns that wave, the worker must update the corresponding `.coder/` task or checkpoint before returning control.
 
 **Example wave breakdown for a CRUD feature:**
 
@@ -217,7 +227,8 @@ Multi-tenancy (non-negotiable):
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
+- [ ] `coder skill resolve "<wave or subtask>" --trigger execution --budget 3` run when scope narrows or changes
 - [ ] `coder memory search` run
 - [ ] Requirements doc read
 - [ ] Design doc read

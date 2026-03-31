@@ -21,7 +21,7 @@ tools:
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "<topic of the task>"
+coder skill resolve "<topic of the task>" --trigger initial --budget 3
 ```
 
 First action of any workflow. No exceptions.
@@ -34,6 +34,8 @@ coder memory search "<topic of the task>"
 
 Immediately after Gate 1. Load project-specific decisions and past patterns.
 
+Re-run `coder skill resolve` whenever backend work shifts language, framework, protocol, or file area. Use `--trigger execution` for active work and `--format raw` when a worker needs markdown-preserving skill context.
+
 ### Gate 3 — Knowledge Capture
 
 ```bash
@@ -44,7 +46,7 @@ After completing any significant task. Store patterns, decisions, and non-obviou
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  GATE 1: coder skill search "<topic>"                   │
+│  GATE 1: coder skill resolve "<topic>" --trigger initial --budget 3                   │
 ├─────────────────────────────────────────────────────────┤
 │  GATE 2: coder memory search "<topic>"                  │
 ├─────────────────────────────────────────────────────────┤
@@ -147,11 +149,12 @@ Dependencies point INWARD only. Domain layer has zero framework dependencies.
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "<language> <domain>"
+1. [GATE 1] coder skill resolve "<language> <domain>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature>"
 3. Read docs/requirements/<feature>.md
 4. Read docs/design/<feature>.md
 5. Plan implementation waves
+6. Re-run `coder skill resolve "<wave or subtask>" --trigger execution --budget 3` when entering a new slice
    ... wave-by-wave implementation ...
 N-1. coder session save
 N.   [GATE 3] coder memory store "Implementation: <feature>"

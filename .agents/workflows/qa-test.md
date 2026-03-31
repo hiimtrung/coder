@@ -16,7 +16,7 @@ This workflow verifies that a completed feature meets all acceptance criteria, p
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "testing <language or framework>"
+coder skill resolve "testing <language or framework>" --trigger review --budget 3
 coder memory search "<feature name>"
 ```
 
@@ -183,7 +183,7 @@ coder memory store "QA: <Feature Name>" "Verdict: <PASS/FAIL>. Test count: <N>. 
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Requirements doc read — all user stories identified
 - [ ] Test plan written with test cases for every story

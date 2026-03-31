@@ -137,7 +137,7 @@ During review, evaluate each entry:
 
 ## Step-by-Step Procedure
 
-1. `coder skill search "knowledge management"` — retrieve any memory standards
+1. `coder skill resolve "knowledge management" --trigger review --budget 3` — retrieve any memory standards
 2. `coder memory search "<topic>"` — check what already exists before storing
 3. Choose the correct template (Pattern / Decision / Bug / Integration)
 4. Write the entry following quality standards above

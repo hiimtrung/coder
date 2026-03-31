@@ -17,7 +17,7 @@ Systematically reduce complexity in existing code. The goal is to make code easi
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "refactoring <language or module>"
+coder skill resolve "refactoring <language or module>" --trigger execution --budget 3
 coder memory search "<module or feature to simplify>"
 ```
 
@@ -138,7 +138,7 @@ coder memory store "Simplification: <Module or Feature Name>" "Complexity source
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Target files identified
 - [ ] Complexity sources categorized (structural / cognitive / architecture / coupling)

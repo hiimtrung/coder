@@ -16,7 +16,7 @@ Review documentation files to ensure they are clear, complete, and useful for th
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "technical writing documentation"
+coder skill resolve "technical writing documentation" --trigger review --budget 3
 coder memory search "<document topic or component>"
 ```
 
@@ -125,7 +125,7 @@ coder memory store "Doc Review: <Document Name>" "Audience: <audience>. Overall 
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Each document read as target audience
 - [ ] All four criteria evaluated (clarity, completeness, actionability, structure)

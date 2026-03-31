@@ -17,7 +17,7 @@ You do not guess. You trace, hypothesize, verify, then fix.
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "<error type or component>"
+coder skill resolve "<error type or component>" --trigger initial --budget 3
 ```
 
 Run before reading any source code.
@@ -218,7 +218,7 @@ Run: `<test command that proves fix works>`
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "<error type>"
+1. [GATE 1] coder skill resolve "<error type>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<error message>" — check if seen before
 3. Collect complete symptom information
 4. Run the failing test or reproduce the error

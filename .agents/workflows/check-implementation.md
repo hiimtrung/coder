@@ -15,7 +15,7 @@ Verifies that what was built matches what was designed and what was required. Ru
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "architecture <implementation context>"
+coder skill resolve "architecture <implementation context>" --trigger review --budget 3
 coder memory search "<feature or module name>"
 ```
 
@@ -125,7 +125,7 @@ coder memory store "Implementation Check: <Feature Name>" "Status: <ALIGNED/DEVI
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Requirements doc read — all acceptance criteria listed
 - [ ] Design doc read — all components and contracts listed

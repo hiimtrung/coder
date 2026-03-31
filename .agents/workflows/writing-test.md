@@ -16,7 +16,7 @@ A systematic approach to writing tests for a feature or module. Produces tests t
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "testing <language or framework>"
+coder skill resolve "testing <language or framework>" --trigger execution --budget 3
 coder memory search "<feature or module name>"
 ```
 
@@ -215,7 +215,7 @@ coder memory store "Testing: <Feature Name>" "Test types: unit, integration, E2E
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Requirements doc read — all user stories and acceptance criteria mapped to tests
 - [ ] Test scenarios table written before coding tests

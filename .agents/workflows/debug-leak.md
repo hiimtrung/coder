@@ -17,7 +17,7 @@ A systematic approach to identifying and fixing memory leaks, resource exhaustio
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "memory leak <language or framework>"
+coder skill resolve "memory leak <language or framework>" --trigger error-recovery --budget 3
 coder memory search "memory leak <component or service>"
 ```
 
@@ -175,7 +175,7 @@ coder memory store "Leak: <Resource> in <Component>" "Resource type: <type>. Roo
 
 ## Checklist
 
-- [ ] `coder skill search` run with language/framework context
+- [ ] `coder skill resolve` run with language/framework context
 - [ ] `coder memory search` run for similar past leaks
 - [ ] Diagnostic data collected (heap snapshot, goroutine count, etc.)
 - [ ] Leak type classified

@@ -21,7 +21,7 @@ tools:
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "<topic of the task>"
+coder skill resolve "<topic of the task>" --trigger initial --budget 3
 ```
 
 First action of any workflow. No exceptions.
@@ -34,6 +34,8 @@ coder memory search "<topic of the task>"
 
 Immediately after Gate 1. Load project-specific decisions and past patterns.
 
+Re-run `coder skill resolve` whenever the task shifts between UI architecture, styling, accessibility, performance, or platform-specific concerns. Use `--format raw` when injecting skill markdown into the model context.
+
 ### Gate 3 — Knowledge Capture
 
 ```bash
@@ -44,7 +46,7 @@ After completing any significant task. Store patterns, decisions, and accessibil
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  GATE 1: coder skill search "<topic>"                   │
+│  GATE 1: coder skill resolve "<topic>" --trigger initial --budget 3                   │
 ├─────────────────────────────────────────────────────────┤
 │  GATE 2: coder memory search "<topic>"                  │
 ├─────────────────────────────────────────────────────────┤
@@ -145,11 +147,12 @@ return <DataComponent data={data} />;
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "frontend <domain>"
+1. [GATE 1] coder skill resolve "frontend <domain>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature>"
 3. Read docs/requirements/<feature>.md
 4. Read docs/design/<feature>.md
 5. Plan component waves
+6. Re-run `coder skill resolve "<component or UI concern>" --trigger execution --budget 3` when the wave narrows
    ... wave-by-wave implementation ...
 N-1. coder session save
 N.   [GATE 3] coder memory store "Implementation: <feature>"

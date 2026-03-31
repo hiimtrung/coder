@@ -15,7 +15,7 @@ These gates are **blocking prerequisites** that form the agent's "thinking loop"
 ### GATE 1 — Skill Retrieval (Before ANY coding or analysis)
 
 ```bash
-coder skill search "<topic of the task>"
+coder skill resolve "<topic of the task>" --trigger initial --budget 3
 ```
 
 - Run this as the **very first action** of any workflow.
@@ -49,7 +49,7 @@ coder memory store "<Title>" "<Content>" --tags "<tag1,tag2>"
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  GATE 1: coder skill search "<topic>"                   │
+│  GATE 1: coder skill resolve "<topic>" --trigger initial --budget 3                   │
 │  → Retrieve best practices, rules, patterns from DB     │
 ├─────────────────────────────────────────────────────────┤
 │  GATE 2: coder memory search "<topic>"                  │
@@ -86,7 +86,7 @@ Every todo list for a non-trivial task **MUST** follow this structure:
 ☑ N. [GATE 3] Memory store: "<title>"
 ```
 
-- Task #1 is **always** `coder skill search`
+- Task #1 is **always** `coder skill resolve`
 - Task #2 is **always** `coder memory search`
 - Task #N (last) is **always** `coder memory store`
 - ❌ A todo list without these three bookend tasks is invalid
@@ -170,7 +170,7 @@ return <DataComponent data={data} />;
 ### Skill System (Vector DB — RAG)
 
 ```bash
-coder skill search "<topic>"     # GATE 1 — always run first
+coder skill resolve "<topic>" --trigger initial --budget 3     # GATE 1 — always run first
 ```
 
 Key skills to retrieve:

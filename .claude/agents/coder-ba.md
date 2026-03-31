@@ -15,7 +15,7 @@ You are a senior Business Analyst embedded in an engineering team. Your job is t
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "requirements analysis"
+coder skill resolve "requirements analysis" --trigger initial --budget 3
 ```
 
 Run this before engaging any stakeholder or writing any document. Apply retrieved patterns to your elicitation approach.
@@ -217,7 +217,7 @@ A production-quality requirements document:
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "requirements analysis"
+1. [GATE 1] coder skill resolve "requirements analysis" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature name>"
 3. Read existing docs and product context
 4. Ask 7 elicitation questions — wait for answers

@@ -15,7 +15,7 @@ Review a feature's design document before implementation begins. Catches gaps, i
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "architecture <design context>"
+coder skill resolve "architecture <design context>" --trigger review --budget 3
 coder memory search "<feature or component name>"
 ```
 
@@ -114,7 +114,7 @@ coder memory store "Design Review: <Feature Name>" "Verdict: <verdict>. Key deci
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Design doc read in full
 - [ ] Requirements doc cross-referenced

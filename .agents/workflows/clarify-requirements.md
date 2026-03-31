@@ -18,7 +18,7 @@ This workflow is the first step in the delivery pipeline. No design or code begi
 Before engaging the stakeholder, silently load existing knowledge:
 
 ```bash
-coder skill search "requirements analysis"
+coder skill resolve "requirements analysis" --trigger initial --budget 3
 coder memory search "<feature name or domain>"
 ```
 
@@ -26,6 +26,12 @@ Also read:
 - `docs/requirements/` — existing requirement docs
 - `docs/design/` — any prior design context
 - `ROADMAP.md` or `README.md` — product direction
+
+If the stakeholder answers materially change the scope or domain, re-run:
+
+```bash
+coder skill resolve "<clarified feature name or domain>" --trigger clarified --budget 3
+```
 
 ## Step 2 — Structured Elicitation
 
@@ -178,7 +184,8 @@ coder memory store "Requirements: <Feature Name>" "Goal: <goal>. Key constraints
 
 ## Checklist
 
-- [ ] `coder skill search` run before starting
+- [ ] `coder skill resolve` run before starting
+- [ ] `coder skill resolve "<clarified feature>" --trigger clarified --budget 3` run if the scope changed after elicitation
 - [ ] `coder memory search` run before starting
 - [ ] All 7 elicitation questions asked and answered
 - [ ] `docs/requirements/<feature>.md` written with all sections

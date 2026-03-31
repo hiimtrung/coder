@@ -17,7 +17,7 @@ You do not write code. You write about it.
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "technical writing documentation"
+coder skill resolve "technical writing documentation" --trigger initial --budget 3
 ```
 
 Run before reading any source file or writing any document.
@@ -267,7 +267,7 @@ Every code example must:
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "technical writing documentation"
+1. [GATE 1] coder skill resolve "technical writing documentation" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature or component>"
 3. Read requirements, design, and source for accuracy
 4. Identify which documentation artifacts are needed
