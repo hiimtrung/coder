@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	grpcclient "github.com/trungtran/coder/internal/transport/grpc/client"
 )
 
 const tokenUsage = `coder token — Manage your coder-node access token
@@ -66,6 +69,29 @@ func runTokenShow() {
 		return
 	}
 
+	if cfg.Memory.Protocol == "grpc" {
+		client, err := grpcclient.NewAuthClient(baseURL, cfg.Auth.AccessToken)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error contacting server: %v\n", err)
+			return
+		}
+		defer client.Close()
+
+		info, err := client.Me(context.Background())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error contacting server: %v\n", err)
+			return
+		}
+
+		fmt.Printf("Client ID    : %s\n", info.Id)
+		fmt.Printf("Name         : %s\n", info.GitName)
+		fmt.Printf("Email        : %s\n", info.GitEmail)
+		fmt.Printf("Registered   : %s\n", info.CreatedAt.AsTime().Format("2006-01-02T15:04:05Z07:00"))
+		fmt.Printf("Last seen    : %s\n", info.LastSeenAt.AsTime().Format("2006-01-02T15:04:05Z07:00"))
+		fmt.Printf("Secure mode  : %v\n", info.SecureMode)
+		return
+	}
+
 	httpBase := toHTTPBase(baseURL)
 	req, err := http.NewRequest(http.MethodGet, httpBase+"/v1/auth/me", nil)
 	if err != nil {
@@ -87,12 +113,12 @@ func runTokenShow() {
 	}
 
 	var info struct {
-		ID          string `json:"id"`
-		GitName     string `json:"git_name"`
-		GitEmail    string `json:"git_email"`
-		CreatedAt   string `json:"created_at"`
-		LastSeenAt  string `json:"last_seen_at"`
-		SecureMode  bool   `json:"secure_mode"`
+		ID         string `json:"id"`
+		GitName    string `json:"git_name"`
+		GitEmail   string `json:"git_email"`
+		CreatedAt  string `json:"created_at"`
+		LastSeenAt string `json:"last_seen_at"`
+		SecureMode bool   `json:"secure_mode"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing response: %v\n", err)
@@ -124,6 +150,37 @@ func runTokenRotate() {
 	if baseURL == "" {
 		fmt.Fprintln(os.Stderr, "Error: no server URL configured. Run 'coder login' first.")
 		os.Exit(1)
+	}
+
+	if cfg.Memory.Protocol == "grpc" {
+		client, err := grpcclient.NewAuthClient(baseURL, cfg.Auth.AccessToken)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error contacting server: %v\n", err)
+			os.Exit(1)
+		}
+		defer client.Close()
+
+		fmt.Println("Rotating access token...")
+		newToken, message, err := client.RotateToken(context.Background())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error contacting server: %v\n", err)
+			os.Exit(1)
+		}
+
+		cfg.Auth.AccessToken = newToken
+		home, _ := os.UserHomeDir()
+		configPath := filepath.Join(home, ".coder", "config.json")
+		data, _ := json.MarshalIndent(cfg, "", "  ")
+		if err := os.WriteFile(configPath, data, 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to save new token: %v\n", err)
+			fmt.Printf("\nNew token (save this manually): %s\n", newToken)
+			os.Exit(1)
+		}
+
+		fmt.Printf("\n✓ %s\n", message)
+		fmt.Printf("  New token : %s\n", maskToken(newToken))
+		fmt.Printf("  Saved to  : %s\n", configPath)
+		return
 	}
 
 	httpBase := toHTTPBase(baseURL)

@@ -18,10 +18,10 @@ func UnaryAuth(mgr authdomain.AuthManager) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req any,
-		_ *grpc.UnaryServerInfo,
+		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
-		if !mgr.IsSecureMode() {
+		if !mgr.IsSecureMode() || isPublicMethod(info.FullMethod) {
 			return handler(ctx, req)
 		}
 		ctx, err := validateToken(ctx, mgr)
@@ -38,10 +38,10 @@ func StreamAuth(mgr authdomain.AuthManager) grpc.StreamServerInterceptor {
 	return func(
 		srv any,
 		ss grpc.ServerStream,
-		_ *grpc.StreamServerInfo,
+		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
 	) error {
-		if !mgr.IsSecureMode() {
+		if !mgr.IsSecureMode() || isPublicMethod(info.FullMethod) {
 			return handler(srv, ss)
 		}
 		ctx, err := validateToken(ss.Context(), mgr)
@@ -86,3 +86,12 @@ type wrappedStream struct {
 }
 
 func (w *wrappedStream) Context() context.Context { return w.ctx }
+
+func isPublicMethod(fullMethod string) bool {
+	switch fullMethod {
+	case "/auth.AuthService/RegisterClient":
+		return true
+	default:
+		return false
+	}
+}
