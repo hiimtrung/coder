@@ -6,24 +6,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [v0.5.6] — 2026-04-01
+
+### Added
+
+- **Dynamic retrieval documentation**: Added comprehensive rules for when to re-run `coder skill resolve` (after clarification, phase switch, new language/framework, repeated errors, before review/release).
+- **Memory working set commands**: Enhanced documentation for `coder memory recall "<topic>"` to narrow active memory working set and `coder memory active` for inspection.
+- **Session state management**: Added guidance for `.coder/active-skills.json` and `.coder/context-state.json` as session-scoped sources of truth.
+- **Subagents & .coder management**: Added comprehensive section on subagent execution contracts, task file ownership, and checkpoint management under `.coder/`.
+
+### Changed
+
+- **Knowledge Gates (GATE 1)**: Updated from `coder skill search "<topic>"` to `coder skill resolve "<topic>" --trigger initial --budget 3` in all agent rule files.
+- **Agent rules synchronization**: Updated all `.agents/rules/*.instructions.md` files to align with the latest `copilot-instructions.md` command structure.
+- **CLI commands documentation**: Enhanced all rule files with complete CLI command reference including new memory and skill commands with proper flags and formats.
+- **Todo list rule format**: Updated standard todo list format to use `coder skill resolve` instead of deprecated `coder skill search`.
+
+### Fixed
+
+- **Inconsistent skill resolution**: All agent rule files now consistently use the new dynamic skill resolution workflow instead of legacy search commands.
+- **Missing CLI command reference**: Backend and frontend instruction files now include complete CLI command documentation that was previously missing.
+
 ## [v0.5.5] — 2026-03-31
 
 ### Added
+
 - **Dynamic skill resolution commands**: Added `coder skill resolve` to select the active skill set for the current task, compute `keep/add/drop`, and persist session skill state in `.coder/active-skills.json`.
 - **Active skill inspection**: Added `coder skill active` to inspect the current resolved skill set in human-readable or JSON form.
 - **Structured skill output**: Added `coder skill search --format json` and `coder skill info --format raw|json` so agents can consume machine-readable results and raw markdown without relying on terminal-formatted output.
 - **Resolver test coverage**: Added focused CLI tests for skill normalization and active-skill selection/diff logic.
 
 ### Changed
+
 - **Skill retrieval model**: Shifted from one-shot `coder skill search` guidance to a dynamic retrieval loop built around `coder skill resolve` with explicit triggers: `initial`, `clarified`, `execution`, `error-recovery`, and `review`.
 - **Agent and workflow instructions**: Updated GitHub agents, Claude agents, Copilot instructions, and `.agents/workflows` to re-resolve skills as the task changes instead of freezing the initial retrieval for the whole session.
 - **Session state conventions**: Standardized `.coder/active-skills.json` as the session-scoped source of truth for active skills and re-resolve history.
 - **Subagent execution contract**: Clarified that spawned workers must resolve skills for their own subtasks and update `.coder` task/checkpoint state before handing control back.
 
 ### Fixed
+
 - **Stale skill context during long tasks**: Agents can now swap or drop irrelevant skills after clarification, domain shifts, and repeated errors instead of staying stuck with the first retrieval result.
 - **Markdown loss in injected skill context**: Raw skill output is now available directly from the CLI, avoiding the previous pattern where terminal-rendered output flattened markdown structure before it reached the LLM.
-
 
 ## [v0.5.4] — 2026-03-31
 
