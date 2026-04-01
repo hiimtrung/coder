@@ -16,11 +16,15 @@ This workflow verifies that a completed feature meets all acceptance criteria, p
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "testing <language or framework>"
+coder skill resolve "testing <language or framework>" --trigger review --budget 3
 coder memory search "<feature name>"
 ```
 
+Use `coder memory recall "<feature name>"` when the QA scope is large and you need the active working set focused on the current release.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before executing the plan.
+
 Then read:
+
 - `docs/requirements/<feature>.md` — user stories and acceptance criteria
 - `docs/design/<feature>.md` — data flows and error handling contracts
 
@@ -41,9 +45,11 @@ Then read:
 ## Scope
 
 ### In Scope
+
 - <what this test plan covers>
 
 ### Out of Scope
+
 - <what is not tested here and why>
 
 ---
@@ -60,33 +66,34 @@ Then read:
 
 ### Story 1: <Title>
 
-| Test ID | Scenario | Input | Expected Output | Type |
-|---------|----------|-------|-----------------|------|
-| TC-001 | Happy path | valid payload | 201, resource created | Acceptance |
-| TC-002 | Empty name field | `name: ""` | 400, VAL_INVALID_NAME | Negative |
-| TC-003 | Unauthorized | no JWT token | 401, AUTH_UNAUTHORIZED | Security |
-| TC-004 | Wrong company | JWT from company B | 404 or empty | Isolation |
+| Test ID | Scenario         | Input              | Expected Output        | Type       |
+| ------- | ---------------- | ------------------ | ---------------------- | ---------- |
+| TC-001  | Happy path       | valid payload      | 201, resource created  | Acceptance |
+| TC-002  | Empty name field | `name: ""`         | 400, VAL_INVALID_NAME  | Negative   |
+| TC-003  | Unauthorized     | no JWT token       | 401, AUTH_UNAUTHORIZED | Security   |
+| TC-004  | Wrong company    | JWT from company B | 404 or empty           | Isolation  |
 
 ### Story 2: <Title>
+
 ... (repeat for each story)
 
 ---
 
 ## Regression Test Suite
 
-| Test ID | Area | Scenario | Expected Result |
-|---------|------|----------|-----------------|
-| REG-001 | Auth | Existing login flow | Unchanged behavior |
-| REG-002 | <adjacent module> | Core operation | Unchanged behavior |
+| Test ID | Area              | Scenario            | Expected Result    |
+| ------- | ----------------- | ------------------- | ------------------ |
+| REG-001 | Auth              | Existing login flow | Unchanged behavior |
+| REG-002 | <adjacent module> | Core operation      | Unchanged behavior |
 
 ---
 
 ## Performance Checks
 
-| Check | Metric | Threshold |
-|-------|--------|-----------|
-| List endpoint response time | p95 latency | < 200ms |
-| Create under load | 100 concurrent requests | < 500ms p99, 0 errors |
+| Check                       | Metric                  | Threshold             |
+| --------------------------- | ----------------------- | --------------------- |
+| List endpoint response time | p95 latency             | < 200ms               |
+| Create under load           | 100 concurrent requests | < 500ms p99, 0 errors |
 ```
 
 ## Step 3 — Execute Test Plan
@@ -99,6 +106,7 @@ Run each test case systematically. For each test:
 4. Record PASS / FAIL / BLOCKED
 
 Run the full automated test suite:
+
 ```bash
 yarn test
 yarn test:e2e
@@ -123,13 +131,13 @@ Also verify with the running application for acceptance tests that require it.
 
 ## Summary
 
-| Category | Total | Pass | Fail | Blocked |
-|----------|-------|------|------|---------|
-| Acceptance tests | N | N | N | N |
-| Negative tests | N | N | N | N |
-| Security tests | N | N | N | N |
-| Regression tests | N | N | N | N |
-| **Total** | **N** | **N** | **N** | **N** |
+| Category         | Total | Pass  | Fail  | Blocked |
+| ---------------- | ----- | ----- | ----- | ------- |
+| Acceptance tests | N     | N     | N     | N       |
+| Negative tests   | N     | N     | N     | N       |
+| Security tests   | N     | N     | N     | N       |
+| Regression tests | N     | N     | N     | N       |
+| **Total**        | **N** | **N** | **N** | **N**   |
 
 ---
 
@@ -137,11 +145,11 @@ Also verify with the running application for acceptance tests that require it.
 
 ### Story 1: <Title> — PASS / FAIL
 
-| Test ID | Scenario | Result | Notes |
-|---------|----------|--------|-------|
-| TC-001 | Happy path | PASS | |
-| TC-002 | Empty name | PASS | |
-| TC-003 | Unauthorized | FAIL | Returns 500 instead of 401 |
+| Test ID | Scenario     | Result | Notes                      |
+| ------- | ------------ | ------ | -------------------------- |
+| TC-001  | Happy path   | PASS   |                            |
+| TC-002  | Empty name   | PASS   |                            |
+| TC-003  | Unauthorized | FAIL   | Returns 500 instead of 401 |
 
 ---
 
@@ -183,7 +191,7 @@ coder memory store "QA: <Feature Name>" "Verdict: <PASS/FAIL>. Test count: <N>. 
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Requirements doc read — all user stories identified
 - [ ] Test plan written with test cases for every story

@@ -91,6 +91,69 @@ func (s *MemoryServer) Search(ctx context.Context, req *memorypb.SearchRequest) 
 	return &memorypb.SearchResponse{Results: pbResults}, nil
 }
 
+func (s *MemoryServer) Recall(ctx context.Context, req *memorypb.RecallRequest) (*memorypb.RecallResponse, error) {
+	var meta map[string]any
+	if req.MetaFiltersJson != "" {
+		if err := json.Unmarshal([]byte(req.MetaFiltersJson), &meta); err != nil {
+			return nil, err
+		}
+	}
+
+	result, err := s.manager.Recall(ctx, memdomain.RecallOptions{
+		Task:        req.Task,
+		Current:     req.Current,
+		Trigger:     req.Trigger,
+		Budget:      int(req.Budget),
+		Limit:       int(req.Limit),
+		Scope:       req.Scope,
+		Tags:        req.Tags,
+		Type:        memdomain.MemoryType(req.Type),
+		MetaFilters: meta,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	pbMemories := make([]*memorypb.RecalledMemory, 0, len(result.Memories))
+	for _, memory := range result.Memories {
+		metaJSON, _ := json.Marshal(memory.Result.Metadata)
+		pbMemories = append(pbMemories, &memorypb.RecalledMemory{
+			Result: &memorypb.SearchResult{
+				Score: memory.Result.Score,
+				Knowledge: &memorypb.Knowledge{
+					Id:              memory.Result.ID,
+					Title:           memory.Result.Title,
+					Content:         memory.Result.Content,
+					Type:            string(memory.Result.Type),
+					MetadataJson:    string(metaJSON),
+					Tags:            memory.Result.Tags,
+					Scope:           memory.Result.Scope,
+					ParentId:        memory.Result.ParentID,
+					ChunkIndex:      int32(memory.Result.ChunkIndex),
+					NormalizedTitle: memory.Result.NormalizedTitle,
+					ContentHash:     memory.Result.ContentHash,
+					CreatedAt:       timestamppb.New(memory.Result.CreatedAt),
+					UpdatedAt:       timestamppb.New(memory.Result.UpdatedAt),
+				},
+			},
+			Reason: memory.Reason,
+		})
+	}
+
+	return &memorypb.RecallResponse{
+		Task:      result.Task,
+		Trigger:   result.Trigger,
+		Budget:    int32(result.Budget),
+		Limit:     int32(result.Limit),
+		Coverage:  result.Coverage,
+		Keep:      result.Keep,
+		Add:       result.Add,
+		Drop:      result.Drop,
+		Conflicts: result.Conflicts,
+		Memories:  pbMemories,
+	}, nil
+}
+
 func (s *MemoryServer) List(ctx context.Context, req *memorypb.ListRequest) (*memorypb.ListResponse, error) {
 	items, err := s.manager.List(ctx, int(req.Limit), int(req.Offset))
 	if err != nil {

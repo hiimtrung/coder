@@ -21,7 +21,7 @@ tools:
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "<topic of the task>"
+coder skill resolve "<topic of the task>" --trigger initial --budget 3
 ```
 
 First action of any workflow. No exceptions.
@@ -33,6 +33,10 @@ coder memory search "<topic of the task>"
 ```
 
 Immediately after Gate 1. Load project-specific decisions and past patterns.
+Use `coder memory recall "<topic>"` when the frontend task needs a smaller active working set, and `coder memory active` to inspect the pinned memory set before a new wave.
+Treat `.coder/context-state.json` as the local snapshot that combines active skill and memory state.
+
+Re-run `coder skill resolve` whenever the task shifts between UI architecture, styling, accessibility, performance, or platform-specific concerns. Use `--format raw` when injecting skill markdown into the model context.
 
 ### Gate 3 — Knowledge Capture
 
@@ -44,7 +48,7 @@ After completing any significant task. Store patterns, decisions, and accessibil
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  GATE 1: coder skill search "<topic>"                   │
+│  GATE 1: coder skill resolve "<topic>" --trigger initial --budget 3                   │
 ├─────────────────────────────────────────────────────────┤
 │  GATE 2: coder memory search "<topic>"                  │
 ├─────────────────────────────────────────────────────────┤
@@ -62,7 +66,7 @@ After completing any significant task. Store patterns, decisions, and accessibil
 // All props fully typed — no implicit any
 interface ButtonProps {
   label: string;
-  variant: 'primary' | 'secondary' | 'danger';
+  variant: "primary" | "secondary" | "danger";
   onClick: () => void;
   disabled?: boolean;
 }
@@ -70,7 +74,7 @@ interface ButtonProps {
 // Accessible interactive elements
 <button aria-label="Close dialog" aria-expanded={isOpen} onClick={onClose}>
   <XIcon aria-hidden="true" />
-</button>
+</button>;
 
 // All async states handled
 if (isLoading) return <Skeleton />;
@@ -83,12 +87,14 @@ return <DataComponent data={data} />;
 ## Key Principles
 
 ### Accessibility First (WCAG AA)
+
 - All interactive elements keyboard navigable (Tab, Enter, Escape)
 - ARIA labels on all non-obvious UI elements
 - Color contrast ratio ≥ 4.5:1 for normal text
 - Focus indicators always visible — never `outline: none` without replacement
 
 ### Component Quality
+
 - Single responsibility — one component, one concern
 - Composition over prop drilling
 - Fully typed props with explicit interfaces
@@ -96,6 +102,7 @@ return <DataComponent data={data} />;
 - Max ~150 lines per component — extract if larger
 
 ### Performance Standards
+
 - Server Components by default in Next.js App Router; `'use client'` only when required
 - Lazy load non-critical components
 - `next/image` for all images, `next/font` for web fonts
@@ -103,6 +110,7 @@ return <DataComponent data={data} />;
 - Touch targets minimum 44×44px on mobile
 
 ### Design Fidelity
+
 - Design tokens for all spacing, colors, typography — never hardcode values
 - Implement exact design specifications — no approximations without approval
 
@@ -145,11 +153,12 @@ return <DataComponent data={data} />;
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "frontend <domain>"
+1. [GATE 1] coder skill resolve "frontend <domain>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature>"
 3. Read docs/requirements/<feature>.md
 4. Read docs/design/<feature>.md
 5. Plan component waves
+6. Re-run `coder skill resolve "<component or UI concern>" --trigger execution --budget 3` when the wave narrows
    ... wave-by-wave implementation ...
 N-1. coder session save
 N.   [GATE 3] coder memory store "Implementation: <feature>"

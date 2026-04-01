@@ -16,14 +16,24 @@ This workflow produces the technical design document that implementation follows
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "architecture <domain or feature>"
+coder skill resolve "architecture <domain or feature>" --trigger initial --budget 3
 coder memory search "<feature name or component>"
 ```
 
+Use `coder memory recall "<feature name or component>"` when the design space spans too many prior decisions and you need a focused active working set.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before finalizing the design.
+
 Also read:
+
 - `docs/requirements/<feature>.md` — confirmed requirements
 - `docs/design/` — existing design documents for the system
 - Relevant source files: existing modules, entity definitions, repository interfaces
+
+When requirements or constraints sharpen the scope, re-run:
+
+```bash
+coder skill resolve "architecture <clarified domain or feature>" --trigger clarified --budget 3
+```
 
 ## Step 2 — Analyze Existing Architecture
 
@@ -43,7 +53,7 @@ Before designing, understand what already exists:
 
 **Output path**: `docs/design/<feature-name>.md`
 
-```markdown
+````markdown
 # Design: <Feature Name>
 
 **Date**: YYYY-MM-DD
@@ -68,6 +78,7 @@ graph TD
     UseCase --> Events[EventPublisher]
     Events --> Handler[DownstreamEventHandler]
 ```
+````
 
 ## Data Flow
 
@@ -97,20 +108,20 @@ sequenceDiagram
 
 ### Endpoints
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/v1/<resource>` | Bearer JWT | Create |
-| GET | `/api/v1/<resource>/:id` | Bearer JWT | Get by ID |
-| PATCH | `/api/v1/<resource>/:id` | Bearer JWT | Update |
-| DELETE | `/api/v1/<resource>/:id` | Bearer JWT | Delete |
+| Method | Path                     | Auth       | Description |
+| ------ | ------------------------ | ---------- | ----------- |
+| POST   | `/api/v1/<resource>`     | Bearer JWT | Create      |
+| GET    | `/api/v1/<resource>/:id` | Bearer JWT | Get by ID   |
+| PATCH  | `/api/v1/<resource>/:id` | Bearer JWT | Update      |
+| DELETE | `/api/v1/<resource>/:id` | Bearer JWT | Delete      |
 
 ### Request DTO
 
 ```typescript
 // CreateFeatureDto
 {
-  name: string;           // required, max 255
-  companyId: string;      // from JWT, not in body
+  name: string; // required, max 255
+  companyId: string; // from JWT, not in body
 }
 ```
 
@@ -121,18 +132,18 @@ sequenceDiagram
 {
   id: string;
   name: string;
-  createdAt: string;      // ISO 8601
+  createdAt: string; // ISO 8601
 }
 ```
 
 ### Error Responses
 
-| Code | HTTP | Scenario |
-|------|------|----------|
-| `VAL_*` | 400 | Invalid input |
-| `AUTH_UNAUTHORIZED` | 401 | Missing or invalid token |
-| `BIZ_NOT_FOUND` | 404 | Resource not found |
-| `INF_DATABASE_ERROR` | 500 | Persistence failure |
+| Code                 | HTTP | Scenario                 |
+| -------------------- | ---- | ------------------------ |
+| `VAL_*`              | 400  | Invalid input            |
+| `AUTH_UNAUTHORIZED`  | 401  | Missing or invalid token |
+| `BIZ_NOT_FOUND`      | 404  | Resource not found       |
+| `INF_DATABASE_ERROR` | 500  | Persistence failure      |
 
 ## Database Schema
 
@@ -152,8 +163,8 @@ CREATE INDEX idx_features_company_id ON features(company_id);
 
 ## Domain Events
 
-| Event | Trigger | Consumer |
-|-------|---------|----------|
+| Event            | Trigger                     | Consumer                    |
+| ---------------- | --------------------------- | --------------------------- |
 | `FeatureCreated` | After save in CreateUseCase | Notification module (async) |
 
 ## Security Considerations
@@ -183,9 +194,11 @@ CREATE INDEX idx_features_company_id ON features(company_id);
 **Consequences**: <What are the trade-offs? What becomes easier or harder?>
 
 **Alternatives Considered**:
+
 - Option A: <description> — rejected because <reason>
 - Option B: <description> — rejected because <reason>
-```
+
+````
 
 ## Step 4 — Review Against Principles
 
@@ -216,13 +229,13 @@ Proceed to `implement-feature.md` only after confirmation.
 
 ```bash
 coder memory store "Design: <Feature Name>" "Architecture: <key decisions>. API: <endpoints>. DB: <tables>. Events: <events published>. ADR: <decisions recorded>." --tags "design,architecture,<feature>,<domain>"
-```
+````
 
 ---
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Requirements doc read and understood
 - [ ] Existing architecture analyzed

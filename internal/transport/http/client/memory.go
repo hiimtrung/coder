@@ -115,6 +115,44 @@ func (c *Client) Search(ctx context.Context, query string, scope string, tags []
 	return res.Results, nil
 }
 
+func (c *Client) Recall(ctx context.Context, opts memdomain.RecallOptions) (memdomain.RecallResult, error) {
+	reqBody := map[string]any{
+		"task":         opts.Task,
+		"current":      opts.Current,
+		"trigger":      opts.Trigger,
+		"budget":       opts.Budget,
+		"limit":        opts.Limit,
+		"scope":        opts.Scope,
+		"tags":         opts.Tags,
+		"type":         string(opts.Type),
+		"meta_filters": opts.MetaFilters,
+	}
+
+	data, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/memory/recall", bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
+	c.addAuth(req)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return memdomain.RecallResult{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return memdomain.RecallResult{}, fmt.Errorf("server returned status: %s", resp.Status)
+	}
+
+	var res memdomain.RecallResult
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return memdomain.RecallResult{}, err
+	}
+	for i := range res.Memories {
+		memdomain.HydrateKnowledgeLifecycle(&res.Memories[i].Result.Knowledge)
+	}
+	return res, nil
+}
+
 func (c *Client) List(ctx context.Context, limit, offset int) ([]memdomain.Knowledge, error) {
 	u, _ := url.Parse(c.baseURL + "/v1/memory/list")
 	q := u.Query()

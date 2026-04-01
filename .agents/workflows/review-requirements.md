@@ -15,13 +15,17 @@ A structured review of a requirements document before it is used to drive design
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "requirements analysis <domain>"
+coder skill resolve "requirements analysis <domain>" --trigger review --budget 3
 coder memory search "<feature or product area>"
 ```
+
+Use `coder memory recall "<feature or product area>"` when old requirement decisions are noisy and you need a tighter active working set.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before reviewing the document.
 
 ## Step 2 — Read the Document
 
 Read `docs/requirements/<feature>.md` in full. Also review:
+
 - The project `ROADMAP.md` or product direction for context
 - Related existing requirement docs for consistency
 
@@ -92,23 +96,29 @@ Evaluate each section against the criteria below:
 **Verdict**: APPROVED | APPROVED WITH COMMENTS | REQUEST REVISION
 
 ### Core Problem and Users
+
 <summary of what the requirements say the feature does and for whom>
 
 ### User Stories Coverage
+
 <N stories covering: X, Y, Z workflows>
 
 ### Gaps Found
 
 #### Blocking (must address before design)
+
 1. <gap>: <specific section and what is missing>
 
 #### Recommended
+
 1. <gap>: <suggestion>
 
 ### Inconsistencies or Contradictions
+
 1. <description>: <which sections conflict>
 
 ### Summary
+
 <2-3 sentences on overall requirement quality and most important finding>
 ```
 
@@ -122,7 +132,7 @@ coder memory store "Requirements Review: <Feature Name>" "Verdict: <verdict>. Us
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Requirements doc read in full
 - [ ] All review categories evaluated

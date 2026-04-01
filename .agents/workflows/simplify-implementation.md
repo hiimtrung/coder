@@ -17,13 +17,17 @@ Systematically reduce complexity in existing code. The goal is to make code easi
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "refactoring <language or module>"
+coder skill resolve "refactoring <language or module>" --trigger execution --budget 3
 coder memory search "<module or feature to simplify>"
 ```
+
+Use `coder memory recall "<module or feature to simplify>"` when refactor context is broad and you need the active memory set focused on the current simplification.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before changing structure.
 
 ## Step 2 — Gather Context
 
 If the target is not specified, ask for:
+
 - Target file(s) or component(s)
 - Current pain points (hard to understand, extend, or test?)
 - Performance or scalability concerns
@@ -35,13 +39,13 @@ For each target file or component, identify complexity sources:
 
 ### Structural Complexity
 
-| Issue | Indicator | Recommended Fix |
-|-------|-----------|-----------------|
-| Deep nesting | More than 3 levels of if/for/try | Extract guard clauses, extract method |
-| Long method | More than 30 lines | Extract sub-methods with descriptive names |
-| God class | More than 300 lines | Extract by responsibility |
-| Long parameter list | More than 4 parameters | Introduce parameter object / command |
-| Duplicate code | Same logic in 2+ places | Extract shared utility or base class |
+| Issue               | Indicator                        | Recommended Fix                            |
+| ------------------- | -------------------------------- | ------------------------------------------ |
+| Deep nesting        | More than 3 levels of if/for/try | Extract guard clauses, extract method      |
+| Long method         | More than 30 lines               | Extract sub-methods with descriptive names |
+| God class           | More than 300 lines              | Extract by responsibility                  |
+| Long parameter list | More than 4 parameters           | Introduce parameter object / command       |
+| Duplicate code      | Same logic in 2+ places          | Extract shared utility or base class       |
 
 ### Cognitive Complexity
 
@@ -98,14 +102,15 @@ async processOrder(command: ProcessOrderCommand): Promise<void> {
 
 Rank proposed changes by impact and risk:
 
-| Priority | Impact | Risk | Action |
-|----------|--------|------|--------|
-| 1 — Do first | High | Low | Extract guard clauses, rename variables |
-| 2 — Plan carefully | High | Medium | Extract sub-modules, introduce interfaces |
-| 3 — Quick wins | Low | Low | Remove dead code, add constants |
-| 4 — Defer | Low | High | Major architecture changes |
+| Priority           | Impact | Risk   | Action                                    |
+| ------------------ | ------ | ------ | ----------------------------------------- |
+| 1 — Do first       | High   | Low    | Extract guard clauses, rename variables   |
+| 2 — Plan carefully | High   | Medium | Extract sub-modules, introduce interfaces |
+| 3 — Quick wins     | Low    | Low    | Remove dead code, add constants           |
+| 4 — Defer          | Low    | High   | Major architecture changes                |
 
 For each high-risk change, specify:
+
 - What tests must exist before refactoring (to catch regressions)
 - How to validate the change preserves behavior
 
@@ -138,7 +143,7 @@ coder memory store "Simplification: <Module or Feature Name>" "Complexity source
 
 ## Checklist
 
-- [ ] `coder skill search` run
+- [ ] `coder skill resolve` run
 - [ ] `coder memory search` run
 - [ ] Target files identified
 - [ ] Complexity sources categorized (structural / cognitive / architecture / coupling)

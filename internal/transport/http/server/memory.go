@@ -20,6 +20,7 @@ func NewMemoryServer(mgr memdomain.MemoryManager) *MemoryServer {
 func (s *MemoryServer) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/memory/store", s.handleStore)
 	mux.HandleFunc("/v1/memory/search", s.handleSearch)
+	mux.HandleFunc("/v1/memory/recall", s.handleRecall)
 	mux.HandleFunc("/v1/memory/list", s.handleList)
 	mux.HandleFunc("/v1/memory/delete", s.handleDelete)
 	mux.HandleFunc("/v1/memory/verify", s.handleVerify)
@@ -90,6 +91,49 @@ func (s *MemoryServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"results": results})
+}
+
+func (s *MemoryServer) handleRecall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Task        string         `json:"task"`
+		Current     []string       `json:"current"`
+		Trigger     string         `json:"trigger"`
+		Budget      int            `json:"budget"`
+		Limit       int            `json:"limit"`
+		Scope       string         `json:"scope"`
+		Tags        []string       `json:"tags"`
+		Type        string         `json:"type"`
+		MetaFilters map[string]any `json:"meta_filters"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result, err := s.mgr.Recall(r.Context(), memdomain.RecallOptions{
+		Task:        req.Task,
+		Current:     req.Current,
+		Trigger:     req.Trigger,
+		Budget:      req.Budget,
+		Limit:       req.Limit,
+		Scope:       req.Scope,
+		Tags:        req.Tags,
+		Type:        memdomain.MemoryType(req.Type),
+		MetaFilters: req.MetaFilters,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }
 
 func (s *MemoryServer) handleList(w http.ResponseWriter, r *http.Request) {

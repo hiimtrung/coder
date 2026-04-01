@@ -3,6 +3,7 @@ package ucmemory
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -480,5 +481,74 @@ func TestAuditReportsConflictsExpiredAndUnverified(t *testing.T) {
 	}
 	if !foundConflict || !foundExpired || !foundUnverified {
 		t.Fatalf("expected conflict, expired, and unverified findings, got %+v", report.Findings)
+	}
+}
+
+func TestRecallComputesKeepAddDropAndCoverage(t *testing.T) {
+	repo := newFakeMemoryRepo()
+	now := time.Now().UTC()
+	repo.searchResults = []memdomain.SearchResult{
+		{
+			Score: 0.91,
+			Knowledge: memdomain.Knowledge{
+				ID:      "auth-memory",
+				Title:   "Auth token ADR",
+				Type:    memdomain.TypeDecision,
+				Content: "Rotate refresh tokens.",
+				Metadata: map[string]any{
+					memdomain.MetadataKeyStatus:       string(memdomain.StatusActive),
+					memdomain.MetadataKeyCanonicalKey: "decision:auth-token",
+				},
+				UpdatedAt: now,
+			},
+		},
+		{
+			Score: 0.66,
+			Knowledge: memdomain.Knowledge{
+				ID:      "grpc-memory",
+				Title:   "gRPC retry incident",
+				Type:    memdomain.TypeEvent,
+				Content: "Retries are capped at 3.",
+				Metadata: map[string]any{
+					memdomain.MetadataKeyStatus:           string(memdomain.StatusActive),
+					memdomain.MetadataKeyCanonicalKey:     "event:grpc-retry-incident",
+					memdomain.MetadataKeyConflictDetected: true,
+					memdomain.MetadataKeyConflictCount:    2,
+				},
+				UpdatedAt: now.Add(-time.Minute),
+			},
+		},
+	}
+
+	manager := NewManager(repo, fakeEmbeddingProvider{vector: []float32{1, 0, 0}})
+	result, err := manager.Recall(context.Background(), memdomain.RecallOptions{
+		Task:    "auth grpc flow",
+		Current: []string{"decision:auth-token", "stale:key"},
+		Trigger: "execution",
+		Budget:  2,
+	})
+	if err != nil {
+		t.Fatalf("Recall() returned error: %v", err)
+	}
+	if result.Coverage != "strong" {
+		t.Fatalf("expected strong coverage, got %q", result.Coverage)
+	}
+	if !reflect.DeepEqual(result.Keep, []string{"decision:auth-token"}) {
+		t.Fatalf("keep = %v", result.Keep)
+	}
+	if !reflect.DeepEqual(result.Add, []string{"event:grpc-retry-incident"}) {
+		t.Fatalf("add = %v", result.Add)
+	}
+	if !reflect.DeepEqual(result.Drop, []string{"stale:key"}) {
+		t.Fatalf("drop = %v", result.Drop)
+	}
+	if !reflect.DeepEqual(result.Conflicts, []string{"event:grpc-retry-incident"}) {
+		t.Fatalf("conflicts = %v", result.Conflicts)
+	}
+	if len(result.Memories) != 2 {
+		t.Fatalf("expected 2 memories, got %d", len(result.Memories))
+	}
+	if result.Memories[0].Reason == "" {
+		t.Fatal("expected recall reason to be populated")
 	}
 }

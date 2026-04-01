@@ -15,7 +15,7 @@ These gates are **blocking prerequisites** that form the agent's "thinking loop"
 ### GATE 1 — Skill Retrieval (Before ANY coding or analysis)
 
 ```bash
-coder skill search "<topic of the task>"
+coder skill resolve "<topic of the task>" --trigger initial --budget 3
 ```
 
 - Run this as the **very first action** of any workflow.
@@ -32,6 +32,8 @@ coder memory search "<topic of the task>"
 
 - Run this **immediately after Gate 1**, before reading files or writing code.
 - Queries the semantic memory for past decisions, patterns, and lessons learned.
+- Use `coder memory recall "<topic>"` when the backend task spans too many old decisions and you need a tighter working set.
+- Use `coder memory active` or `.coder/context-state.json` to verify the active local context before resuming.
 - If results are relevant, incorporate them. If empty, proceed.
 - ❌ Skipping this gate means ignoring project-specific history.
 
@@ -49,7 +51,7 @@ coder memory store "<Title>" "<Content>" --tags "<tag1,tag2>"
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  GATE 1: coder skill search "<topic>"                   │
+│  GATE 1: coder skill resolve "<topic>" --trigger initial --budget 3                   │
 │  → Retrieve best practices, rules, patterns from DB     │
 ├─────────────────────────────────────────────────────────┤
 │  GATE 2: coder memory search "<topic>"                  │
@@ -86,7 +88,7 @@ Every todo list for a non-trivial task **MUST** follow this structure:
 ☑ N. [GATE 3] Memory store: "<title>"
 ```
 
-- Task #1 is **always** `coder skill search`
+- Task #1 is **always** `coder skill resolve`
 - Task #2 is **always** `coder memory search`
 - Task #N (last) is **always** `coder memory store`
 - ❌ A todo list without these three bookend tasks is invalid
@@ -123,6 +125,7 @@ Dependencies point INWARD only. Domain layer has zero framework dependencies.
 ## Key Design Principles
 
 ### Quality First
+
 - ✅ TDD — tests before implementation
 - ✅ 100% passing tests before merging
 - ✅ Zero `any` types, strict TypeScript/Java
@@ -130,18 +133,21 @@ Dependencies point INWARD only. Domain layer has zero framework dependencies.
 - ❌ Quick hacks or technical debt
 
 ### Multi-Tenant Isolation
+
 - ✅ Company ID validation on every query — never skip
 - ✅ JWT-based authentication with role checks
 - ✅ Event-driven cross-module communication
 - ❌ Direct repository access across modules
 
 ### Event-Driven Architecture
+
 - ✅ Publish domain events AFTER successful persistence (outbox pattern)
 - ✅ Idempotent event handlers — processing same event twice must be safe
 - ✅ Dead letter queue for failed events after 3 retries
 - ❌ Publishing events before the transaction commits
 
 ### Database Safety
+
 - ✅ Parameterized queries — never string concatenation in SQL
 - ✅ Indexes on all foreign keys and frequent filter columns
 - ✅ Sequential numbered migrations: `001_create_users.sql`
@@ -160,10 +166,11 @@ Dependencies point INWARD only. Domain layer has zero framework dependencies.
 ### Skill System (Vector DB — RAG)
 
 ```bash
-coder skill search "<topic>"     # GATE 1 — always run first
+coder skill resolve "<topic>" --trigger initial --budget 3     # GATE 1 — always run first
 ```
 
 Key skills to retrieve:
+
 - `architecture` — Clean Architecture, DDD, module design
 - `database` — Migrations, repository pattern, multi-DB orchestration
 - `development` — Use case implementation, error handling
@@ -177,6 +184,8 @@ Key skills to retrieve:
 
 ```bash
 coder memory search "<query>"                                # GATE 2
+coder memory recall "<query>"                                # narrow active memory working set
+coder memory active                                           # inspect current active memory set
 coder memory store "<Title>" "<Content>" --tags "<tags>"     # GATE 3
 ```
 

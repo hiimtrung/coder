@@ -15,9 +15,12 @@ A structured gate review that confirms a feature or release is safe to deploy. N
 ## Step 1 — Context Load (MANDATORY)
 
 ```bash
-coder skill search "release deployment"
+coder skill resolve "release deployment" --trigger review --budget 3
 coder memory search "<feature or release name>"
 ```
+
+Use `coder memory recall "<feature or release name>"` when the release history is broad and you need the active working set focused on the current rollout.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before signing off readiness.
 
 ## Step 2 — Code Quality Gates
 
@@ -47,11 +50,11 @@ yarn test:e2e
 
 Record results:
 
-| Gate | Status | Notes |
-|------|--------|-------|
-| Lint | PASS / FAIL | |
-| Build | PASS / FAIL | |
-| Unit tests | PASS / FAIL | N tests, N failures |
+| Gate              | Status      | Notes               |
+| ----------------- | ----------- | ------------------- |
+| Lint              | PASS / FAIL |                     |
+| Build             | PASS / FAIL |                     |
+| Unit tests        | PASS / FAIL | N tests, N failures |
 | Integration tests | PASS / FAIL | N tests, N failures |
 
 ## Step 3 — Acceptance Criteria Verification
@@ -70,13 +73,13 @@ If any criterion is unverified, the release is blocked.
 
 ## Step 4 — Documentation Checklist
 
-| Document | Status | Location |
-|----------|--------|----------|
-| API documentation | Complete / Missing / Stale | `docs/api/` |
-| Runbook | Complete / Missing / Stale | `docs/runbooks/` |
-| CHANGELOG entry | Added / Missing | `CHANGELOG.md` |
-| README updated | Yes / No (if needed) | `README.md` |
-| Design doc finalized | Yes / N/A | `docs/design/` |
+| Document             | Status                     | Location         |
+| -------------------- | -------------------------- | ---------------- |
+| API documentation    | Complete / Missing / Stale | `docs/api/`      |
+| Runbook              | Complete / Missing / Stale | `docs/runbooks/` |
+| CHANGELOG entry      | Added / Missing            | `CHANGELOG.md`   |
+| README updated       | Yes / No (if needed)       | `README.md`      |
+| Design doc finalized | Yes / N/A                  | `docs/design/`   |
 
 ## Step 5 — Database and Infrastructure Changes
 
@@ -106,12 +109,13 @@ If schema or infrastructure changes are included:
 
 Document the rollback procedure before deploying:
 
-```markdown
+````markdown
 ## Rollback Plan: <Release Name>
 
 **Deployment**: <service name>, version <X.Y.Z>
 
 ### Triggers for rollback
+
 - Error rate exceeds 2% within 10 minutes of deployment
 - P99 latency exceeds 1 second
 - Any data corruption detected
@@ -123,14 +127,17 @@ Document the rollback procedure before deploying:
    kubectl rollout undo deployment/<service>
    # or: docker-compose up -d --scale service=1 (previous image tag)
    ```
+````
 
 2. Verify previous version is running:
+
    ```bash
    kubectl rollout status deployment/<service>
    curl https://api.example.com/health
    ```
 
 3. If migration was applied, run the DOWN migration:
+
    ```bash
    <migration tool> migrate down 1
    ```
@@ -138,8 +145,10 @@ Document the rollback procedure before deploying:
 4. Notify: post in #deployments that rollback was executed and why
 
 ### Time to rollback
+
 Estimated: < 5 minutes
-```
+
+````
 
 ## Step 8 — Deployment Steps
 
@@ -158,7 +167,8 @@ Estimated: < 5 minutes
 1. Deploy database migrations (if any):
    ```bash
    <migration command>
-   ```
+````
+
 2. Deploy application:
    ```bash
    <deployment command>
@@ -173,10 +183,12 @@ Estimated: < 5 minutes
    ```
 
 ### Post-deployment
+
 - [ ] Monitor error rate for 15 minutes
 - [ ] Verify key metrics in dashboard
 - [ ] Post deployment note in #deployments
-```
+
+````
 
 ## Step 9 — Release Sign-off
 
@@ -195,17 +207,17 @@ Record sign-off from each required role:
 
 ```bash
 coder memory store "Release: <Name>" "Version: <X.Y.Z>. Gates: all passed. Deployment date: <date>. Rollback plan: documented at <path>. Notable items: <anything non-standard>." --tags "release,deployment,<feature>"
-```
+````
 
 ---
 
 ## Quick Blockers Reference
 
-| Finding | Action |
-|---------|--------|
-| Any test failure | Fix before deploy — no exceptions |
-| Missing acceptance criterion test | Write test, get QA approval |
-| No rollback plan | Write rollback plan before proceeding |
-| Secret in source code | Remove, rotate secret, then proceed |
-| Missing migration | Write migration, test on staging |
-| Documentation missing | Write docs, get tech writer review |
+| Finding                           | Action                                |
+| --------------------------------- | ------------------------------------- |
+| Any test failure                  | Fix before deploy — no exceptions     |
+| Missing acceptance criterion test | Write test, get QA approval           |
+| No rollback plan                  | Write rollback plan before proceeding |
+| Secret in source code             | Remove, rotate secret, then proceed   |
+| Missing migration                 | Write migration, test on staging      |
+| Documentation missing             | Write docs, get tech writer review    |
