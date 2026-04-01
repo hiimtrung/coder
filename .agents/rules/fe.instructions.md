@@ -6,17 +6,17 @@ applyTo: "**/*.{tsx,jsx,ts,js,css,scss}"
 
 ## Language-to-Skill Mapping
 
-Before working on any frontend task, run `coder skill search` with the relevant skill:
+Before working on any frontend task, run `coder skill resolve` with the relevant skill:
 
-| Technology / Context         | Skill to search                              |
-| ---------------------------- | -------------------------------------------- |
-| React / Next.js (web)        | `frontend`, `react-best-practices`           |
-| React Native (mobile)        | `react-native-skills`                        |
-| UI/UX design implementation  | `ui-ux-pro-max`                              |
-| Styling / design system      | `web-design-guidelines`                      |
-| Component architecture       | `composition-patterns`                       |
-| Testing components           | `testing`                                    |
-| General architecture         | `architecture`                               |
+| Technology / Context        | Skill to search                    |
+| --------------------------- | ---------------------------------- |
+| React / Next.js (web)       | `frontend`, `react-best-practices` |
+| React Native (mobile)       | `react-native-skills`              |
+| UI/UX design implementation | `ui-ux-pro-max`                    |
+| Styling / design system     | `web-design-guidelines`            |
+| Component architecture      | `composition-patterns`             |
+| Testing components          | `testing`                          |
+| General architecture        | `architecture`                     |
 
 ## Knowledge Gates — MANDATORY
 
@@ -24,12 +24,17 @@ Every frontend task starts and ends with memory gates:
 
 ```bash
 # GATE 1 (START) — before any code
-coder skill search "frontend"
+coder skill resolve "frontend" --trigger initial --budget 3
 coder memory search "<component or feature name>"
 
 # GATE 2 (END) — after completing work
 coder memory store "<Title>" "<What, why, which files>" --tags "<project,frontend,topic>"
 ```
+
+Dynamic retrieval is mandatory:
+
+- Re-run `coder skill resolve` with a more precise query after clarification, before switching phase, when a new language/framework appears, after repeated errors, and before review/release.
+- Use `coder memory recall "<topic>"` to narrow the active memory working set and `coder memory active` to inspect what is currently pinned for the task.
 
 ## Component Architecture
 
@@ -53,7 +58,7 @@ coder memory store "<Title>" "<What, why, which files>" --tags "<project,fronten
 <Card title="Title" body="Content" footer="Actions" />
 ```
 
-Run `coder skill search "composition-patterns"` for detailed composition guidance.
+Run `coder skill resolve "composition-patterns" --trigger execution --budget 3` for detailed composition guidance.
 
 ### Props & Types
 
@@ -65,7 +70,7 @@ Run `coder skill search "composition-patterns"` for detailed composition guidanc
 ```tsx
 interface ButtonProps {
   label: string;
-  variant: 'primary' | 'secondary' | 'danger';
+  variant: "primary" | "secondary" | "danger";
   onClick: () => void;
   disabled?: boolean;
   loading?: boolean;
@@ -104,7 +109,7 @@ interface ButtonProps {
 <div onClick={onClose}><XIcon /></div>
 ```
 
-Run `coder skill search "ui-ux-pro-max"` for comprehensive UX patterns.
+Run `coder skill resolve "ui-ux-pro-max" --trigger execution --budget 3` for comprehensive UX patterns.
 
 ### Responsive Design
 
@@ -171,7 +176,7 @@ interface ListProps<T> {
 function List<T>({ items, renderItem, keyExtractor }: ListProps<T>) {
   return (
     <ul>
-      {items.map(item => (
+      {items.map((item) => (
         <li key={keyExtractor(item)}>{renderItem(item)}</li>
       ))}
     </ul>
@@ -207,7 +212,7 @@ function List<T>({ items, renderItem, keyExtractor }: ListProps<T>) {
 
 ## Styling Guidelines
 
-Run `coder skill search "web-design-guidelines"` for project-specific styling standards.
+Run `coder skill resolve "web-design-guidelines" --trigger execution --budget 3` for project-specific styling standards.
 
 ### Design Tokens
 
@@ -232,11 +237,85 @@ Run `coder skill search "web-design-guidelines"` for project-specific styling st
 
 ```tsx
 // ✅ Test user behavior
-it('submits form with valid data', async () => {
+it("submits form with valid data", async () => {
   render(<LoginForm />);
-  await userEvent.type(screen.getByLabelText('Email'), 'user@example.com');
-  await userEvent.type(screen.getByLabelText('Password'), 'password123');
-  await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-  expect(mockLogin).toHaveBeenCalledWith({ email: 'user@example.com', password: 'password123' });
+  await userEvent.type(screen.getByLabelText("Email"), "user@example.com");
+  await userEvent.type(screen.getByLabelText("Password"), "password123");
+  await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(mockLogin).toHaveBeenCalledWith({
+    email: "user@example.com",
+    password: "password123",
+  });
 });
 ```
+
+---
+
+## 🛠️ Available coder CLI Commands
+
+```bash
+# Memory — semantic storage and retrieval
+coder memory search "<query>"
+coder memory recall "<query>"
+coder memory active
+coder memory store "<title>" "<content>" --tags "<tag1,tag2>"
+coder memory list
+coder memory compact --revector
+
+# Skills — knowledge base retrieval
+coder skill resolve "<topic>" --trigger initial --budget 3
+coder skill resolve "<topic>" --trigger execution --budget 3 --format raw
+coder skill active --format json
+coder skill search "<topic>" --format json
+coder skill list
+coder skill info <name> --format raw
+
+# Session — checkpointing
+coder session save
+coder progress
+coder next
+
+# Project lifecycle
+coder install [profile]        # install rules + workflows + agent files
+coder login                    # authenticate with coder-node
+coder token                    # manage API tokens
+coder milestone complete N     # mark milestone done
+coder version                  # show version
+```
+
+**DO NOT call**: `coder chat`, `coder debug`, `coder review`, `coder qa`, `coder workflow`, `coder plan-phase`, `coder execute-phase` — these have been removed. All reasoning is handled by your AI agent (Claude / Copilot).
+
+## 🤖 Subagents And `.coder`
+
+- When handing a bounded task to a subagent, the subagent must run its own `coder skill resolve` for that subtask instead of inheriting stale skills blindly.
+- Subagents must update the task file or checkpoint they own under `.coder/` before handing control back.
+- Phase, plan, run status, and task ownership live in `.coder/`; do not treat them as optional notes.
+
+---
+
+## 🏢 Professional Delivery Pipeline
+
+Available workflow slash commands:
+
+- `/clarify-requirements` — BA phase: ask questions → write requirements doc
+- `/architecture-design` — Architect phase: ADR + design decisions
+- `/implement-feature` — Dev phase: implement + unit tests
+- `/code-review` — Review phase: structured code review checklist
+- `/qa-test` — QA phase: test plan + execution report
+- `/write-documentation` — Tech Writer: generate or update docs
+- `/technical-writer-review` — Review existing docs for quality
+- `/debug-issue` — Root cause analysis + fix plan
+- `/debug-leak` — Memory / resource leak investigation
+- `/writing-test` — Generate test cases and test suites
+- `/check-implementation` — Verify implementation matches requirements
+- `/review-design` — Review UI/UX design decisions
+- `/review-requirements` — BA review of requirements completeness
+- `/simplify-implementation` — Refactor for clarity/maintainability
+- `/release-readiness` — Pre-release checklist
+- `/knowledge-capture` — Manually capture patterns and decisions
+
+---
+
+**Last Updated**: March 2026
+**System**: AI-Agents Frontend Development Guidance
+**Status**: Production Ready
