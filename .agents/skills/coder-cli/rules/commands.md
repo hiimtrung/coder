@@ -2,85 +2,58 @@
 
 ## Decision Guide — Which Command to Use?
 
-### Quick AI Workflows (no project setup needed)
+### Quick Command Choices
 
 ```
-Starting a new feature?
-  → coder plan "<feature>"            generate PLAN.md with tasks + estimates
-  → coder plan --auto "<feature>"     skip Q&A, generate directly
+Need general implementation guidance?
+  → coder skill search "<topic>"
+  → coder skill resolve "<task>" --trigger initial --budget 3
 
-Quick question about the codebase?
-  → coder chat "<question>"           context-enriched Q&A (memory + skills injected)
+Need project-specific truth or historical context?
+  → coder memory search "<topic>"
+  → coder memory recall "<task>" --trigger execution --budget 5
+  → coder memory active --format json
 
-Just wrote code, want review?
-  → coder review                      reviews current git diff
-  → coder review --file path.go       reviews a specific file
-  → coder review --pr 42              reviews a GitHub PR
-
-Hit an error / bug?
-  → coder debug "<error message>"     structured root cause analysis
-  → coder debug --file error.log      from a log file
-  → coder debug --interactive         REPL for multi-turn debugging
-
-Done implementing, need UAT?
-  → coder qa --plan PLAN-xxx.md       walks through acceptance criteria
-
-Ending the day / switching context?
+Need to save or resume local context?
   → coder session save
+  → coder session resume
 
-Running a complete feature end-to-end?
-  → coder workflow "<feature>"        plan → review → implement → qa → fix
+Need current project state?
+  → coder progress
+  → coder next
+  → coder milestone audit N
 ```
 
-### Full Project Lifecycle (requires `coder new-project` first)
+### Current Command Surface
 
 ```
-Starting a new project from scratch?
-  → coder new-project "idea"          AI-guided Q&A → requirements + roadmap + STATE.md
-  → coder new-project --auto "idea"   skip Q&A
-  → coder new-project --prd file.md   load from PRD file
+Memory and skills?
+  → coder skill search "topic"
+  → coder skill resolve "task" --trigger execution --budget 3
+  → coder skill active --format json
+  → coder memory search "topic" --format json
+  → coder memory recall "task" --trigger execution --budget 5
+  → coder memory active --format json
 
-Analyzing existing codebase?
-  → coder map-codebase                4 AI passes → STACK/ARCH/CONVENTIONS/CONCERNS
-  → coder map-codebase --refresh      force re-analysis
-
-Clarifying a phase before planning?
-  → coder discuss-phase N             interactive Q&A → CONTEXT.md
-  → coder discuss-phase N --auto      AI picks defaults, no Q&A
-
-Generating implementation plans?
-  → coder plan-phase N                research → XML plans → verification loop
-  → coder plan-phase N --skip-research  if RESEARCH.md exists
-  → coder plan-phase N --gaps         re-plan only items flagged in VERIFICATION.md
-
-Executing plans?
-  → coder execute-phase N             all plans, atomic git commits per task
-  → coder execute-phase N --gaps-only skip plans with existing SUMMARY.md
-  → coder execute-phase N --interactive  pause between each plan for review
-
-Shipping a phase?
-  → coder ship N                      gh pr create with AI-generated body
-  → coder ship N --draft              open as draft PR
-
-Checking progress?
+Project state?
   → coder progress                    full status (phases, step, blockers, PRs)
   → coder progress --short            one-line summary
-  → coder next                        print next recommended command
-
-Closing out a phase?
+  → coder next                        print the next implemented state command
   → coder milestone audit N           show completion checklist
   → coder milestone complete N        mark done
   → coder milestone archive N         move files to .coder/archive/NN/
   → coder milestone next              advance to next phase
 
-Daily utilities?
-  → coder todo add "..."              add backlog item
-  → coder note "decision"             record decision to STATE.md
-  → coder note --blocker "..."        record blocker
-  → coder health                      check artifacts + blockers
-  → coder stats                       project statistics
-  → coder do "task description"       one-off AI task with project context
+Session and setup?
+  → coder session save "task"
+  → coder session resume
+  → coder install <profile>
+  → coder update [profile]
+  → coder login
+  → coder token show
 ```
+
+Legacy commands such as `coder new-project`, `coder map-codebase`, `coder discuss-phase`, `coder plan-phase`, `coder execute-phase`, `coder ship`, `coder todo`, and `coder note` are roadmap or historical only. Do not describe them as live commands.
 
 ---
 
@@ -88,45 +61,26 @@ Daily utilities?
 
 ```
 .coder/
-  PROJECT.md          ← coder new-project
-  REQUIREMENTS.md     ← coder new-project
-  ROADMAP.md          ← coder new-project
-  STATE.md            ← all lifecycle commands update this
-
-  codebase/           ← coder map-codebase
-    STACK.md
-    ARCHITECTURE.md
-    CONVENTIONS.md
-    CONCERNS.md
-    (+ INTEGRATIONS.md, STRUCTURE.md, TESTING.md)
-
-  phases/             ← discuss/plan/execute/ship outputs
-    NN-CONTEXT.md
-    NN-RESEARCH.md
-    NN-01-PLAN.md
-    NN-01-SUMMARY.md
-    NN-VERIFICATION.md
-
-  archive/NN/         ← milestone archive output
-
-  plans/              ← coder plan (Mode A)
-  qa/                 ← coder qa (Mode A)
-  sessions/           ← coder session (Mode A)
-  workflows/          ← coder workflow (Mode A)
+  STATE.md               ← coder progress / next / milestone read and update this
+  ROADMAP.md             ← coder progress reads roadmap phases from here
+  session.md             ← coder session resume default source
+  sessions/*.md          ← coder session save history
+  active-skills.json     ← coder skill resolve / active
+  active-memory.json     ← coder memory search / recall / active
+  phases/                ← milestone audit/archive examines files here
+  archive/NN/            ← milestone archive output
 ```
 
 ---
 
-## Resuming Interrupted Commands
+## Local State Refresh
 
-| Command | Resume approach |
-|---------|----------------|
-| `coder new-project` | `--resume` |
-| `coder plan-phase N` | `--skip-research` (RESEARCH.md exists) |
-| `coder plan-phase N` | `--gaps` (re-plan only flagged items) |
-| `coder execute-phase N` | `--gaps-only` (skips plans with SUMMARY.md) |
-| `coder workflow` | `--resume` |
-| `coder qa` | `--resume` |
+| Command               | Local state refreshed                       |
+| --------------------- | ------------------------------------------- |
+| `coder skill resolve` | `.coder/active-skills.json`                 |
+| `coder memory search` | `.coder/active-memory.json`                 |
+| `coder memory recall` | `.coder/active-memory.json`                 |
+| `coder session save`  | `.coder/session.md`, `.coder/sessions/*.md` |
 
 ---
 
@@ -146,10 +100,11 @@ chatClient.ChatStream(ctx, prompt, sessionID, injectMemory, injectSkills, func(d
 ## Config Setup
 
 The CLI reads `~/.coder/config.json`:
+
 ```json
 {
   "memory": { "base_url": "http://localhost:8080" },
-  "auth":   { "access_token": "your-token-here" }
+  "auth": { "access_token": "your-token-here" }
 }
 ```
 
@@ -157,42 +112,20 @@ Run `coder login` to set this up interactively.
 
 ---
 
-## Session Context Auto-Injection
+## Guidance For Agents
 
-If `.coder/session.md` exists, `coder chat` / `coder debug` / `coder review` automatically
-inject it as extra system context. The AI "knows" what you're working on without being told.
+For long-running work, treat memory the same way skills are treated:
 
----
-
-## coder plan → coder qa Chain (Mode A)
-
-```bash
-# 1. Generate plan with acceptance criteria
-coder plan "implement JWT refresh tokens"
-# → saves to .coder/plans/PLAN-implement-jwt-refresh-<date>.md
-
-# 2. After implementing, run QA against that plan
-coder qa --plan .coder/plans/PLAN-implement-jwt-refresh-<date>.md
-# → walks through each criterion, auto-diagnoses failures via coder debug
-```
-
-## coder plan-phase → coder execute-phase Chain (Mode B)
-
-```bash
-# 1. Discuss → plan → execute chain
-coder discuss-phase 1           # Q&A → .coder/phases/01-CONTEXT.md
-coder plan-phase 1              # → .coder/phases/01-01-PLAN.md (XML)
-coder execute-phase 1           # → executes tasks, git commit per task
-coder ship 1                    # → gh pr create
-coder milestone complete 1      # → STATE.md: step=done
-coder milestone next            # → STATE.md: current_phase=2, step=discuss
-```
+- use `coder memory search` for plain recall
+- use `coder memory recall` when you need a keep/add/drop decision against current active memory
+- use `coder memory active --format json` to inspect the last local recall state
 
 ---
 
 ## Skill Ingest After Changes
 
 After updating `.agents/skills/` files, re-ingest so vector search picks them up:
+
 ```bash
 coder skill ingest --source local
 ```

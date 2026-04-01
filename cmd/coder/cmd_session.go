@@ -184,7 +184,7 @@ func runSessionResume(args []string) {
 	fmt.Println(strings.Repeat("═", 58))
 	fmt.Println(string(data))
 	fmt.Println(strings.Repeat("─", 58))
-	fmt.Println("\nTip: Run `coder chat` to continue with this context auto-injected.")
+	fmt.Println("\nTip: resume work with your agent using this session context and re-run coder skill/memory retrieval as needed.")
 }
 
 func runSessionList() {

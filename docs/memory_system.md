@@ -5,7 +5,8 @@ The **Semantic Memory System** allows AI agents to maintain a long-term "memory"
 ## 🌟 Concept
 
 Unlike "Skills" (which are general best practices), **Memory** stores:
-- **Project Context**: Architectural decisions made for *this* specific app.
+
+- **Project Context**: Architectural decisions made for _this_ specific app.
 - **Problem Solving**: "We fixed the P2P timeout by increasing the ICE candidate buffer."
 - **Institutional Knowledge**: "The API key for the staging environment is managed in Vault, not `.env`."
 
@@ -16,6 +17,7 @@ Unlike "Skills" (which are general best practices), **Memory** stores:
 Each record ([Knowledge](../internal/domain/memory/entity.go)) is an augmented data point:
 
 ### 1. Classification (`Type`)
+
 - **`fact`**: Objective truths (e.g., "System is running on C++14").
 - **`rule`**: Mandatory coding standards or constraints.
 - **`decision`**: ADRs (Architecture Decision Records) and their rationale.
@@ -26,7 +28,9 @@ Each record ([Knowledge](../internal/domain/memory/entity.go)) is an augmented d
 Legacy types such as `preference` and `skill` may still exist in historical data, but new lifecycle-aware memory flows should prefer the canonical types above.
 
 ### 2. Ecological Identity (`Metadata`)
+
 Utilizes PostgreSQL `JSONB` for deep filtering:
+
 - **`entity_id`**: Identifies which project/team this memory belongs to.
 - **`session_id`**: Scope for short-term memory (session-based).
 - **`process_id`**: The agent/service that generated the memory.
@@ -43,18 +47,20 @@ Phase 2 promotes the main lifecycle fields into first-class PostgreSQL columns (
 ## 🏗️ Technical Architecture
 
 ### 🛡️ Technology Stack
+
 - **Persistence**: PostgreSQL with `pgvector` extension.
 - **Search**: Hybrid search (pgvector + full-text search) with lifecycle column filters and freshness-aware reranking.
 - **Embeddings**: Generated via **Ollama** (`mxbai-embed-large`) or OpenAI.
 
 ### A. Storage Flow (Memorizing)
+
 ```mermaid
 sequenceDiagram
     participant CLI as coder memory store
     participant NODE as Coder Node
     participant OL as Ollama / OpenAI
     participant PG as PostgreSQL (pgvector)
-    
+
     CLI->>NODE: Content & Metadata
     NODE->>OL: Generate Embedding (Vector)
     OL-->>NODE: Float32 Array [1024]
@@ -63,13 +69,14 @@ sequenceDiagram
 ```
 
 ### B. Search Flow (Retrieval)
+
 ```mermaid
 sequenceDiagram
     participant CLI as coder memory search
     participant NODE as Coder Node
     participant OL as Ollama / OpenAI
     participant PG as PostgreSQL (pgvector)
-    
+
     CLI->>NODE: Query string
     NODE->>OL: Generate Query Embedding
     OL-->>NODE: Float32 Array [1024]
@@ -98,11 +105,67 @@ The system includes a **Compaction** command:
 `coder memory compact`
 
 This process:
+
 - Identifies duplicate or redundant entries.
 - Summarizes multiple related memories into a single, high-level entry.
 - Cleans up stale or low-utility information.
 
 For the detailed implementation plan to prevent stale or superseded memories from surfacing in default retrieval, see [Memory Lifecycle Plan](memory_lifecycle_plan.md).
+
+### Active Recall State
+
+To support re-entrant retrieval during long tasks, the CLI maintains a local active recall snapshot in `.coder/active-memory.json`.
+
+The file is refreshed on successful `coder memory search` runs and represents the memory context the agent most recently recalled.
+`coder memory recall` also updates the same file, but with additional decision metadata such as `keep`, `add`, `drop`, `coverage`, and `conflicts`.
+
+Current fields:
+
+- `query`: last memory query string
+- `scope`: last scope filter
+- `type`: last memory type filter
+- `limit`: result budget used for the last search
+- `status`: lifecycle status filter, if any
+- `canonical_key`: canonical key filter, if any
+- `as_of`: time-travel search point, if any
+- `include_stale`: whether stale history was allowed
+- `history`: whether multi-version history mode was enabled
+- `searched_at`: timestamp of the recall
+- `results`: currently active recalled memory items
+
+Each result stores:
+
+- `id`
+- `title`
+- `type`
+- `scope`
+- `status`
+- `canonical_key`
+- `score`
+- `tags`
+- `last_verified_at`
+- `conflict_detected`
+- `conflict_count`
+- `content`
+
+This state is intentionally local-first, mirroring `.coder/active-skills.json`. It is designed for inspectability and recovery, not as hidden background memory.
+
+The corresponding inspection command is:
+
+```bash
+coder memory active
+coder memory active --format json
+```
+
+This command does not perform a new search. It only reports the last active recall state so an agent or operator can understand what memory context was loaded most recently.
+
+For decision-based refresh during long tasks, use:
+
+```bash
+coder memory recall "<task>" --trigger execution --budget 5
+```
+
+This re-queries memory, compares the new result set with the current active-memory state, and records which items should be kept, added, or dropped.
 
 ---
 

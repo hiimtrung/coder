@@ -225,12 +225,55 @@ coder memory store "Auth decision" "Use rotating refresh tokens" --type decision
 
 Search memory with lifecycle-aware filtering.
 
+Supports machine-readable output for agent-safe context injection:
+
+```text
+--format text|json|raw
+```
+
 Examples:
 
 ```bash
 coder memory search "auth middleware" --limit 5
 coder memory search "token rotation" --status active
 coder memory search "release process" --history
+coder memory search "grpc auth" --format json
+coder memory search "jwt rotation" --format raw
+```
+
+Every successful search also refreshes `.coder/active-memory.json` so the latest recalled memory context can be inspected locally.
+
+### `coder memory recall <task>`
+
+Re-recall memory for the current task and compute a decision diff against the current active memory set.
+
+This command is intended for long-running agent work where memory must be refreshed without restarting the task.
+
+Examples:
+
+```bash
+coder memory recall "grpc auth flow" --trigger execution --budget 5
+coder memory recall "token rotation" --current auth-token,release-notes --format json
+coder memory recall "migration incident" --format raw
+```
+
+The recall result reports:
+
+- `keep`: memory that should remain active
+- `add`: newly recalled memory
+- `drop`: stale memory no longer needed in active context
+- `coverage`: `strong`, `adequate`, `weak`, or `none`
+- `conflicts`: recalled items that still represent active-memory conflicts
+
+### `coder memory active`
+
+Show the current active memory recall state stored in `.coder/active-memory.json`.
+
+Examples:
+
+```bash
+coder memory active
+coder memory active --format json
 ```
 
 ### `coder memory verify <id>`
@@ -300,7 +343,7 @@ Show project state derived from `.coder/STATE.md` and `.coder/ROADMAP.md`.
 
 Print the next recommended command from the current project state.
 
-Important: `next` may suggest roadmap commands that are not yet implemented. It reflects the intended workflow, not only the currently wired command set.
+`next` now stays within the currently implemented state-management surface, primarily `coder milestone audit`, `coder milestone complete`, and `coder milestone next`.
 
 ### `coder milestone`
 

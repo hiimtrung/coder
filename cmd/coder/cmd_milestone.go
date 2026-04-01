@@ -224,7 +224,7 @@ func runMilestoneArchive(phaseArg string) {
 func runMilestoneNext() {
 	state, err := loadState()
 	if err != nil {
-		fmt.Println("No project state. Run: coder new-project")
+		fmt.Println("No project state found in .coder/. Create .coder/PROJECT.md and .coder/STATE.md first.")
 		return
 	}
 
@@ -269,5 +269,5 @@ func runMilestoneNext() {
 	}
 
 	fmt.Printf("Advanced to Phase %d: %s\n", nextPhase, nextName)
-	fmt.Printf("Next: coder discuss-phase %d\n", nextPhase)
+	fmt.Printf("Next: coder milestone audit %d\n", nextPhase)
 }

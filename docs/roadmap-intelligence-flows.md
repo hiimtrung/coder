@@ -1,7 +1,7 @@
 # Coder Intelligence Flows — Roadmap
 
 > Status: active roadmap
-> Last updated: 2026-03-31
+> Last updated: 2026-04-01
 > This file describes the target agent workflow around `coder`, not a plan to make `coder-node` run its own LLM chat product.
 
 ---
@@ -78,7 +78,7 @@ When the user submits a problem, the agent should follow this loop:
 
 ```text
 1. Read project context
-   - coder skill search
+   - coder skill resolve or coder skill search
    - coder memory search
    - docs/
    - .coder/
@@ -95,6 +95,7 @@ When the user submits a problem, the agent should follow this loop:
 4. Execute work
    - do locally when simple
    - spawn subagent(s) when a task is document-defined and parallelizable
+   - re-run skill and memory retrieval whenever context is weak or the task shifts
 
 5. Persist progress continuously
    - update status
@@ -117,9 +118,11 @@ Before any substantial work, the agent must inspect:
 ### 1. Semantic context
 
 ```bash
-coder skill search "<topic>"
+coder skill resolve "<topic>" --trigger initial --budget 3
 coder memory search "<topic>"
 ```
+
+These retrieval calls are not start-only gates. The agent may repeat them during execution whenever clarification changes the task, a new file area appears, the current context looks weak, or project-specific memory is needed again.
 
 ### 2. Project documentation
 
@@ -278,15 +281,16 @@ Definition of done:
 
 Goal:
 
-- standardize how the agent reads memory, docs, and `.coder/` before acting
+- standardize how the agent reads and re-reads memory, docs, and `.coder/` before and during work
 
 Definition of done:
 
 - every substantial workflow begins by scanning:
-  - `coder skill search`
+  - `coder skill resolve` or `coder skill search`
   - `coder memory search`
   - `docs/`
   - `.coder/`
+- retrieval can be repeated during execution instead of being locked to task start
 - current phase can be inferred reliably from files
 
 ### Phase 3: File-Backed Execution Tracking
@@ -312,19 +316,28 @@ Definition of done:
 - each subagent updates its own status and summary
 - ownership collisions are avoided
 
-### Phase 5: Dynamic Skill Retrieval During Work
+### Phase 5: Dynamic Context Retrieval During Work
 
 Goal:
 
-- let the agent fetch additional skills after clarification or during execution
+- let the agent fetch additional skills and memory after clarification or during execution
 
 This phase aligns with [docs/dynamic_skill_retrieval_plan.md](/Users/trungtran/ai-agents/coder/docs/dynamic_skill_retrieval_plan.md).
 
 Definition of done:
 
 - skill retrieval is not locked to the initial user prompt
+- memory retrieval is not locked to the initial user prompt
 - active skill context can be updated mid-task
-- prompt injection uses structured or raw skill content, not terminal-formatted output
+- memory can be recalled again at any point when project-specific context is weak
+- prompt injection uses structured or raw context payloads, not terminal-formatted output
+
+### Current Gap Snapshot
+
+- Phase 1 is mostly complete in the main runtime surface; the remaining cleanup is to keep legacy docs and instructions from drifting back toward removed commands.
+- Phase 2 is partial because discovery exists, but re-query behavior is not yet standardized everywhere.
+- Phase 3, 4, and 6 remain mostly file-model goals; `.coder` task/run/subagent tracking is not fully implemented.
+- Phase 5 is now partially implemented for both skills and memory; `coder memory recall` exists locally, but the recall loop is not yet promoted to a shared server-side contract or unified context-state model.
 
 ### Phase 6: Recovery And Auditability
 

@@ -16,7 +16,7 @@ const coderDir = ".coder"
 type ProjectState struct {
 	Project      string
 	CurrentPhase int
-	Step         string // discuss | plan | execute | qa | ship | done
+	Step         string // current workflow step label from .coder/STATE.md
 	LastAction   string
 	Updated      time.Time
 	Decisions    []string

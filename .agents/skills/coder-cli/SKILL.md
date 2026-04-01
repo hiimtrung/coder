@@ -51,52 +51,54 @@ Always anchor command explanations to [`cmd/coder/main.go`](/Users/trungtran/ai-
 
 ### Setup And Maintenance
 
-| Command | Purpose |
-|---------|---------|
-| `coder install` | Install project or global profiles |
-| `coder update` | Refresh installed profile files |
-| `coder list` | Show available profiles |
-| `coder remove global` | Remove globally installed coder-managed files |
-| `coder version` | Print CLI build information |
-| `coder check-update` | Check GitHub for a newer release |
-| `coder self-update` | Replace the local binary with the latest release |
+| Command               | Purpose                                          |
+| --------------------- | ------------------------------------------------ |
+| `coder install`       | Install project or global profiles               |
+| `coder update`        | Refresh installed profile files                  |
+| `coder list`          | Show available profiles                          |
+| `coder remove global` | Remove globally installed coder-managed files    |
+| `coder version`       | Print CLI build information                      |
+| `coder check-update`  | Check GitHub for a newer release                 |
+| `coder self-update`   | Replace the local binary with the latest release |
 
 ### Connection And Auth
 
-| Command | Purpose |
-|---------|---------|
-| `coder login` | Configure connection to `coder-node` |
-| `coder token show` | Show current auth identity/token summary |
-| `coder token rotate` | Rotate saved access token |
+| Command              | Purpose                                  |
+| -------------------- | ---------------------------------------- |
+| `coder login`        | Configure connection to `coder-node`     |
+| `coder token show`   | Show current auth identity/token summary |
+| `coder token rotate` | Rotate saved access token                |
 
 ### Knowledge Commands
 
-| Command | Purpose |
-|---------|---------|
-| `coder skill search` | Search ingested skills |
-| `coder skill ingest` | Ingest local, embedded, or GitHub skills |
-| `coder skill list` | List stored skills |
-| `coder skill info` | Show a skill and its chunks |
-| `coder skill delete` | Remove a skill |
-| `coder skill cache` | Pull/list/clear cached skill files |
-| `coder skill index` | Generate local `skills_index.json` |
-| `coder memory store` | Store memory with lifecycle metadata |
-| `coder memory search` | Search lifecycle-aware memory |
-| `coder memory verify` | Refresh verification metadata |
-| `coder memory supersede` | Link old and replacement versions |
-| `coder memory audit` | Report lifecycle issues |
-| `coder memory list` | List recent memories |
-| `coder memory delete` | Delete one memory |
-| `coder memory compact` | Compact and optionally re-vector memory |
+| Command                  | Purpose                                              |
+| ------------------------ | ---------------------------------------------------- |
+| `coder skill search`     | Search ingested skills                               |
+| `coder skill ingest`     | Ingest local, embedded, or GitHub skills             |
+| `coder skill list`       | List stored skills                                   |
+| `coder skill info`       | Show a skill and its chunks                          |
+| `coder skill delete`     | Remove a skill                                       |
+| `coder skill cache`      | Pull/list/clear cached skill files                   |
+| `coder skill index`      | Generate local `skills_index.json`                   |
+| `coder memory store`     | Store memory with lifecycle metadata                 |
+| `coder memory search`    | Search lifecycle-aware memory                        |
+| `coder memory recall`    | Re-recall memory and compute keep/add/drop decisions |
+| `coder memory active`    | Inspect the current active memory recall state       |
+| `coder memory verify`    | Refresh verification metadata                        |
+| `coder memory supersede` | Link old and replacement versions                    |
+| `coder memory audit`     | Report lifecycle issues                              |
+| `coder memory list`      | List recent memories                                 |
+| `coder memory delete`    | Delete one memory                                    |
+| `coder memory compact`   | Compact and optionally re-vector memory              |
 
 ### Local Context And Project State
 
-| Command | Purpose |
-|---------|---------|
-| `coder session save/resume/list/show/delete/export` | Manage local working sessions |
-| `coder progress` | Read `.coder/STATE.md` and `.coder/ROADMAP.md` |
-| `coder next` | Suggest the next workflow command from project state |
-| `coder milestone` | Audit, complete, archive, or advance a phase |
+| Command                                             | Purpose                                              |
+| --------------------------------------------------- | ---------------------------------------------------- |
+| `coder session save/resume/list/show/delete/export` | Manage local working sessions                        |
+| `coder progress`                                    | Read `.coder/STATE.md` and `.coder/ROADMAP.md`       |
+| `coder next`                                        | Suggest the next workflow command from project state |
+| `coder milestone`                                   | Audit, complete, archive, or advance a phase         |
 
 ---
 
@@ -169,7 +171,9 @@ When explaining them:
 
 ### Memory flow
 
-`coder memory store/search/verify/supersede/audit` are lifecycle-aware and operate through the server unless local Postgres mode is configured.
+`coder memory store/search/recall/verify/supersede/audit` are lifecycle-aware and operate through the server unless local Postgres mode is configured.
+
+`coder memory search` and `coder memory recall` also refresh the local `.coder/active-memory.json` snapshot so the latest recalled context can be inspected with `coder memory active`.
 
 ### Session flow
 
