@@ -15,7 +15,7 @@ These gates are **blocking prerequisites** that form the agent's "thinking loop"
 ### GATE 1 — Skill Retrieval (Before ANY coding or analysis)
 
 ```bash
-coder skill search "<topic of the task>"
+coder skill resolve "<topic of the task>" --trigger initial --budget 3
 ```
 
 - Run this as the **very first action** of any workflow.
@@ -32,6 +32,8 @@ coder memory search "<topic of the task>"
 
 - Run this **immediately after Gate 1**, before reading files or writing code.
 - Queries the semantic memory for past decisions, patterns, and lessons learned.
+- Use `coder memory recall "<topic>"` to keep the frontend working set focused when a task spans multiple components or UI concerns.
+- Use `coder memory active` or `.coder/context-state.json` to inspect the local active context before a new wave.
 - If results are relevant, incorporate them. If empty, proceed.
 - ❌ Skipping this gate means ignoring project-specific history.
 
@@ -49,7 +51,7 @@ coder memory store "<Title>" "<Content>" --tags "<tag1,tag2>"
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  GATE 1: coder skill search "<topic>"                   │
+│  GATE 1: coder skill resolve "<topic>" --trigger initial --budget 3                   │
 │  → Retrieve best practices, rules, patterns from DB     │
 ├─────────────────────────────────────────────────────────┤
 │  GATE 2: coder memory search "<topic>"                  │
@@ -66,14 +68,14 @@ coder memory store "<Title>" "<Content>" --tags "<tag1,tag2>"
 
 ### When to Store (checklist)
 
-| Situation                            | Store? |
-| ------------------------------------ | ------ |
-| New component/feature implemented    | ✅ Yes |
-| Design system pattern established    | ✅ Yes |
-| Non-obvious bug fixed                | ✅ Yes |
-| Refactor pattern discovered          | ✅ Yes |
-| Accessibility pattern implemented    | ✅ Yes |
-| Single-line typo fix                 | ❌ No  |
+| Situation                         | Store? |
+| --------------------------------- | ------ |
+| New component/feature implemented | ✅ Yes |
+| Design system pattern established | ✅ Yes |
+| Non-obvious bug fixed             | ✅ Yes |
+| Refactor pattern discovered       | ✅ Yes |
+| Accessibility pattern implemented | ✅ Yes |
+| Single-line typo fix              | ❌ No  |
 
 ### Todo List Structure — ENFORCED
 
@@ -86,7 +88,7 @@ Every todo list for a non-trivial task **MUST** follow this structure:
 ☑ N. [GATE 3] Memory store: "<title>"
 ```
 
-- Task #1 is **always** `coder skill search`
+- Task #1 is **always** `coder skill resolve`
 - Task #2 is **always** `coder memory search`
 - Task #N (last) is **always** `coder memory store`
 - ❌ A todo list without these three bookend tasks is invalid
@@ -113,7 +115,7 @@ The **Frontend Delivery Agent** specializes in client-side development: React co
 // All props fully typed — NO implicit any
 interface ButtonProps {
   label: string;
-  variant: 'primary' | 'secondary' | 'danger';
+  variant: "primary" | "secondary" | "danger";
   onClick: () => void;
   disabled?: boolean;
 }
@@ -121,7 +123,7 @@ interface ButtonProps {
 // Accessible interactive elements
 <button aria-label="Close dialog" aria-expanded={isOpen} onClick={onClose}>
   <XIcon aria-hidden="true" />
-</button>
+</button>;
 
 // All async states covered — never leave loading/error unhandled
 if (isLoading) return <Skeleton />;
@@ -132,6 +134,7 @@ return <DataComponent data={data} />;
 ## Key Design Principles
 
 ### Accessibility First (WCAG AA)
+
 - ✅ All interactive elements keyboard navigable (Tab, Enter, Escape)
 - ✅ ARIA labels on all non-obvious UI elements
 - ✅ Color contrast ratio ≥ 4.5:1 for normal text
@@ -139,6 +142,7 @@ return <DataComponent data={data} />;
 - ❌ Visual-only indicators (no color-only information)
 
 ### Component Quality
+
 - ✅ Single responsibility — one component, one concern
 - ✅ Composition over prop drilling
 - ✅ Fully typed props with explicit interfaces
@@ -146,6 +150,7 @@ return <DataComponent data={data} />;
 - ❌ God components with too many responsibilities (>150 lines → extract)
 
 ### Performance Standards
+
 - ✅ Lazy load non-critical components
 - ✅ `next/image` for all images, `next/font` for web fonts
 - ✅ Server Components by default in Next.js App Router; `'use client'` only when required
@@ -154,12 +159,14 @@ return <DataComponent data={data} />;
 - ❌ Premature optimization without profiling
 
 ### Design Fidelity
+
 - ✅ Pixel-perfect implementation of design specifications
 - ✅ Design tokens for ALL spacing, colors, typography — never hardcode values
 - ✅ Interactions and animations match spec
 - ❌ Approximations that deviate from design without designer approval
 
 ### Testing Standards
+
 - ✅ Test behavior, not implementation (React Testing Library)
 - ✅ Query by accessible roles/labels: `getByRole`, `getByLabelText`
 - ✅ Test user interactions: `userEvent.click`, `userEvent.type`
@@ -170,10 +177,11 @@ return <DataComponent data={data} />;
 ### Skill System (Vector DB — RAG)
 
 ```bash
-coder skill search "<topic>"     # GATE 1 — always run first
+coder skill resolve "<topic>" --trigger initial --budget 3     # GATE 1 — always run first
 ```
 
 Key skills to retrieve:
+
 - `frontend` — React/Next.js patterns, hooks, state management
 - `react-best-practices` — Component design, performance, testing
 - `react-native-skills` — Mobile patterns, navigation, platform APIs
@@ -187,6 +195,8 @@ Key skills to retrieve:
 
 ```bash
 coder memory search "<query>"                                # GATE 2
+coder memory recall "<query>"                                # narrow active memory working set
+coder memory active                                           # inspect current active memory set
 coder memory store "<Title>" "<Content>" --tags "<tags>"     # GATE 3
 ```
 

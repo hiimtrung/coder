@@ -55,37 +55,22 @@
         hx-include="[name='client_id'],[name='command']"
         onchange="scheduleChartReload()">
         <option value="">All commands</option>
-        <optgroup label="── Quick AI ──────────────">
-          <option {{if eq $.Filter.Command "chat"}}selected{{end}}>chat</option>
-          <option {{if eq $.Filter.Command "plan"}}selected{{end}}>plan</option>
-          <option {{if eq $.Filter.Command "review"}}selected{{end}}>review</option>
-          <option {{if eq $.Filter.Command "debug"}}selected{{end}}>debug</option>
-          <option {{if eq $.Filter.Command "qa"}}selected{{end}}>qa</option>
+        <optgroup label="── State ─────────────────">
           <option {{if eq $.Filter.Command "session"}}selected{{end}}>session</option>
-          <option {{if eq $.Filter.Command "workflow"}}selected{{end}}>workflow</option>
-        </optgroup>
-        <optgroup label="── Lifecycle ─────────────">
-          <option {{if eq $.Filter.Command "new-project"}}selected{{end}}>new-project</option>
-          <option {{if eq $.Filter.Command "map-codebase"}}selected{{end}}>map-codebase</option>
-          <option {{if eq $.Filter.Command "discuss-phase"}}selected{{end}}>discuss-phase</option>
-          <option {{if eq $.Filter.Command "plan-phase"}}selected{{end}}>plan-phase</option>
-          <option {{if eq $.Filter.Command "execute-phase"}}selected{{end}}>execute-phase</option>
-          <option {{if eq $.Filter.Command "ship"}}selected{{end}}>ship</option>
           <option {{if eq $.Filter.Command "progress"}}selected{{end}}>progress</option>
           <option {{if eq $.Filter.Command "next"}}selected{{end}}>next</option>
           <option {{if eq $.Filter.Command "milestone"}}selected{{end}}>milestone</option>
         </optgroup>
-        <optgroup label="── Utilities ─────────────">
-          <option {{if eq $.Filter.Command "todo"}}selected{{end}}>todo</option>
-          <option {{if eq $.Filter.Command "stats"}}selected{{end}}>stats</option>
-          <option {{if eq $.Filter.Command "health"}}selected{{end}}>health</option>
-          <option {{if eq $.Filter.Command "note"}}selected{{end}}>note</option>
-          <option {{if eq $.Filter.Command "do"}}selected{{end}}>do</option>
-        </optgroup>
         <optgroup label="── Memory &amp; Skills ────">
           <option {{if eq $.Filter.Command "memory search"}}selected{{end}}>memory search</option>
           <option {{if eq $.Filter.Command "memory store"}}selected{{end}}>memory store</option>
+          <option {{if eq $.Filter.Command "memory active"}}selected{{end}}>memory active</option>
+          <option {{if eq $.Filter.Command "memory verify"}}selected{{end}}>memory verify</option>
+          <option {{if eq $.Filter.Command "memory supersede"}}selected{{end}}>memory supersede</option>
+          <option {{if eq $.Filter.Command "memory audit"}}selected{{end}}>memory audit</option>
           <option {{if eq $.Filter.Command "skill search"}}selected{{end}}>skill search</option>
+          <option {{if eq $.Filter.Command "skill resolve"}}selected{{end}}>skill resolve</option>
+          <option {{if eq $.Filter.Command "skill active"}}selected{{end}}>skill active</option>
           <option {{if eq $.Filter.Command "skill ingest"}}selected{{end}}>skill ingest</option>
         </optgroup>
         <optgroup label="── System ────────────────">

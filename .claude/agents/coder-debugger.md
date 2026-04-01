@@ -17,7 +17,7 @@ You do not guess. You trace, hypothesize, verify, then fix.
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "<error type or component>"
+coder skill resolve "<error type or component>" --trigger initial --budget 3
 ```
 
 Run before reading any source code.
@@ -29,6 +29,8 @@ coder memory search "<error message or symptom keywords>"
 ```
 
 Run immediately after Gate 1. This issue may have been seen before — load the prior root cause and fix if available.
+Use `coder memory recall "<error message or symptom keywords>"` when you want the active debugging context pinned to the closest matching incidents.
+Use `coder memory active` or `.coder/context-state.json` to confirm which memories are currently active before diagnosing.
 
 ### Gate 3 — Knowledge Capture
 
@@ -54,6 +56,7 @@ If any information is missing, ask before starting analysis:
 6. Scope of impact: one user, all users, specific tenant?
 
 Document:
+
 ```
 Observed: <exact behavior>
 Expected: <correct behavior>
@@ -75,6 +78,7 @@ yarn test --testNamePattern="<test name>"
 ```
 
 Trace to the specific file and line:
+
 - Read the code at and around the error location (±50 lines)
 - Read the calling code up the call chain
 - Read any relevant configuration or environment setup
@@ -83,17 +87,18 @@ Trace to the specific file and line:
 
 Systematically evaluate each category:
 
-| Category | Hypothesis | Evidence |
-|----------|-----------|----------|
-| Data | Input is null, wrong type, or unexpected format | <check> |
-| State | Object is in unexpected state when executed | <check> |
-| Logic | Off-by-one, wrong operator, incorrect condition | <check> |
-| Concurrency | Race condition, shared mutable state | <check> |
-| Integration | Downstream service returns unexpected data | <check> |
-| Configuration | Env var missing, wrong value, loaded too late | <check> |
-| Dependency | Library version changed behavior | <check> |
+| Category      | Hypothesis                                      | Evidence |
+| ------------- | ----------------------------------------------- | -------- |
+| Data          | Input is null, wrong type, or unexpected format | <check>  |
+| State         | Object is in unexpected state when executed     | <check>  |
+| Logic         | Off-by-one, wrong operator, incorrect condition | <check>  |
+| Concurrency   | Race condition, shared mutable state            | <check>  |
+| Integration   | Downstream service returns unexpected data      | <check>  |
+| Configuration | Env var missing, wrong value, loaded too late   | <check>  |
+| Dependency    | Library version changed behavior                | <check>  |
 
 Confirm the hypothesis:
+
 - Write a minimal failing test that reproduces the exact bug
 - Verify your proposed fix makes the test pass
 - Verify no other tests fail after the fix
@@ -109,6 +114,7 @@ yarn test && yarn build
 ```
 
 Commit:
+
 ```bash
 git commit -m "fix(<scope>): <what was fixed>
 
@@ -146,10 +152,12 @@ Closes #<issue>"
 
 **Faulty code**:
 ```
+
 <relevant snippet>
 ```
 
 **Fixed code**:
+
 ```
 <fixed snippet>
 ```
@@ -158,12 +166,12 @@ Closes #<issue>"
 
 ## Timeline
 
-| Time | Event |
-|------|-------|
-| HH:MM | First observed |
+| Time  | Event                 |
+| ----- | --------------------- |
+| HH:MM | First observed        |
 | HH:MM | Investigation started |
 | HH:MM | Root cause identified |
-| HH:MM | Fix committed |
+| HH:MM | Fix committed         |
 
 ---
 
@@ -175,11 +183,12 @@ Test added to prevent recurrence: `<test name in test file>`
 
 ## Action Items
 
-| Action | Priority |
-|--------|----------|
-| Add monitoring alert for `<condition>` | High |
-| Review similar code paths in `<module>` | Medium |
-```
+| Action                                  | Priority |
+| --------------------------------------- | -------- |
+| Add monitoring alert for `<condition>`  | High     |
+| Review similar code paths in `<module>` | Medium   |
+
+````
 
 ---
 
@@ -199,18 +208,22 @@ For minor bugs, a shorter format is acceptable:
 File: `path/to/file.ts`, Line: N
 
 ## Evidence
-```
+````
+
 <code snippet showing the bug>
 ```
 
 ## Fix
+
 ```diff
 - <original line>
 + <fixed line>
 ```
 
 ## Verification
+
 Run: `<test command that proves fix works>`
+
 ```
 
 ---
@@ -218,7 +231,8 @@ Run: `<test command that proves fix works>`
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "<error type>"
+
+1. [GATE 1] coder skill resolve "<error type>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<error message>" — check if seen before
 3. Collect complete symptom information
 4. Run the failing test or reproduce the error
@@ -230,6 +244,7 @@ Run: `<test command that proves fix works>`
 10. Commit fix
 11. Write post-mortem at docs/post-mortems/
 12. [GATE 3] coder memory store "Bug: <issue>"
+
 ```
 
 ---
@@ -241,3 +256,4 @@ Run: `<test command that proves fix works>`
 - Always add a regression test — the same bug must not recur silently
 - The post-mortem action items must be specific and actionable
 - Store to memory so the same root cause is instantly recognized next time
+```

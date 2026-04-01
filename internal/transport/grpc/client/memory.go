@@ -106,6 +106,76 @@ func (c *Client) Search(ctx context.Context, query string, scope string, tags []
 	return results, nil
 }
 
+func (c *Client) Recall(ctx context.Context, opts memdomain.RecallOptions) (memdomain.RecallResult, error) {
+	var metaBytes []byte
+	if opts.MetaFilters != nil {
+		metaBytes, _ = json.Marshal(opts.MetaFilters)
+	}
+
+	res, err := c.c.Recall(ctx, &memorypb.RecallRequest{
+		Task:            opts.Task,
+		Current:         opts.Current,
+		Trigger:         opts.Trigger,
+		Budget:          int32(opts.Budget),
+		Limit:           int32(opts.Limit),
+		Scope:           opts.Scope,
+		Tags:            opts.Tags,
+		Type:            string(opts.Type),
+		MetaFiltersJson: string(metaBytes),
+	})
+	if err != nil {
+		return memdomain.RecallResult{}, err
+	}
+
+	result := memdomain.RecallResult{
+		Task:      res.Task,
+		Trigger:   res.Trigger,
+		Budget:    int(res.Budget),
+		Limit:     int(res.Limit),
+		Coverage:  res.Coverage,
+		Keep:      append([]string(nil), res.Keep...),
+		Add:       append([]string(nil), res.Add...),
+		Drop:      append([]string(nil), res.Drop...),
+		Conflicts: append([]string(nil), res.Conflicts...),
+		Memories:  make([]memdomain.RecalledMemory, 0, len(res.Memories)),
+	}
+
+	for _, recalled := range res.Memories {
+		if recalled == nil || recalled.Result == nil || recalled.Result.Knowledge == nil {
+			continue
+		}
+		var meta map[string]any
+		if recalled.Result.Knowledge.MetadataJson != "" {
+			json.Unmarshal([]byte(recalled.Result.Knowledge.MetadataJson), &meta)
+		}
+		memory := memdomain.RecalledMemory{
+			Reason: recalled.Reason,
+			Result: memdomain.SearchResult{
+				Score: recalled.Result.Score,
+				Knowledge: memdomain.Knowledge{
+					ID:              recalled.Result.Knowledge.Id,
+					Title:           recalled.Result.Knowledge.Title,
+					Content:         recalled.Result.Knowledge.Content,
+					Type:            memdomain.MemoryType(recalled.Result.Knowledge.Type),
+					Metadata:        meta,
+					Tags:            recalled.Result.Knowledge.Tags,
+					Scope:           recalled.Result.Knowledge.Scope,
+					ParentID:        recalled.Result.Knowledge.ParentId,
+					ChunkIndex:      int(recalled.Result.Knowledge.ChunkIndex),
+					NormalizedTitle: recalled.Result.Knowledge.NormalizedTitle,
+					ContentHash:     recalled.Result.Knowledge.ContentHash,
+					CreatedAt:       recalled.Result.Knowledge.CreatedAt.AsTime(),
+					UpdatedAt:       recalled.Result.Knowledge.UpdatedAt.AsTime(),
+				},
+			},
+		}
+		memdomain.HydrateKnowledgeLifecycle(&memory.Result.Knowledge)
+		result.Memories = append(result.Memories, memory)
+	}
+
+	return result, nil
+}
+
 func (c *Client) List(ctx context.Context, limit, offset int) ([]memdomain.Knowledge, error) {
 	req := &memorypb.ListRequest{
 		Limit:  int32(limit),

@@ -36,7 +36,7 @@ func runProgress(args []string) {
 	logActivity("progress")
 
 	if !projectExists() {
-		fmt.Fprintln(os.Stderr, "No project found. Run: coder new-project")
+		fmt.Fprintln(os.Stderr, "No project state found in .coder/. Create .coder/PROJECT.md and .coder/STATE.md first.")
 		os.Exit(1)
 	}
 
@@ -131,14 +131,13 @@ func runNext(args []string) {
 	logActivity("next")
 
 	if !projectExists() {
-		fmt.Println("coder new-project")
+		fmt.Println("Initialize .coder/PROJECT.md and .coder/STATE.md first.")
 		return
 	}
 
 	state, err := loadState()
 	if err != nil {
-		// No state yet — suggest map-codebase
-		fmt.Println("coder map-codebase")
+		fmt.Println("Review and populate .coder/STATE.md, then rerun `coder next`.")
 		return
 	}
 
@@ -155,22 +154,14 @@ func runNext(args []string) {
 func resolveNextCommand(step string, phase int) string {
 	switch strings.ToLower(step) {
 	case "":
-		return "coder map-codebase"
-	case "map", "mapped":
-		return fmt.Sprintf("coder discuss-phase %d", phase)
-	case "discuss", "discussed":
-		return fmt.Sprintf("coder plan-phase %d", phase)
-	case "plan", "planned":
-		return fmt.Sprintf("coder execute-phase %d", phase)
-	case "execute", "executing":
-		return fmt.Sprintf("coder execute-phase %d --gaps-only", phase)
-	case "qa":
-		return fmt.Sprintf("coder qa --phase %d", phase)
+		return fmt.Sprintf("coder milestone audit %d", phase)
+	case "map", "mapped", "discuss", "discussed", "plan", "planned", "execute", "executing", "qa":
+		return fmt.Sprintf("coder milestone audit %d", phase)
 	case "ship":
 		return fmt.Sprintf("coder milestone complete %d", phase)
 	case "milestone", "done":
-		return fmt.Sprintf("coder discuss-phase %d", phase+1)
+		return "coder milestone next"
 	default:
-		return fmt.Sprintf("coder discuss-phase %d", phase)
+		return fmt.Sprintf("coder milestone audit %d", phase)
 	}
 }

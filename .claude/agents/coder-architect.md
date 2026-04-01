@@ -17,7 +17,7 @@ You enforce Clean Architecture. You do not write feature code — you write the 
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "architecture <domain>"
+coder skill resolve "architecture <domain>" --trigger initial --budget 3
 ```
 
 Run before analyzing any codebase or writing any design.
@@ -29,6 +29,8 @@ coder memory search "<feature or component>"
 ```
 
 Run immediately after Gate 1. Load prior architectural decisions that apply to this feature.
+Use `coder memory recall "<feature or component>"` when you need to trim the design working set to the current module.
+Use `coder memory active` or `.coder/context-state.json` to inspect the local active context before finalizing the design.
 
 ### Gate 3 — Knowledge Capture
 
@@ -45,6 +47,7 @@ Run after completing and confirming a design document. Store ADR decisions and k
 ### Step 1: Load Context
 
 Run Gates 1 and 2, then read:
+
 - `docs/requirements/<feature>.md` — confirmed requirements (must exist before designing)
 - `docs/design/` — existing design patterns in the system
 - Relevant source directories — understand current module structure and naming conventions
@@ -63,6 +66,7 @@ src/
 ```
 
 Identify:
+
 - Existing entities that can be reused or extended
 - Repository interfaces this feature will use
 - Domain events this feature will publish or consume
@@ -72,7 +76,7 @@ Identify:
 
 **Output path**: `docs/design/<feature-name>.md`
 
-```markdown
+````markdown
 # Design: <Feature Name>
 
 **Date**: YYYY-MM-DD
@@ -101,6 +105,7 @@ graph TD
     UC --> Events[IEventPublisher]
     Events --> Handler[NotificationEventHandler]
 ```
+````
 
 ---
 
@@ -136,13 +141,13 @@ sequenceDiagram
 
 ### Endpoints
 
-| Method | Path | Auth | Status Codes |
-|--------|------|------|--------------|
-| POST | `/api/v1/features` | Bearer JWT | 201, 400, 401, 409 |
-| GET | `/api/v1/features/:id` | Bearer JWT | 200, 401, 404 |
-| PATCH | `/api/v1/features/:id` | Bearer JWT | 200, 400, 401, 404 |
-| DELETE | `/api/v1/features/:id` | Bearer JWT | 204, 401, 404 |
-| GET | `/api/v1/features` | Bearer JWT | 200, 401 |
+| Method | Path                   | Auth       | Status Codes       |
+| ------ | ---------------------- | ---------- | ------------------ |
+| POST   | `/api/v1/features`     | Bearer JWT | 201, 400, 401, 409 |
+| GET    | `/api/v1/features/:id` | Bearer JWT | 200, 401, 404      |
+| PATCH  | `/api/v1/features/:id` | Bearer JWT | 200, 400, 401, 404 |
+| DELETE | `/api/v1/features/:id` | Bearer JWT | 204, 401, 404      |
+| GET    | `/api/v1/features`     | Bearer JWT | 200, 401           |
 
 ### Request/Response DTOs
 
@@ -150,31 +155,31 @@ sequenceDiagram
 // POST /api/v1/features
 // Request body:
 interface CreateFeatureDto {
-  name: string;        // required, 1-255 chars
+  name: string; // required, 1-255 chars
   description?: string; // optional, max 1000 chars
 }
 
 // Response 201:
 interface FeatureResponseDto {
-  id: string;           // UUID
+  id: string; // UUID
   name: string;
   description: string | null;
-  createdAt: string;    // ISO 8601
-  updatedAt: string;    // ISO 8601
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
 }
 ```
 
 ### Error Responses
 
-| Code | HTTP | Trigger |
-|------|------|---------|
-| `VAL_MISSING_NAME` | 400 | name field absent or empty |
-| `VAL_NAME_TOO_LONG` | 400 | name exceeds 255 chars |
-| `AUTH_UNAUTHORIZED` | 401 | JWT missing or expired |
-| `AUTH_FORBIDDEN` | 403 | JWT valid but role insufficient |
-| `BIZ_FEATURE_NOT_FOUND` | 404 | ID not found for this company |
-| `BIZ_FEATURE_NAME_TAKEN` | 409 | name already exists in this company |
-| `INF_DATABASE_ERROR` | 500 | Persistence failure |
+| Code                     | HTTP | Trigger                             |
+| ------------------------ | ---- | ----------------------------------- |
+| `VAL_MISSING_NAME`       | 400  | name field absent or empty          |
+| `VAL_NAME_TOO_LONG`      | 400  | name exceeds 255 chars              |
+| `AUTH_UNAUTHORIZED`      | 401  | JWT missing or expired              |
+| `AUTH_FORBIDDEN`         | 403  | JWT valid but role insufficient     |
+| `BIZ_FEATURE_NOT_FOUND`  | 404  | ID not found for this company       |
+| `BIZ_FEATURE_NAME_TAKEN` | 409  | name already exists in this company |
+| `INF_DATABASE_ERROR`     | 500  | Persistence failure                 |
 
 ---
 
@@ -203,10 +208,10 @@ CREATE UNIQUE INDEX idx_features_company_name ON features(company_id, name);
 
 ## Domain Events
 
-| Event | Published By | Consumed By | Payload |
-|-------|-------------|-------------|---------|
+| Event            | Published By         | Consumed By        | Payload                        |
+| ---------------- | -------------------- | ------------------ | ------------------------------ |
 | `FeatureCreated` | CreateFeatureUseCase | NotificationModule | `{featureId, companyId, name}` |
-| `FeatureDeleted` | DeleteFeatureUseCase | SearchIndexModule | `{featureId, companyId}` |
+| `FeatureDeleted` | DeleteFeatureUseCase | SearchIndexModule  | `{featureId, companyId}`       |
 
 ---
 
@@ -236,6 +241,7 @@ CREATE UNIQUE INDEX idx_features_company_name ON features(company_id, name);
 <Why this option was chosen over alternatives>
 
 **Consequences**:
+
 - Positive: <what becomes easier>
 - Negative: <what becomes harder or what trade-offs are accepted>
 
@@ -244,6 +250,7 @@ CREATE UNIQUE INDEX idx_features_company_name ON features(company_id, name);
 |--------|-----------------|
 | <option A> | <why rejected> |
 | <option B> | <why rejected> |
+
 ```
 
 ### Step 4: Architecture Compliance Review
@@ -269,17 +276,21 @@ Only after confirmation → implementation may start.
 ## Clean Architecture Enforcement
 
 ```
-Controller   → DTOs only. Calls use case. No business logic.
-Use Case     → Domain interfaces only. No DB imports. Orchestrates entities.
-Entity       → Zero framework imports. Contains all business invariants.
-Repository   → Implements domain interface. All DB code here.
+
+Controller → DTOs only. Calls use case. No business logic.
+Use Case → Domain interfaces only. No DB imports. Orchestrates entities.
+Entity → Zero framework imports. Contains all business invariants.
+Repository → Implements domain interface. All DB code here.
+
 ```
 
 Dependencies:
 ```
+
 Presentation → Application → Domain
-                               ↑
-                          Infrastructure
+↑
+Infrastructure
+
 ```
 
 No exceptions. If something feels wrong about where code belongs, it belongs in a different layer.
@@ -289,7 +300,8 @@ No exceptions. If something feels wrong about where code belongs, it belongs in 
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "architecture <domain>"
+
+1. [GATE 1] coder skill resolve "architecture <domain>" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature>"
 3. Read requirements doc — confirmed and complete
 4. Analyze existing module structure and patterns
@@ -297,4 +309,7 @@ No exceptions. If something feels wrong about where code belongs, it belongs in 
 6. Verify Clean Architecture compliance
 7. Present design, get confirmation
 8. [GATE 3] coder memory store "Design: <feature>"
+
+```
+
 ```

@@ -18,6 +18,8 @@ func runMemory(args []string) {
 		fmt.Fprintln(os.Stderr, "\nSUBCOMMANDS:")
 		fmt.Fprintln(os.Stderr, "  store <title> <content>   Save a new memory (semantic chunking enabled)")
 		fmt.Fprintln(os.Stderr, "  search <query>            Search memory with lifecycle-aware filtering")
+		fmt.Fprintln(os.Stderr, "  recall <task>             Re-recall memory and compute keep/add/drop decisions")
+		fmt.Fprintln(os.Stderr, "  active                    Show the current active memory recall state")
 		fmt.Fprintln(os.Stderr, "  verify <id>               Refresh verification metadata for a memory/version")
 		fmt.Fprintln(os.Stderr, "  supersede <id> <new-id>   Mark one memory/version as replaced by another")
 		fmt.Fprintln(os.Stderr, "  audit                     Report lifecycle conflicts and stale active memories")
@@ -27,7 +29,9 @@ func runMemory(args []string) {
 		fmt.Fprintln(os.Stderr, "\nEXAMPLES:")
 		fmt.Fprintln(os.Stderr, "  coder memory store \"Go Interfaces\" \"Context on interfaces...\" --tags \"go,pattern\"")
 		fmt.Fprintln(os.Stderr, "  coder memory store \"Auth decision\" \"Use rotating refresh tokens\" --type decision --replace-active")
-		fmt.Fprintln(os.Stderr, "  coder memory search \"how to handle errors\" --limit 3")
+		fmt.Fprintln(os.Stderr, "  coder memory search \"how to handle errors\" --limit 3 --format json")
+		fmt.Fprintln(os.Stderr, "  coder memory recall \"grpc auth flow\" --trigger execution --budget 5")
+		fmt.Fprintln(os.Stderr, "  coder memory active --format json")
 		fmt.Fprintln(os.Stderr, "  coder memory verify 7f9c4c1e --verified-by phase-3 --confidence 0.9")
 		fmt.Fprintln(os.Stderr, "  coder memory supersede old-parent new-parent")
 		fmt.Fprintln(os.Stderr, "  coder memory audit --unverified-days 90")
@@ -40,6 +44,10 @@ func runMemory(args []string) {
 		runMemoryStore(args[1:])
 	case "search":
 		runMemorySearch(args[1:])
+	case "recall":
+		runMemoryRecall(args[1:])
+	case "active":
+		runMemoryActive(args[1:])
 	case "verify":
 		runMemoryVerify(args[1:])
 	case "supersede":
@@ -166,6 +174,7 @@ func runMemorySearch(args []string) {
 	logActivity("memory search")
 	fs := flag.NewFlagSet("memory search", flag.ExitOnError)
 	limit := fs.Int("limit", 5, "Number of results to return")
+	format := fs.String("format", "text", "Output format: text, json, raw")
 	scope := fs.String("scope", "", "Memory scope")
 	memType := fs.String("type", "", "Filter by Memory type")
 	meta := fs.String("meta", "", "Filter by JSON metadata")
@@ -224,21 +233,37 @@ func runMemorySearch(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Found %d results for %q:\n\n", len(results), query)
-	for _, res := range results {
-		fmt.Printf("[%s] %s (Score: %.4f)\n", res.ID[:8], res.Title, res.Score)
-		fmt.Printf("   Tags: %s\n", strings.Join(res.Tags, ", "))
-		fmt.Printf("   Status: %s | Key: %s\n", memdomain.StatusForKnowledge(res.Knowledge), memdomain.CanonicalKeyForKnowledge(res.Knowledge))
-		if memdomain.MetadataBool(res.Metadata, memdomain.MetadataKeyConflictDetected) {
-			fmt.Printf("   Conflict: %v active versions\n", res.Metadata[memdomain.MetadataKeyConflictCount])
-			if titles := memdomain.MetadataStringSlice(res.Metadata, memdomain.MetadataKeyConflictTitles); len(titles) > 0 {
-				fmt.Printf("   Candidates: %s\n", strings.Join(titles, " | "))
+	state := buildActiveMemoryState(query, *scope, *memType, *limit, *status, *key, *asOf, *includeStale, *history, results)
+	if err := saveActiveMemoryState(state); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to save active memory state: %v\n", err)
+		os.Exit(1)
+	}
+
+	switch *format {
+	case "text":
+		fmt.Printf("Found %d results for %q:\n\n", len(results), query)
+		for _, res := range results {
+			fmt.Printf("[%s] %s (Score: %.4f)\n", shortMemoryID(res.ID), res.Title, res.Score)
+			fmt.Printf("   Tags: %s\n", strings.Join(res.Tags, ", "))
+			fmt.Printf("   Status: %s | Key: %s\n", memdomain.StatusForKnowledge(res.Knowledge), memdomain.CanonicalKeyForKnowledge(res.Knowledge))
+			if memdomain.MetadataBool(res.Metadata, memdomain.MetadataKeyConflictDetected) {
+				fmt.Printf("   Conflict: %v active versions\n", res.Metadata[memdomain.MetadataKeyConflictCount])
+				if titles := memdomain.MetadataStringSlice(res.Metadata, memdomain.MetadataKeyConflictTitles); len(titles) > 0 {
+					fmt.Printf("   Candidates: %s\n", strings.Join(titles, " | "))
+				}
 			}
+			if verifiedAt, ok := memdomain.LastVerifiedAtForKnowledge(res.Knowledge); ok {
+				fmt.Printf("   Verified: %s\n", verifiedAt.Format(time.RFC3339))
+			}
+			fmt.Printf("   Content: %s\n\n", res.Content)
 		}
-		if verifiedAt, ok := memdomain.LastVerifiedAtForKnowledge(res.Knowledge); ok {
-			fmt.Printf("   Verified: %s\n", verifiedAt.Format(time.RFC3339))
-		}
-		fmt.Printf("   Content: %s\n\n", res.Content)
+	case "json":
+		writeJSON(buildMemorySearchOutput(query, *scope, *memType, *limit, *status, *key, *asOf, *includeStale, *history, results))
+	case "raw":
+		fmt.Print(renderRawMemoryContext(query, results))
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (supported: text, json, raw)\n", *format)
+		os.Exit(1)
 	}
 }
 

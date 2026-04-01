@@ -26,12 +26,16 @@ func runSkill(args []string) {
 		fmt.Fprintln(os.Stderr, "Usage: coder skill <subcommand> [arguments] [flags]")
 		fmt.Fprintln(os.Stderr, "\nSUBCOMMANDS:")
 		fmt.Fprintln(os.Stderr, "  search <query>          Semantic search across ingested skills")
+		fmt.Fprintln(os.Stderr, "  resolve <task>          Resolve the active skill set for the current task")
+		fmt.Fprintln(os.Stderr, "  active                  Show the current active skill state")
 		fmt.Fprintln(os.Stderr, "  ingest                  Ingest skills into vector DB")
 		fmt.Fprintln(os.Stderr, "  list                    List all ingested skills")
 		fmt.Fprintln(os.Stderr, "  info <name>             Show details of a specific skill")
 		fmt.Fprintln(os.Stderr, "  delete <name>           Remove a skill from vector DB")
 		fmt.Fprintln(os.Stderr, "\nEXAMPLES:")
 		fmt.Fprintln(os.Stderr, "  coder skill search \"error handling in golang\" --limit 3")
+		fmt.Fprintln(os.Stderr, "  coder skill resolve \"implement grpc auth flow\" --trigger execution --budget 3")
+		fmt.Fprintln(os.Stderr, "  coder skill active --format json")
 		fmt.Fprintln(os.Stderr, "  coder skill ingest --source local")
 		fmt.Fprintln(os.Stderr, "  coder skill ingest --source github --repo sickn33/antigravity-awesome-skills")
 		fmt.Fprintln(os.Stderr, "  coder skill list --category core")
@@ -48,6 +52,10 @@ func runSkill(args []string) {
 	switch sub {
 	case "search":
 		runSkillSearch(args[1:])
+	case "resolve":
+		runSkillResolve(args[1:])
+	case "active":
+		runSkillActive(args[1:])
 	case "ingest":
 		runSkillIngest(args[1:])
 	case "list":
@@ -72,6 +80,7 @@ func runSkillSearch(args []string) {
 	logActivity("skill search")
 	fs := flag.NewFlagSet("skill search", flag.ExitOnError)
 	limit := fs.Int("limit", 10, "Maximum number of results")
+	format := fs.String("format", "text", "Output format: text, json")
 
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: coder skill search <query> [flags]")
@@ -97,8 +106,35 @@ func runSkillSearch(args []string) {
 	}
 
 	if len(results) == 0 {
+		if *format == "json" {
+			writeJSON(struct {
+				Query   string                          `json:"query"`
+				Results []skilldomain.SkillSearchResult `json:"results"`
+			}{
+				Query:   query,
+				Results: []skilldomain.SkillSearchResult{},
+			})
+			return
+		}
 		fmt.Printf("No results found for %q\n", query)
 		return
+	}
+
+	switch *format {
+	case "text":
+		// human-readable output handled below
+	case "json":
+		writeJSON(struct {
+			Query   string                          `json:"query"`
+			Results []skilldomain.SkillSearchResult `json:"results"`
+		}{
+			Query:   query,
+			Results: results,
+		})
+		return
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (supported: text, json)\n", *format)
+		os.Exit(1)
 	}
 
 	fmt.Printf("Found %d skill(s) matching %q:\n\n", len(results), query)
@@ -118,6 +154,147 @@ func runSkillSearch(args []string) {
 			fmt.Printf("           %s\n", ch.Content)
 		}
 		fmt.Println()
+	}
+}
+
+// ── skill resolve ────────────────────────────────────────────────────────────
+
+func runSkillResolve(args []string) {
+	logActivity("skill resolve")
+	fs := flag.NewFlagSet("skill resolve", flag.ExitOnError)
+	trigger := fs.String("trigger", "initial", "Resolve trigger: initial, clarified, execution, error-recovery, review")
+	current := fs.String("current", "", "Comma-separated active skills to compare against (default: load from .coder/active-skills.json)")
+	budget := fs.Int("budget", 3, "Maximum number of active skills to keep")
+	limit := fs.Int("limit", 0, "Search candidate limit before resolve (default: max(budget*3, 6))")
+	format := fs.String("format", "text", "Output format: text, json, raw")
+	noSave := fs.Bool("no-save", false, "Do not update .coder/active-skills.json")
+
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: coder skill resolve <task> [flags]")
+		fmt.Fprintln(os.Stderr, "\nFLAGS:")
+		fs.PrintDefaults()
+	}
+
+	fs.Parse(args)
+	if fs.NArg() < 1 {
+		fs.Usage()
+		os.Exit(1)
+	}
+	task := fs.Arg(0)
+
+	currentSkills, err := currentSkillsFromFlagOrState(*current)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to load active skill state: %v\n", err)
+		os.Exit(1)
+	}
+
+	searchLimit := *limit
+	if searchLimit <= 0 {
+		searchLimit = max(*budget*3, 6)
+	}
+
+	client := getSkillClient()
+	defer client.Close()
+
+	results, err := client.SearchSkills(context.Background(), task, searchLimit)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	output, state := buildResolveOutput(task, *trigger, *budget, currentSkills, results)
+	if !*noSave {
+		if err := saveActiveSkillState(state); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to save active skill state: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	switch *format {
+	case "text":
+		if len(output.Skills) == 0 {
+			fmt.Printf("No active skills resolved for %q\n", task)
+			return
+		}
+		fmt.Printf("Resolved %d active skill(s) for %q [%s]:\n\n", len(output.Skills), task, output.Trigger)
+		for _, skill := range output.Skills {
+			fmt.Printf("━━━ %s (Score: %.4f) ━━━\n", skill.Name, skill.Score)
+			fmt.Printf("  Category: %s | Chunks: %d\n", skill.Category, len(skill.Chunks))
+			fmt.Printf("  %s\n\n", skill.Reason)
+		}
+		fmt.Printf("Keep: %s\n", fallbackList(output.Keep))
+		fmt.Printf("Add:  %s\n", fallbackList(output.Add))
+		fmt.Printf("Drop: %s\n", fallbackList(output.Drop))
+	case "json":
+		writeJSON(output)
+	case "raw":
+		selectedByName := make(map[string]skilldomain.SkillSearchResult, len(results))
+		for _, result := range results {
+			selectedByName[strings.ToLower(result.Skill.Name)] = result
+		}
+		selected := make([]skilldomain.SkillSearchResult, 0, len(output.Skills))
+		for _, skill := range output.Skills {
+			if result, ok := selectedByName[strings.ToLower(skill.Name)]; ok {
+				selected = append(selected, result)
+			}
+		}
+		fmt.Print(renderRawSkillContext(selected))
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (supported: text, json, raw)\n", *format)
+		os.Exit(1)
+	}
+}
+
+// ── skill active ─────────────────────────────────────────────────────────────
+
+func runSkillActive(args []string) {
+	logActivity("skill active")
+	fs := flag.NewFlagSet("skill active", flag.ExitOnError)
+	format := fs.String("format", "text", "Output format: text, json")
+
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: coder skill active [flags]")
+		fmt.Fprintln(os.Stderr, "\nFLAGS:")
+		fs.PrintDefaults()
+	}
+
+	fs.Parse(args)
+
+	state, err := loadActiveSkillState()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to load active skill state: %v\n", err)
+		os.Exit(1)
+	}
+	if state == nil {
+		empty := &activeSkillState{Skills: []activeSkillEntry{}, Keep: []string{}, Add: []string{}, Drop: []string{}}
+		if *format == "json" {
+			writeJSON(empty)
+			return
+		}
+		fmt.Printf("No active skill state found. Run `coder skill resolve \"<task>\"` first.\n")
+		return
+	}
+
+	switch *format {
+	case "text":
+		fmt.Printf("Active skills for %q [%s]\n", state.Task, state.Trigger)
+		if !state.ResolvedAt.IsZero() {
+			fmt.Printf("Resolved: %s\n", state.ResolvedAt.Format("2006-01-02 15:04:05"))
+		}
+		fmt.Printf("Budget:   %d\n\n", state.Budget)
+		for _, skill := range state.Skills {
+			fmt.Printf("━━━ %s (Score: %.4f) ━━━\n", skill.Name, skill.Score)
+			fmt.Printf("  Category: %s | Chunks: %d\n", skill.Category, skill.ChunkCount)
+			fmt.Printf("  %s\n\n", skill.Reason)
+		}
+		fmt.Printf("Keep: %s\n", fallbackList(state.Keep))
+		fmt.Printf("Add:  %s\n", fallbackList(state.Add))
+		fmt.Printf("Drop: %s\n", fallbackList(state.Drop))
+	case "json":
+		writeJSON(state)
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (supported: text, json)\n", *format)
+		os.Exit(1)
 	}
 }
 
@@ -235,7 +412,6 @@ func runIngestAuto(ctx context.Context, client skilldomain.SkillClient, repo str
 	}
 	runIngestGitHub(ctx, client, repo, "")
 }
-
 
 func ingestFromFS(
 	ctx context.Context,
@@ -486,12 +662,20 @@ func runSkillList(args []string) {
 // ── skill info ───────────────────────────────────────────────────────────────
 
 func runSkillInfo(args []string) {
-	if len(args) < 1 || args[0] == "-h" || args[0] == "--help" {
-		fmt.Fprintln(os.Stderr, "Usage: coder skill info <name>")
+	fs := flag.NewFlagSet("skill info", flag.ExitOnError)
+	format := fs.String("format", "text", "Output format: text, json, raw")
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: coder skill info <name> [flags]")
+		fmt.Fprintln(os.Stderr, "\nFLAGS:")
+		fs.PrintDefaults()
+	}
+	fs.Parse(args)
+	if fs.NArg() < 1 {
+		fs.Usage()
 		os.Exit(1)
 	}
 
-	name := args[0]
+	name := fs.Arg(0)
 	client := getSkillClient()
 	defer client.Close()
 
@@ -501,25 +685,41 @@ func runSkillInfo(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Skill: %s\n", sk.Name)
-	fmt.Printf("  ID:          %s\n", sk.ID)
-	fmt.Printf("  Category:    %s\n", sk.Category)
-	fmt.Printf("  Source:      %s (%s)\n", sk.Source, sk.SourceRepo)
-	fmt.Printf("  Risk:        %s\n", sk.Risk)
-	fmt.Printf("  Version:     %s\n", sk.Version)
-	if len(sk.Tags) > 0 {
-		fmt.Printf("  Tags:        %s\n", strings.Join(sk.Tags, ", "))
-	}
-	fmt.Printf("  Description: %s\n", truncate(sk.Description, 200))
-	fmt.Printf("  Created:     %s\n", sk.CreatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("  Updated:     %s\n", sk.UpdatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("\n  Chunks (%d):\n", len(chunks))
-	for _, ch := range chunks {
-		title := ch.Title
-		if title == "" {
-			title = "(untitled)"
+	switch *format {
+	case "text":
+		fmt.Printf("Skill: %s\n", sk.Name)
+		fmt.Printf("  ID:          %s\n", sk.ID)
+		fmt.Printf("  Category:    %s\n", sk.Category)
+		fmt.Printf("  Source:      %s (%s)\n", sk.Source, sk.SourceRepo)
+		fmt.Printf("  Risk:        %s\n", sk.Risk)
+		fmt.Printf("  Version:     %s\n", sk.Version)
+		if len(sk.Tags) > 0 {
+			fmt.Printf("  Tags:        %s\n", strings.Join(sk.Tags, ", "))
 		}
-		fmt.Printf("    [%d] [%s] %s (%d chars)\n", ch.ChunkIndex, ch.ChunkType, title, len(ch.Content))
+		fmt.Printf("  Description: %s\n", truncate(sk.Description, 200))
+		fmt.Printf("  Created:     %s\n", sk.CreatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Printf("  Updated:     %s\n", sk.UpdatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Printf("\n  Chunks (%d):\n", len(chunks))
+		for _, ch := range chunks {
+			title := ch.Title
+			if title == "" {
+				title = "(untitled)"
+			}
+			fmt.Printf("    [%d] [%s] %s (%d chars)\n", ch.ChunkIndex, ch.ChunkType, title, len(ch.Content))
+		}
+	case "json":
+		writeJSON(struct {
+			Skill  *skilldomain.Skill       `json:"skill"`
+			Chunks []skilldomain.SkillChunk `json:"chunks"`
+		}{
+			Skill:  sk,
+			Chunks: chunks,
+		})
+	case "raw":
+		fmt.Print(renderRawSkillInfo(sk, chunks))
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (supported: text, json, raw)\n", *format)
+		os.Exit(1)
 	}
 }
 
@@ -801,4 +1001,27 @@ func runSkillIndex(args []string) {
 	}
 
 	fmt.Printf("Generated %s with %d skills\n", *output, len(index))
+}
+
+func writeJSON(v any) {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to encode JSON: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func fallbackList(items []string) string {
+	if len(items) == 0 {
+		return "(none)"
+	}
+	return strings.Join(items, ", ")
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

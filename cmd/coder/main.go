@@ -47,7 +47,7 @@ EXAMPLES:
   coder progress
   coder next
   coder milestone complete 1
-  coder note "decided to use JWT with refresh tokens"
+	coder memory active --format json
 
 Run 'coder <command> --help' for specific command details.
 `

@@ -17,7 +17,7 @@ You do not write code. You write about it.
 ### Gate 1 — Skill Retrieval
 
 ```bash
-coder skill search "technical writing documentation"
+coder skill resolve "technical writing documentation" --trigger initial --budget 3
 ```
 
 Run before reading any source file or writing any document.
@@ -29,6 +29,8 @@ coder memory search "<component or feature to document>"
 ```
 
 Run immediately after Gate 1. Load prior documentation decisions, terminology standards, and known gaps.
+Use `coder memory recall "<component or feature to document>"` when you need the active documentation context focused on one surface area.
+Use `coder memory active` or `.coder/context-state.json` to inspect the local active context before writing docs.
 
 ### Gate 3 — Knowledge Capture
 
@@ -45,6 +47,7 @@ Run after completing documentation. Store terminology decisions and documentatio
 ### Step 1: Load Context
 
 Run Gates 1 and 2, then read:
+
 - `docs/requirements/<feature>.md` — user intent (for framing)
 - `docs/design/<feature>.md` — technical details (for accuracy)
 - Source code for new endpoints or CLI commands — for exact parameter names and types
@@ -54,13 +57,13 @@ Run Gates 1 and 2, then read:
 
 Confirm which artifacts need to be written or updated:
 
-| Artifact | Needed? | Output Path |
-|----------|---------|-------------|
-| API reference | Yes if new/changed endpoints | `docs/api/<resource>.md` |
-| Runbook | Yes if new operational concerns | `docs/runbooks/<feature>.md` |
-| CHANGELOG entry | Yes for any user-visible change | `CHANGELOG.md` |
-| README update | Yes if setup or interface changed | `README.md` |
-| Design doc finalization | Yes if design was "Draft" | `docs/design/<feature>.md` |
+| Artifact                | Needed?                           | Output Path                  |
+| ----------------------- | --------------------------------- | ---------------------------- |
+| API reference           | Yes if new/changed endpoints      | `docs/api/<resource>.md`     |
+| Runbook                 | Yes if new operational concerns   | `docs/runbooks/<feature>.md` |
+| CHANGELOG entry         | Yes for any user-visible change   | `CHANGELOG.md`               |
+| README update           | Yes if setup or interface changed | `README.md`                  |
+| Design doc finalization | Yes if design was "Draft"         | `docs/design/<feature>.md`   |
 
 ---
 
@@ -77,10 +80,11 @@ Confirm which artifacts need to be written or updated:
 
 All endpoints require a Bearer JWT token in the `Authorization` header. The `company_id`
 claim in the token determines which tenant's data is accessed.
+```
 
-```
 Authorization: Bearer <token>
-```
+
+````
 
 ---
 
@@ -108,11 +112,12 @@ curl -X POST https://api.example.com/api/v1/features \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "My Feature"}'
-```
+````
 
 ### Response
 
 **201 Created**:
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -125,13 +130,14 @@ curl -X POST https://api.example.com/api/v1/features \
 
 ### Errors
 
-| Error Code | HTTP Status | Cause | Action |
-|------------|-------------|-------|--------|
-| `VAL_MISSING_NAME` | 400 | `name` field is empty or absent | Provide a non-empty name |
-| `VAL_NAME_TOO_LONG` | 400 | `name` exceeds 255 characters | Shorten the name |
-| `AUTH_UNAUTHORIZED` | 401 | Token missing or expired | Re-authenticate and retry |
-| `BIZ_NAME_TAKEN` | 409 | A feature with this name already exists | Choose a different name |
-```
+| Error Code          | HTTP Status | Cause                                   | Action                    |
+| ------------------- | ----------- | --------------------------------------- | ------------------------- |
+| `VAL_MISSING_NAME`  | 400         | `name` field is empty or absent         | Provide a non-empty name  |
+| `VAL_NAME_TOO_LONG` | 400         | `name` exceeds 255 characters           | Shorten the name          |
+| `AUTH_UNAUTHORIZED` | 401         | Token missing or expired                | Re-authenticate and retry |
+| `BIZ_NAME_TAKEN`    | 409         | A feature with this name already exists | Choose a different name   |
+
+````
 
 ---
 
@@ -169,7 +175,7 @@ curl -s -o /dev/null -w "%{http_code}" \
   -H "Authorization: Bearer $HEALTH_CHECK_TOKEN" \
   https://api.example.com/api/v1/features?limit=1
 # Expected: 200
-```
+````
 
 ---
 
@@ -182,6 +188,7 @@ curl -s -o /dev/null -w "%{http_code}" \
 **Likely cause**: <technical explanation in 1-2 sentences>
 
 **Resolution**:
+
 1. <step 1>
 2. <step 2>
 3. If unresolved after 15 minutes: escalate to <team/channel>
@@ -193,24 +200,28 @@ curl -s -o /dev/null -w "%{http_code}" \
 Trigger rollback if: error rate > 2% or P99 latency > 1s within 10 minutes of deployment.
 
 1. Roll back the deployment:
+
    ```bash
    kubectl rollout undo deployment/<service-name>
    kubectl rollout status deployment/<service-name>
    ```
 
 2. Verify the previous version is running:
+
    ```bash
    curl https://api.example.com/health
    # Expected: {"status":"ok","version":"<previous-version>"}
    ```
 
 3. If schema migration was included, roll it back:
+
    ```bash
    <migration-tool> migrate down 1
    ```
 
 4. Notify the team in #deployments.
-```
+
+````
 
 ---
 
@@ -236,7 +247,7 @@ Entries go under `## [Unreleased]` at the top of `CHANGELOG.md`.
 
 ### Changed
 - `GET /api/v1/items` now returns results sorted by `createdAt` descending by default
-```
+````
 
 ---
 
@@ -252,6 +263,7 @@ Entries go under `## [Unreleased]` at the top of `CHANGELOG.md`.
 ### Code Examples
 
 Every code example must:
+
 - Be copy-paste ready (correct flags, quoting, and tool)
 - Show expected output after the command
 - Use realistic but non-sensitive values (no real tokens or passwords)
@@ -267,7 +279,7 @@ Every code example must:
 ## Todo List Structure
 
 ```
-1. [GATE 1] coder skill search "technical writing documentation"
+1. [GATE 1] coder skill resolve "technical writing documentation" --trigger initial --budget 3
 2. [GATE 2] coder memory search "<feature or component>"
 3. Read requirements, design, and source for accuracy
 4. Identify which documentation artifacts are needed

@@ -29,15 +29,15 @@ Did this involve non-obvious reasoning or discovery?
 
 ### Store (Yes)
 
-| Situation | Memory Type | Tags |
-|-----------|-------------|------|
-| New feature implemented | Pattern | feature, module, language |
-| Architectural decision made | Decision | architecture, decision |
-| Non-obvious bug fixed | Bug fix | bug, component, error-type |
-| External API integration figured out | Integration | integration, api, vendor |
-| Refactor pattern discovered | Pattern | refactor, module |
-| New testing strategy established | Testing | testing, coverage |
-| Performance optimization found | Optimization | performance, module |
+| Situation                            | Memory Type  | Tags                       |
+| ------------------------------------ | ------------ | -------------------------- |
+| New feature implemented              | Pattern      | feature, module, language  |
+| Architectural decision made          | Decision     | architecture, decision     |
+| Non-obvious bug fixed                | Bug fix      | bug, component, error-type |
+| External API integration figured out | Integration  | integration, api, vendor   |
+| Refactor pattern discovered          | Pattern      | refactor, module           |
+| New testing strategy established     | Testing      | testing, coverage          |
+| Performance optimization found       | Optimization | performance, module        |
 
 ### Skip (No)
 
@@ -58,6 +58,7 @@ coder memory store "Pattern: <Descriptive Title>" \
 ```
 
 Example:
+
 ```bash
 coder memory store "Pattern: NestJS multi-tenant repository base class" \
   "Context: All repositories in omi-channel-be must filter by company_id. Implementation: Extend BaseRepository which injects company_id from request context automatically. Pitfall: Never call base.findAll() without scope — always use findByCompany(). Files: src/shared/repositories/base.repository.ts." \
@@ -73,6 +74,7 @@ coder memory store "Decision: <What was decided>" \
 ```
 
 Example:
+
 ```bash
 coder memory store "Decision: Use outbox pattern for domain event publishing" \
   "Context: We needed guaranteed event delivery without dual-write failures. Decision: All domain events written to outbox table in same transaction as aggregate save, then published async by outbox worker. Rationale: Eliminates possibility of event loss on app crash. Alternatives: Direct Kafka publish (rejected: possible loss on crash), Saga (rejected: overkill for current scale). Date: 2026-01-10." \
@@ -88,6 +90,7 @@ coder memory store "Bug: <Issue Description>" \
 ```
 
 Example:
+
 ```bash
 coder memory store "Bug: JWT company_id missing after token refresh" \
   "Symptoms: 404 on all requests after token refresh despite valid token. Root cause: Refresh endpoint issued new token without copying company_id claim from old token. Fix: Added company_id to refresh token claims in auth.service.ts:refreshToken(). Location: src/auth/auth.service.ts line 87. Regression test: 'should include company_id in refreshed token'. Prevention: Always include company_id in token claims checklist." \
@@ -105,6 +108,7 @@ coder memory store "Integration: <System Name>" \
 ## Memory Quality Standards
 
 A high-quality memory entry:
+
 - Has a clear, searchable title that describes the topic (not "fix for issue #123")
 - Is written as if explaining to a new team member
 - Includes enough context to understand when it applies
@@ -113,6 +117,7 @@ A high-quality memory entry:
 - Is concise — if it needs more than 3 sentences per section, consider splitting
 
 A low-quality memory entry (do not store these):
+
 - Generic: "Use clean architecture" (too obvious)
 - Incomplete: "Fixed the auth bug" (no root cause, no location)
 - Stale: describes a pattern that was subsequently changed
@@ -131,18 +136,20 @@ coder memory compact --revector
 ```
 
 During review, evaluate each entry:
+
 - Is it still accurate given recent code changes?
 - Is it specific enough to be actionable?
 - Has it been superseded by a better pattern?
 
 ## Step-by-Step Procedure
 
-1. `coder skill search "knowledge management"` — retrieve any memory standards
+1. `coder skill resolve "knowledge management" --trigger review --budget 3` — retrieve any memory standards
 2. `coder memory search "<topic>"` — check what already exists before storing
-3. Choose the correct template (Pattern / Decision / Bug / Integration)
-4. Write the entry following quality standards above
-5. Run `coder memory store` with appropriate tags
-6. Verify the entry is findable: `coder memory search "<key term from entry>"`
+3. `coder memory recall "<topic>"` or `coder memory active` — inspect and narrow the active working set before deciding what to pin next
+4. Choose the correct template (Pattern / Decision / Bug / Integration)
+5. Write the entry following quality standards above
+6. Run `coder memory store` with appropriate tags
+7. Verify the entry is findable: `coder memory search "<key term from entry>"`
 
 ---
 
