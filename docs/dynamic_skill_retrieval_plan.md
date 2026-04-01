@@ -53,16 +53,16 @@ The failure mode is the same across both systems:
 
 This section combines the roadmap gap review with the retrieval upgrade plan so the project has one source of truth for retrieval work.
 
-| Area                           | Current state         | Gap                                                                                                                                            |
-| ------------------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Skill structured output        | Implemented           | `coder skill search --format json` and `coder skill info --format raw                                                                          | json` exist                             |
-| Skill dynamic re-resolve       | Implemented locally   | `coder skill resolve` and `coder skill active` exist, but the resolver is still CLI-side and not yet a server-level orchestration contract     |
-| Skill active state             | Implemented locally   | `.coder/active-skills.json` exists, but no broader `.coder` task/run coordination depends on it yet                                            |
-| Memory lifecycle retrieval     | Implemented           | active-only filtering, history, verify, supersede, and audit exist                                                                             |
-| Memory anytime recall loop     | Implemented locally   | `coder memory recall` now computes `keep/add/drop`, coverage, and conflicts against `.coder/active-memory.json`, but it is still CLI-side only |
-| Memory machine-readable output | Implemented           | `coder memory search --format json                                                                                                             | raw` now supports prompt-safe injection |
-| Unified context state          | Partially implemented | skills have `.coder/active-skills.json` and memory now has `.coder/active-memory.json`, but there is no combined context-state record yet      |
-| File-backed recovery           | Partial               | `.coder/session.md`, `STATE.md`, and `ROADMAP.md` exist, but task/run/subagent state is still largely roadmap-only                             |
+| Area                           | Current state       | Gap                                                                                                                                         |
+| ------------------------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Skill structured output        | Implemented         | `coder skill search --format json` and `coder skill info --format raw                                                                       | json` exist.                             |
+| Skill dynamic re-resolve       | Implemented locally | `coder skill resolve` and `coder skill active` exist, but the resolver is still CLI-side and not yet a server-level orchestration contract. |
+| Skill active state             | Implemented locally | `.coder/active-skills.json` exists, but no broader `.coder` task/run coordination depends on it yet.                                        |
+| Memory lifecycle retrieval     | Implemented         | Active-only filtering, history, verify, supersede, and audit exist.                                                                         |
+| Memory anytime recall loop     | Implemented         | `coder memory recall` now runs through shared usecase plus HTTP/gRPC contracts and still refreshes `.coder/active-memory.json` locally.     |
+| Memory machine-readable output | Implemented         | `coder memory search --format json                                                                                                          | raw` now supports prompt-safe injection. |
+| Unified context state          | Implemented locally | Skill and memory refreshes now also update `.coder/context-state.json` as a combined active context snapshot.                               |
+| File-backed recovery           | Partial             | `.coder/session.md`, `STATE.md`, and `ROADMAP.md` exist, but task/run/subagent state is still largely roadmap-only.                         |
 
 ---
 
@@ -92,8 +92,8 @@ Current technical constraints:
 - skills already support a local resolver and session-scoped state in `.coder/active-skills.json`
 - memory retrieval is lifecycle-aware and now supports `text`, `json`, and `raw` output modes
 - successful memory searches now refresh `.coder/active-memory.json`
-- memory now supports a local recall decision loop, but it is still CLI-side and not yet promoted to a server-level orchestration contract
-- there is no unified context state that records what was loaded, why, and when to reload it
+- memory recall now uses a shared usecase plus HTTP/gRPC transport contract, while the CLI remains responsible for local active-state persistence
+- active skills and active memory now also roll up into `.coder/context-state.json` for local recovery and inspection
 
 ---
 
@@ -135,7 +135,7 @@ Proposed changes:
 - keep `coder skill info --format raw|json`
 - add `coder memory search --format json`
 - add `coder memory search --format raw`
-- optionally add `coder memory recall` later as a thin alias over lifecycle-filtered search with stricter defaults
+- keep `coder memory recall` as the explicit task-time refresh command, but route its decisions through shared contracts instead of CLI-only logic
 
 Requirements:
 
@@ -159,7 +159,7 @@ Retrieval order during work:
 
 ### 3. Keep Skill Resolve, Add Memory Recall Protocol
 
-Skill resolve already exists as a user-facing CLI behavior. The missing piece is to standardize memory recall as an equally explicit protocol.
+Skill resolve already exists as a user-facing CLI behavior. Memory recall is now standardized as an equally explicit protocol across usecase, HTTP, gRPC, and CLI layers.
 
 Proposed API:
 
@@ -199,7 +199,7 @@ Recommended local files:
 
 - `.coder/active-skills.json`
 - `.coder/active-memory.json`
-- optional later: `.coder/context-state.json` as a combined summary
+- `.coder/context-state.json`
 
 Suggested `active-memory` fields:
 
@@ -273,7 +273,7 @@ Phase 1:
 Phase 2:
 
 - `coder skill resolve "<task>" --current a,b,c --trigger clarified --budget 3`
-- add memory recall guidance with the existing CLI shape first:
+- keep memory recall guidance aligned with the shared contract shape:
   - `coder memory search "<task>" --limit 5`
   - `coder memory search "<task>" --as-of <time>`
   - `coder memory search "<task>" --history`
@@ -281,7 +281,7 @@ Phase 2:
 Phase 3:
 
 - add `coder memory active`
-- optionally add `coder memory recall "<task>" --current a,b,c --trigger execution --budget 5`
+- `coder memory recall "<task>" --current a,b,c --trigger execution --budget 5`
 
 Optional later:
 
@@ -429,7 +429,7 @@ This upgrade is complete when:
 
 ## Practical Memory Query Protocol For Agents
 
-Until a first-class `memory recall` command exists, the operating rule should be explicit:
+With a first-class `memory recall` command now available across the stack, the operating rule should be explicit:
 
 The LLM may call `coder memory search` again at any time.
 

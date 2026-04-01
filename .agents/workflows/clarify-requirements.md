@@ -22,7 +22,11 @@ coder skill resolve "requirements analysis" --trigger initial --budget 3
 coder memory search "<feature name or domain>"
 ```
 
+Use `coder memory recall "<feature name or domain>"` when prior business context is noisy and you need a tighter active working set.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before drafting requirements.
+
 Also read:
+
 - `docs/requirements/` — existing requirement docs
 - `docs/design/` — any prior design context
 - `ROADMAP.md` or `README.md` — product direction
@@ -67,7 +71,7 @@ After receiving answers, immediately write the document:
 
 **Output path**: `docs/requirements/<feature-name>.md`
 
-```markdown
+````markdown
 # Requirements: <Feature Name>
 
 **Date**: YYYY-MM-DD
@@ -82,8 +86,8 @@ After receiving answers, immediately write the document:
 
 ## Users
 
-| Role | Need |
-|------|------|
+| Role   | Need                               |
+| ------ | ---------------------------------- |
 | <role> | <what they need from this feature> |
 
 ---
@@ -104,8 +108,10 @@ When <user action>
 Then <expected outcome>
 And <additional outcome>
 ```
+````
 
 ### Story 2: <Title>
+
 ... (repeat for each story)
 
 ---
@@ -113,9 +119,11 @@ And <additional outcome>
 ## Scope
 
 ### In Scope (v1)
+
 - ...
 
 ### Out of Scope
+
 - ...
 - (deferred to v2 or future iterations)
 
@@ -123,17 +131,17 @@ And <additional outcome>
 
 ## Edge Cases and Error Handling
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
+| Scenario    | Expected Behavior         |
+| ----------- | ------------------------- |
 | <edge case> | <what the system must do> |
 
 ---
 
 ## Integration Points
 
-| System / Module | Dependency Type | Notes |
-|-----------------|-----------------|-------|
-| <system> | upstream / downstream | <detail> |
+| System / Module | Dependency Type       | Notes    |
+| --------------- | --------------------- | -------- |
+| <system>        | upstream / downstream | <detail> |
 
 ---
 
@@ -155,10 +163,11 @@ And <additional outcome>
 
 ## Decisions Log
 
-| Date | Decision | Rationale |
-|------|----------|-----------|
-| YYYY-MM-DD | <decision> | <why> |
-```
+| Date       | Decision   | Rationale |
+| ---------- | ---------- | --------- |
+| YYYY-MM-DD | <decision> | <why>     |
+
+````
 
 ## Step 4 — Confirm
 
@@ -178,7 +187,7 @@ Only proceed to `architecture-design.md` after explicit confirmation.
 
 ```bash
 coder memory store "Requirements: <Feature Name>" "Goal: <goal>. Key constraints: <constraints>. Out of scope: <out-of-scope items>. Open questions: <questions>." --tags "requirements,<feature>,<domain>"
-```
+````
 
 ---
 

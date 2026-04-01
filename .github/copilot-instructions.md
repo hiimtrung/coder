@@ -56,13 +56,17 @@ All projects follow **Clean Architecture + Event-Driven Design** with standardiz
 Both gates are **blocking**. Skipping either is a workflow violation.
 
 Dynamic retrieval is mandatory:
+
 - Run `coder skill resolve "<topic>" --trigger initial --budget 3` at task start.
 - Re-run `coder skill resolve` with a more precise query after clarification, before switching phase, when a new language/framework appears, after repeated errors, and before review/release.
 - Use `coder skill resolve "<topic>" --trigger execution --budget 3 --format raw` when you need markdown-preserving skill context for prompt injection.
 - Inspect the current session skill set with `coder skill active --format json`.
+- Use `coder memory recall "<topic>"` to narrow the active memory working set and `coder memory active` to inspect what is currently pinned for the task.
 - Treat `.coder/active-skills.json` as the current active-skill record for the session.
+- Treat `.coder/context-state.json` as the combined local snapshot of active skills and active memory.
 
 **Todo list rule** — every task list MUST be:
+
 ```
 1. [GATE 1] coder skill resolve "<topic>" --trigger initial --budget 3
 2. [GATE 1] coder memory search "<topic>"
@@ -96,6 +100,7 @@ Release (release-readiness)
 ```
 
 Available workflow slash commands:
+
 - `/clarify-requirements` — BA phase: ask questions → write requirements doc
 - `/architecture-design` — Architect phase: ADR + design decisions
 - `/implement-feature` — Dev phase: implement + unit tests
@@ -128,6 +133,7 @@ Infrastructure Layer (Repositories, External APIs, DB adapters)
 ```
 
 **Rules:**
+
 - Dependencies point **inward only** — infrastructure depends on domain, never the reverse
 - Domain layer has **zero framework dependencies**
 - Use cases orchestrate domain objects through infrastructure interfaces
@@ -140,15 +146,16 @@ Infrastructure Layer (Repositories, External APIs, DB adapters)
 
 **Format**: `{CATEGORY}_{DESCRIPTIVE_NAME}`
 
-| Prefix | HTTP Status | Category | Example |
-|--------|-------------|----------|---------|
-| `AUTH_*` | 401, 403 | Authentication / Authorization | `AUTH_TOKEN_EXPIRED` |
-| `VAL_*` | 400 | Input validation | `VAL_INVALID_EMAIL` |
-| `BIZ_*` | 400, 404, 409 | Business logic | `BIZ_USER_NOT_FOUND` |
-| `INF_*` | 500, 502, 503 | Infrastructure / External | `INF_DB_CONNECTION_FAILED` |
-| `SYS_*` | 500 | System / Configuration | `SYS_CONFIG_MISSING` |
+| Prefix   | HTTP Status   | Category                       | Example                    |
+| -------- | ------------- | ------------------------------ | -------------------------- |
+| `AUTH_*` | 401, 403      | Authentication / Authorization | `AUTH_TOKEN_EXPIRED`       |
+| `VAL_*`  | 400           | Input validation               | `VAL_INVALID_EMAIL`        |
+| `BIZ_*`  | 400, 404, 409 | Business logic                 | `BIZ_USER_NOT_FOUND`       |
+| `INF_*`  | 500, 502, 503 | Infrastructure / External      | `INF_DB_CONNECTION_FAILED` |
+| `SYS_*`  | 500           | System / Configuration         | `SYS_CONFIG_MISSING`       |
 
 **Error response shape** (consistent across all APIs):
+
 ```json
 {
   "error": {
@@ -178,6 +185,8 @@ Infrastructure Layer (Repositories, External APIs, DB adapters)
 ```bash
 # Memory — semantic storage and retrieval
 coder memory search "<query>"
+coder memory recall "<query>"
+coder memory active
 coder memory store "<title>" "<content>" --tags "<tag1,tag2>"
 coder memory list
 coder memory compact --revector
@@ -215,25 +224,25 @@ coder version                  # show version
 
 ## 📋 Language-Specific Rules
 
-| Language | Skill Reference | Primary Projects |
-|----------|-----------------|-----------------|
-| TypeScript (NestJS) | `nestjs` | omi-channel-be, findtourgoUI, packageTourAdmin |
-| Java (Spring Boot) | `java` | crm_be, packageTourApi |
-| Go | `golang` | Future services |
-| Rust | `rust` | Future services |
-| Python | `python` | Scripts / utilities |
-| Dart | `dart` | Mobile / Flutter |
-| C | `c` | Embedded / system |
+| Language            | Skill Reference | Primary Projects                               |
+| ------------------- | --------------- | ---------------------------------------------- |
+| TypeScript (NestJS) | `nestjs`        | omi-channel-be, findtourgoUI, packageTourAdmin |
+| Java (Spring Boot)  | `java`          | crm_be, packageTourApi                         |
+| Go                  | `golang`        | Future services                                |
+| Rust                | `rust`          | Future services                                |
+| Python              | `python`        | Scripts / utilities                            |
+| Dart                | `dart`          | Mobile / Flutter                               |
+| C                   | `c`             | Embedded / system                              |
 
 **Architecture Skills:**
 
-| Topic | Skill |
-|-------|-------|
-| Clean Architecture, DDD | `architecture` |
-| Use cases, domain events | `development` |
-| Repositories, integrations | `database` |
-| Error codes, exceptions | `general-patterns` |
-| UI/UX design | `ui-ux-pro-max` |
+| Topic                      | Skill              |
+| -------------------------- | ------------------ |
+| Clean Architecture, DDD    | `architecture`     |
+| Use cases, domain events   | `development`      |
+| Repositories, integrations | `database`         |
+| Error codes, exceptions    | `general-patterns` |
+| UI/UX design               | `ui-ux-pro-max`    |
 
 ---
 

@@ -80,7 +80,10 @@ func saveActiveSkillState(state *activeSkillState) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(activeSkillsPath(), data, 0644)
+	if err := os.WriteFile(activeSkillsPath(), data, 0644); err != nil {
+		return err
+	}
+	return syncContextState(state, nil)
 }
 
 func normalizeSkillNames(raw string) []string {

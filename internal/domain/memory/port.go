@@ -41,6 +41,7 @@ type MemoryAuditRepository interface {
 type MemoryManager interface {
 	Store(ctx context.Context, title, content string, memType MemoryType, metadata map[string]any, scope string, tags []string) (string, error)
 	Search(ctx context.Context, query string, scope string, tags []string, memType MemoryType, metaFilters map[string]any, limit int) ([]SearchResult, error)
+	Recall(ctx context.Context, opts RecallOptions) (RecallResult, error)
 	List(ctx context.Context, limit, offset int) ([]Knowledge, error)
 	Delete(ctx context.Context, id string) error
 	Verify(ctx context.Context, id string, opts VerifyOptions) (int, error)

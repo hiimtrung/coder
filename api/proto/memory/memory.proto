@@ -9,6 +9,7 @@ import "google/protobuf/timestamp.proto";
 service MemoryService {
   rpc Store(StoreRequest) returns (StoreResponse);
   rpc Search(SearchRequest) returns (SearchResponse);
+  rpc Recall(RecallRequest) returns (RecallResponse);
   rpc List(ListRequest) returns (ListResponse);
   rpc Delete(DeleteRequest) returns (DeleteResponse);
   rpc Verify(VerifyRequest) returns (VerifyResponse);
@@ -46,6 +47,36 @@ message SearchResponse {
 message SearchResult {
   Knowledge knowledge = 1;
   float score = 2;
+}
+
+message RecallRequest {
+  string task = 1;
+  repeated string current = 2;
+  string trigger = 3;
+  int32 budget = 4;
+  int32 limit = 5;
+  string scope = 6;
+  repeated string tags = 7;
+  string type = 8;
+  string meta_filters_json = 9;
+}
+
+message RecalledMemory {
+  SearchResult result = 1;
+  string reason = 2;
+}
+
+message RecallResponse {
+  string task = 1;
+  string trigger = 2;
+  int32 budget = 3;
+  int32 limit = 4;
+  string coverage = 5;
+  repeated string keep = 6;
+  repeated string add = 7;
+  repeated string drop = 8;
+  repeated string conflicts = 9;
+  repeated RecalledMemory memories = 10;
 }
 
 message Knowledge {

@@ -241,13 +241,14 @@ coder memory search "grpc auth" --format json
 coder memory search "jwt rotation" --format raw
 ```
 
-Every successful search also refreshes `.coder/active-memory.json` so the latest recalled memory context can be inspected locally.
+Every successful search also refreshes `.coder/active-memory.json` and `.coder/context-state.json` so the latest recalled memory context can be inspected locally.
 
 ### `coder memory recall <task>`
 
 Re-recall memory for the current task and compute a decision diff against the current active memory set.
 
 This command is intended for long-running agent work where memory must be refreshed without restarting the task.
+Its decision logic now runs through the shared memory manager contract, so the same behavior is available over CLI, HTTP, and gRPC.
 
 Examples:
 
@@ -268,6 +269,7 @@ The recall result reports:
 ### `coder memory active`
 
 Show the current active memory recall state stored in `.coder/active-memory.json`.
+The broader combined active snapshot is also written to `.coder/context-state.json`.
 
 Examples:
 

@@ -67,6 +67,7 @@ Legacy commands such as `coder new-project`, `coder map-codebase`, `coder discus
   sessions/*.md          ← coder session save history
   active-skills.json     ← coder skill resolve / active
   active-memory.json     ← coder memory search / recall / active
+  context-state.json     ← combined active skill + memory snapshot
   phases/                ← milestone audit/archive examines files here
   archive/NN/            ← milestone archive output
 ```
@@ -75,12 +76,12 @@ Legacy commands such as `coder new-project`, `coder map-codebase`, `coder discus
 
 ## Local State Refresh
 
-| Command               | Local state refreshed                       |
-| --------------------- | ------------------------------------------- |
-| `coder skill resolve` | `.coder/active-skills.json`                 |
-| `coder memory search` | `.coder/active-memory.json`                 |
-| `coder memory recall` | `.coder/active-memory.json`                 |
-| `coder session save`  | `.coder/session.md`, `.coder/sessions/*.md` |
+| Command               | Local state refreshed                                    |
+| --------------------- | -------------------------------------------------------- |
+| `coder skill resolve` | `.coder/active-skills.json`, `.coder/context-state.json` |
+| `coder memory search` | `.coder/active-memory.json`, `.coder/context-state.json` |
+| `coder memory recall` | `.coder/active-memory.json`, `.coder/context-state.json` |
+| `coder session save`  | `.coder/session.md`, `.coder/sessions/*.md`              |
 
 ---
 

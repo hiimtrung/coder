@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,32 +17,6 @@ func TestNormalizeMemoryIdentifiers(t *testing.T) {
 
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("normalizeMemoryIdentifiers() = %v, want %v", got, want)
-	}
-}
-
-func TestSelectRecalledMemory(t *testing.T) {
-	results := []memdomain.SearchResult{
-		{Knowledge: memdomain.Knowledge{ID: "1", Title: "Auth token ADR", CanonicalKey: "auth-token"}, Score: 0.91},
-		{Knowledge: memdomain.Knowledge{ID: "2", Title: "GRPC retries", CanonicalKey: "grpc-retries"}, Score: 0.82},
-		{Knowledge: memdomain.Knowledge{ID: "3", Title: "Legacy note", CanonicalKey: "legacy-note"}, Score: 0.41},
-	}
-
-	selected, keep, add, drop, conflicts := selectRecalledMemory(results, []string{"auth-token", "stale-key"}, 2)
-
-	if len(selected) != 2 {
-		t.Fatalf("len(selected) = %d, want 2", len(selected))
-	}
-	if !reflect.DeepEqual(keep, []string{"auth-token"}) {
-		t.Fatalf("keep = %v, want %v", keep, []string{"auth-token"})
-	}
-	if !reflect.DeepEqual(add, []string{"grpc-retries"}) {
-		t.Fatalf("add = %v, want %v", add, []string{"grpc-retries"})
-	}
-	if !reflect.DeepEqual(drop, []string{"stale-key"}) {
-		t.Fatalf("drop = %v, want %v", drop, []string{"stale-key"})
-	}
-	if len(conflicts) != 0 {
-		t.Fatalf("conflicts = %v, want empty", conflicts)
 	}
 }
 
@@ -81,12 +58,23 @@ func TestBuildActiveMemoryStateCapturesConflictAndVerification(t *testing.T) {
 }
 
 func TestBuildMemoryRecallOutput(t *testing.T) {
-	results := []memdomain.SearchResult{
-		{Knowledge: memdomain.Knowledge{ID: "1", Title: "Auth token ADR", CanonicalKey: "auth-token"}, Score: 0.91},
-		{Knowledge: memdomain.Knowledge{ID: "2", Title: "Incident summary", CanonicalKey: "incident-summary"}, Score: 0.57},
+	result := memdomain.RecallResult{
+		Task:     "auth flow",
+		Trigger:  "execution",
+		Budget:   2,
+		Limit:    6,
+		Coverage: "strong",
+		Keep:     []string{"auth-token"},
+		Add:      []string{"incident-summary"},
+		Drop:     []string{"stale-key"},
+		Memories: []memdomain.RecalledMemory{
+			{Result: memdomain.SearchResult{Knowledge: memdomain.Knowledge{ID: "1", Title: "Auth token ADR", CanonicalKey: "auth-token"}, Score: 0.91}, Reason: "kept active: still relevant to the current task"},
+			{Result: memdomain.SearchResult{Knowledge: memdomain.Knowledge{ID: "2", Title: "Incident summary", CanonicalKey: "incident-summary"}, Score: 0.57}, Reason: "added: recalled for the current task"},
+		},
 	}
 
-	output, state := buildMemoryRecallOutput("auth flow", "execution", 2, "repo", "decision", "", "", "", false, false, []string{"auth-token", "stale-key"}, results)
+	output := buildMemoryRecallOutput(result)
+	state := buildActiveMemoryRecallState(result, "repo", "decision", "", "", "", false, false)
 
 	if output.Coverage != "strong" {
 		t.Fatalf("output.Coverage = %q, want %q", output.Coverage, "strong")
@@ -108,5 +96,73 @@ func TestBuildMemoryRecallOutput(t *testing.T) {
 	}
 	if state.Results[0].Reason == "" {
 		t.Fatal("expected recall result reason to be populated")
+	}
+}
+
+func TestBuildMemorySearchOutput(t *testing.T) {
+	results := []memdomain.SearchResult{{Knowledge: memdomain.Knowledge{ID: "1", Title: "Auth ADR"}, Score: 0.8}}
+	output := buildMemorySearchOutput("auth", "repo", "decision", 5, "active", "decision:auth", "2026-04-01T00:00:00Z", false, false, results)
+
+	if output.Query != "auth" || output.Scope != "repo" || output.Type != "decision" {
+		t.Fatalf("unexpected output header: %+v", output)
+	}
+	if len(output.Results) != 1 || output.Results[0].ID != "1" {
+		t.Fatalf("unexpected results: %+v", output.Results)
+	}
+}
+
+func TestRenderMemoryRecallText(t *testing.T) {
+	output := memoryRecallOutput{
+		Task:     "auth flow",
+		Trigger:  "execution",
+		Coverage: "adequate",
+		Keep:     []string{"auth-token"},
+		Add:      []string{"grpc-retry"},
+		Drop:     []string{"stale-key"},
+		Memories: []activeMemoryEntry{{ID: "12345678", Title: "Auth token ADR", Score: 0.91, Reason: "kept active", Status: "active", CanonicalKey: "auth-token"}},
+	}
+
+	text := renderMemoryRecallText(output)
+	for _, snippet := range []string{"Recalled 1 active memory item(s)", "Auth token ADR", "Coverage: adequate", "Keep:     auth-token"} {
+		if !strings.Contains(text, snippet) {
+			t.Fatalf("expected %q in output %q", snippet, text)
+		}
+	}
+}
+
+func TestSaveActiveStateSyncsContextState(t *testing.T) {
+	tempDir := t.TempDir()
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWD)
+	}()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Chdir() error: %v", err)
+	}
+
+	skillState := &activeSkillState{Task: "backend task", Trigger: "execution", Budget: 3, Skills: []activeSkillEntry{{Name: "architecture"}}}
+	if err := saveActiveSkillState(skillState); err != nil {
+		t.Fatalf("saveActiveSkillState() error: %v", err)
+	}
+	memoryState := &activeMemoryState{Query: "auth", Results: []activeMemoryEntry{{ID: "mem-1", Title: "Auth ADR"}}}
+	if err := saveActiveMemoryState(memoryState); err != nil {
+		t.Fatalf("saveActiveMemoryState() error: %v", err)
+	}
+
+	state, err := loadContextState()
+	if err != nil {
+		t.Fatalf("loadContextState() error: %v", err)
+	}
+	if state == nil || state.Skills == nil || state.Memory == nil {
+		t.Fatalf("expected both skills and memory in context state: %+v", state)
+	}
+	if state.Skills.Task != "backend task" || state.Memory.Query != "auth" {
+		t.Fatalf("unexpected context state payload: %+v", state)
+	}
+	if _, err := os.Stat(filepath.Join(tempDir, ".coder", contextStateFile)); err != nil {
+		t.Fatalf("expected context-state file to exist: %v", err)
 	}
 }

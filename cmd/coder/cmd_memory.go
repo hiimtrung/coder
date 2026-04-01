@@ -258,29 +258,7 @@ func runMemorySearch(args []string) {
 			fmt.Printf("   Content: %s\n\n", res.Content)
 		}
 	case "json":
-		writeJSON(struct {
-			Query        string                   `json:"query"`
-			Scope        string                   `json:"scope,omitempty"`
-			Type         string                   `json:"type,omitempty"`
-			Limit        int                      `json:"limit"`
-			Status       string                   `json:"status,omitempty"`
-			Key          string                   `json:"key,omitempty"`
-			AsOf         string                   `json:"as_of,omitempty"`
-			IncludeStale bool                     `json:"include_stale"`
-			History      bool                     `json:"history"`
-			Results      []memdomain.SearchResult `json:"results"`
-		}{
-			Query:        query,
-			Scope:        *scope,
-			Type:         *memType,
-			Limit:        *limit,
-			Status:       *status,
-			Key:          *key,
-			AsOf:         *asOf,
-			IncludeStale: *includeStale,
-			History:      *history,
-			Results:      results,
-		})
+		writeJSON(buildMemorySearchOutput(query, *scope, *memType, *limit, *status, *key, *asOf, *includeStale, *history, results))
 	case "raw":
 		fmt.Print(renderRawMemoryContext(query, results))
 	default:

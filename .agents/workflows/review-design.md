@@ -19,9 +19,13 @@ coder skill resolve "architecture <design context>" --trigger review --budget 3
 coder memory search "<feature or component name>"
 ```
 
+Use `coder memory recall "<feature or component name>"` when the design history is broad and you need a focused active working set.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before reviewing the design.
+
 ## Step 2 — Read the Design Document
 
 Read `docs/design/<feature>.md` in full. Also read:
+
 - The linked requirements doc to understand what the design must achieve
 - Any referenced existing modules to verify integration points
 
@@ -92,15 +96,19 @@ Produce a review summary:
 ### Findings
 
 #### Blocking (must fix before implementation)
+
 1. <finding>: <specific section and what needs to change>
 
 #### Recommended
+
 1. <finding>: <suggestion>
 
 #### Minor
+
 1. <observation>
 
 ### Summary
+
 <2-3 sentences on overall design quality and most important finding>
 ```
 

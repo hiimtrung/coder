@@ -115,9 +115,11 @@ For the detailed implementation plan to prevent stale or superseded memories fro
 ### Active Recall State
 
 To support re-entrant retrieval during long tasks, the CLI maintains a local active recall snapshot in `.coder/active-memory.json`.
+It also rolls the latest active skill and memory state into `.coder/context-state.json` for unified local recovery.
 
 The file is refreshed on successful `coder memory search` runs and represents the memory context the agent most recently recalled.
 `coder memory recall` also updates the same file, but with additional decision metadata such as `keep`, `add`, `drop`, `coverage`, and `conflicts`.
+The recall decision itself now runs through the shared memory manager and is exposed over HTTP and gRPC, while the CLI remains responsible for persisting the local active snapshot.
 
 Current fields:
 
@@ -149,6 +151,12 @@ Each result stores:
 - `content`
 
 This state is intentionally local-first, mirroring `.coder/active-skills.json`. It is designed for inspectability and recovery, not as hidden background memory.
+
+The combined local snapshot currently contains:
+
+- `.coder/active-skills.json`
+- `.coder/active-memory.json`
+- `.coder/context-state.json`
 
 The corresponding inspection command is:
 

@@ -20,6 +20,9 @@ coder skill resolve "<error type or component>" --trigger error-recovery --budge
 coder memory search "<error message or symptom keywords>"
 ```
 
+Use `coder memory recall "<error message or symptom keywords>"` when the debugging history is broad and you need the closest incidents pinned.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before tracing the root cause.
+
 Check memory first — this issue may have been seen before.
 
 ## Step 2 — Symptom Collection
@@ -34,8 +37,10 @@ If the issue description is incomplete, ask for:
 6. Scope of impact: one user, all users, specific tenant?
 
 Document collected symptoms:
+
 ```markdown
 ## Symptoms
+
 - Observed: <exact observed behavior>
 - Expected: <what should have happened>
 - Frequency: always | intermittent (<N>% of requests)
@@ -58,6 +63,7 @@ yarn test --testNamePattern="<test name>"
 ```
 
 Read the relevant source files:
+
 - The file at the error location (±50 lines around the failure)
 - The caller chain leading to the failure
 - Any configuration or environment variables involved
@@ -66,17 +72,18 @@ Read the relevant source files:
 
 Work through these categories systematically:
 
-| Category | Questions |
-|----------|-----------|
-| Data | Is input data in an unexpected format, null, or missing? |
-| State | Is an object in an unexpected state when this code runs? |
-| Logic | Is there an off-by-one, wrong condition, or incorrect operator? |
-| Concurrency | Could a race condition or shared mutable state cause this? |
-| Integration | Is a downstream service returning unexpected data? |
-| Configuration | Is an env var missing, wrong, or loaded too late? |
-| Dependency | Did a library version change behavior? |
+| Category      | Questions                                                       |
+| ------------- | --------------------------------------------------------------- |
+| Data          | Is input data in an unexpected format, null, or missing?        |
+| State         | Is an object in an unexpected state when this code runs?        |
+| Logic         | Is there an off-by-one, wrong condition, or incorrect operator? |
+| Concurrency   | Could a race condition or shared mutable state cause this?      |
+| Integration   | Is a downstream service returning unexpected data?              |
+| Configuration | Is an env var missing, wrong, or loaded too late?               |
+| Dependency    | Did a library version change behavior?                          |
 
 Confirm your hypothesis:
+
 - Can you write a failing test that reproduces the exact bug?
 - Does your proposed fix make that test pass?
 - Does fixing it cause any other tests to fail?
@@ -93,6 +100,7 @@ yarn build
 ```
 
 Commit the fix:
+
 ```bash
 git add <specific files>
 git commit -m "fix(<scope>): <what was fixed>
@@ -125,12 +133,12 @@ Closes #<issue-number>"
 
 ## Timeline
 
-| Time | Event |
-|------|-------|
-| HH:MM | Issue first observed |
-| HH:MM | Investigation started |
-| HH:MM | Root cause identified |
-| HH:MM | Fix deployed |
+| Time  | Event                    |
+| ----- | ------------------------ |
+| HH:MM | Issue first observed     |
+| HH:MM | Investigation started    |
+| HH:MM | Root cause identified    |
+| HH:MM | Fix deployed             |
 | HH:MM | Issue confirmed resolved |
 
 ---
@@ -143,10 +151,12 @@ Closes #<issue-number>"
 
 **Faulty code**:
 ```
+
 <code snippet showing the bug>
 ```
 
 **Fixed code**:
+
 ```
 <code snippet showing the fix>
 ```
@@ -175,18 +185,19 @@ Closes #<issue-number>"
 
 ## Action Items
 
-| Action | Owner | Due Date |
-|--------|-------|----------|
-| Add regression test for this scenario | <team> | <date> |
-| Add monitoring alert for <metric> | <team> | <date> |
-| Review similar code paths for same issue | <team> | <date> |
-```
+| Action                                   | Owner  | Due Date |
+| ---------------------------------------- | ------ | -------- |
+| Add regression test for this scenario    | <team> | <date>   |
+| Add monitoring alert for <metric>        | <team> | <date>   |
+| Review similar code paths for same issue | <team> | <date>   |
+
+````
 
 ## Step 7 — Gate Out (MANDATORY)
 
 ```bash
 coder memory store "Bug Fix: <Issue Title>" "Root cause: <precise cause>. Fix: <what was changed>. Location: <file:line>. Regression test: <test name>. Prevention: <action items>." --tags "bug,<component>,<error-type>"
-```
+````
 
 ---
 

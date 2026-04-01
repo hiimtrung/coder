@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	MemoryService_Store_FullMethodName     = "/memory.MemoryService/Store"
 	MemoryService_Search_FullMethodName    = "/memory.MemoryService/Search"
+	MemoryService_Recall_FullMethodName    = "/memory.MemoryService/Recall"
 	MemoryService_List_FullMethodName      = "/memory.MemoryService/List"
 	MemoryService_Delete_FullMethodName    = "/memory.MemoryService/Delete"
 	MemoryService_Verify_FullMethodName    = "/memory.MemoryService/Verify"
@@ -35,6 +36,7 @@ const (
 type MemoryServiceClient interface {
 	Store(ctx context.Context, in *StoreRequest, opts ...grpc.CallOption) (*StoreResponse, error)
 	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+	Recall(ctx context.Context, in *RecallRequest, opts ...grpc.CallOption) (*RecallResponse, error)
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	Verify(ctx context.Context, in *VerifyRequest, opts ...grpc.CallOption) (*VerifyResponse, error)
@@ -65,6 +67,16 @@ func (c *memoryServiceClient) Search(ctx context.Context, in *SearchRequest, opt
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SearchResponse)
 	err := c.cc.Invoke(ctx, MemoryService_Search_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *memoryServiceClient) Recall(ctx context.Context, in *RecallRequest, opts ...grpc.CallOption) (*RecallResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecallResponse)
+	err := c.cc.Invoke(ctx, MemoryService_Recall_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +149,7 @@ func (c *memoryServiceClient) Compact(ctx context.Context, in *CompactRequest, o
 type MemoryServiceServer interface {
 	Store(context.Context, *StoreRequest) (*StoreResponse, error)
 	Search(context.Context, *SearchRequest) (*SearchResponse, error)
+	Recall(context.Context, *RecallRequest) (*RecallResponse, error)
 	List(context.Context, *ListRequest) (*ListResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	Verify(context.Context, *VerifyRequest) (*VerifyResponse, error)
@@ -158,6 +171,9 @@ func (UnimplementedMemoryServiceServer) Store(context.Context, *StoreRequest) (*
 }
 func (UnimplementedMemoryServiceServer) Search(context.Context, *SearchRequest) (*SearchResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Search not implemented")
+}
+func (UnimplementedMemoryServiceServer) Recall(context.Context, *RecallRequest) (*RecallResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Recall not implemented")
 }
 func (UnimplementedMemoryServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method List not implemented")
@@ -230,6 +246,24 @@ func _MemoryService_Search_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MemoryServiceServer).Search(ctx, req.(*SearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MemoryService_Recall_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecallRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MemoryServiceServer).Recall(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MemoryService_Recall_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MemoryServiceServer).Recall(ctx, req.(*RecallRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -356,6 +390,10 @@ var MemoryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Search",
 			Handler:    _MemoryService_Search_Handler,
+		},
+		{
+			MethodName: "Recall",
+			Handler:    _MemoryService_Recall_Handler,
 		},
 		{
 			MethodName: "List",

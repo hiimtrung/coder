@@ -172,8 +172,10 @@ When explaining them:
 ### Memory flow
 
 `coder memory store/search/recall/verify/supersede/audit` are lifecycle-aware and operate through the server unless local Postgres mode is configured.
+`coder memory recall` now uses a shared recall contract at the usecase and transport layers rather than a CLI-only decision loop.
 
 `coder memory search` and `coder memory recall` also refresh the local `.coder/active-memory.json` snapshot so the latest recalled context can be inspected with `coder memory active`.
+Both commands also update `.coder/context-state.json` so active skills and memory can be recovered together.
 
 ### Session flow
 

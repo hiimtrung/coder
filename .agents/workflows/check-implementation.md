@@ -19,6 +19,9 @@ coder skill resolve "architecture <implementation context>" --trigger review --b
 coder memory search "<feature or module name>"
 ```
 
+Use `coder memory recall "<feature or module name>"` when the implementation history is broad and you need the active review set focused on the current change.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before evaluating alignment.
+
 ## Step 2 — Gather Context
 
 Identify the relevant documents and files:
@@ -35,9 +38,9 @@ git diff --name-only main...HEAD
 
 For each user story in the requirements doc, trace the implementation:
 
-| Story | Acceptance Criterion | Implementation Location | Status |
-|-------|---------------------|------------------------|--------|
-| Story 1 | Given X, When Y, Then Z | `src/.../feature.spec.ts` test "..." | VERIFIED / MISSING |
+| Story   | Acceptance Criterion         | Implementation Location              | Status             |
+| ------- | ---------------------------- | ------------------------------------ | ------------------ |
+| Story 1 | Given X, When Y, Then Z      | `src/.../feature.spec.ts` test "..." | VERIFIED / MISSING |
 | Story 1 | Error case: VAL_INVALID_NAME | `src/.../feature.spec.ts` test "..." | VERIFIED / MISSING |
 
 For each criterion marked MISSING: note the gap and the action required.
@@ -100,18 +103,23 @@ For each modified file:
 **Status**: ALIGNED | DEVIATIONS FOUND
 
 ### Acceptance Criteria Coverage
+
 <N of N criteria verified. Missing: <list>
 
 ### Design Deviations
+
 1. <deviation>: <what was designed vs what was built> — Impact: <low/medium/high>
 
 ### Missing Tests
+
 1. <scenario not covered>
 
 ### Recommended Actions
+
 1. <action with priority>
 
 ### Summary
+
 <2-3 sentences on overall alignment quality>
 ```
 

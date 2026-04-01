@@ -5,24 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
 	memdomain "github.com/trungtran/coder/internal/domain/memory"
 )
-
-type memoryRecallOutput struct {
-	Task      string              `json:"task"`
-	Trigger   string              `json:"trigger"`
-	Budget    int                 `json:"budget"`
-	Coverage  string              `json:"coverage"`
-	Keep      []string            `json:"keep"`
-	Add       []string            `json:"add"`
-	Drop      []string            `json:"drop"`
-	Conflicts []string            `json:"conflicts,omitempty"`
-	Memories  []activeMemoryEntry `json:"memories"`
-}
 
 func runMemoryRecall(args []string) {
 	logActivity("memory recall")
@@ -91,13 +78,23 @@ func runMemoryRecall(args []string) {
 	mgr := getMemoryManager()
 	defer mgr.Close()
 
-	results, err := mgr.Search(context.Background(), task, *scope, nil, memdomain.MemoryType(*memType), metaFilters, searchLimit)
+	result, err := mgr.Recall(context.Background(), memdomain.RecallOptions{
+		Task:        task,
+		Current:     currentItems,
+		Trigger:     *trigger,
+		Budget:      *budget,
+		Limit:       searchLimit,
+		Scope:       *scope,
+		Type:        memdomain.MemoryType(*memType),
+		MetaFilters: metaFilters,
+	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	output, state := buildMemoryRecallOutput(task, *trigger, *budget, *scope, *memType, *status, *key, *asOf, *includeStale, *history, currentItems, results)
+	output := buildMemoryRecallOutput(result)
+	state := buildActiveMemoryRecallState(result, *scope, *memType, *status, *key, *asOf, *includeStale, *history)
 	if !*noSave {
 		if err := saveActiveMemoryState(state); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: failed to save active memory state: %v\n", err)
@@ -107,23 +104,11 @@ func runMemoryRecall(args []string) {
 
 	switch *format {
 	case "text":
-		fmt.Printf("Recalled %d active memory item(s) for %q [%s]:\n\n", len(output.Memories), task, output.Trigger)
-		for _, memory := range output.Memories {
-			fmt.Printf("[%s] %s (Score: %.4f)\n", shortMemoryID(memory.ID), memory.Title, memory.Score)
-			fmt.Printf("  %s\n", memory.Reason)
-			fmt.Printf("  Status: %s | Key: %s\n\n", fallbackString(memory.Status, "(unknown)"), fallbackString(memory.CanonicalKey, "(none)"))
-		}
-		fmt.Printf("Coverage: %s\n", output.Coverage)
-		fmt.Printf("Keep:     %s\n", fallbackList(output.Keep))
-		fmt.Printf("Add:      %s\n", fallbackList(output.Add))
-		fmt.Printf("Drop:     %s\n", fallbackList(output.Drop))
-		if len(output.Conflicts) > 0 {
-			fmt.Printf("Conflicts:%s\n", formatIndentedList(output.Conflicts))
-		}
+		fmt.Print(renderMemoryRecallText(output))
 	case "json":
 		writeJSON(output)
 	case "raw":
-		selected := recalledEntriesToSearchResults(output.Memories, results)
+		selected := recalledMemoriesToSearchResults(result.Memories)
 		fmt.Print(renderRawMemoryContext(task, selected))
 	default:
 		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (supported: text, json, raw)\n", *format)
@@ -143,7 +128,11 @@ func currentMemoryFromFlagOrState(raw string) ([]string, error) {
 
 	items := make([]string, 0, len(state.Results))
 	for _, result := range state.Results {
-		items = append(items, memoryIdentity(result.CanonicalKey, result.ID))
+		identity := strings.ToLower(strings.TrimSpace(result.ID))
+		if strings.TrimSpace(result.CanonicalKey) != "" {
+			identity = strings.ToLower(strings.TrimSpace(result.CanonicalKey))
+		}
+		items = append(items, identity)
 	}
 	return items, nil
 }
@@ -164,183 +153,4 @@ func normalizeMemoryIdentifiers(raw string) []string {
 		out = append(out, normalized)
 	}
 	return out
-}
-
-func buildMemoryRecallOutput(task, trigger string, budget int, scope, memType, status, canonicalKey, asOf string, includeStale, history bool, current []string, results []memdomain.SearchResult) (*memoryRecallOutput, *activeMemoryState) {
-	if budget <= 0 {
-		budget = 5
-	}
-
-	selected, keep, add, drop, conflicts := selectRecalledMemory(results, current, budget)
-	coverage := classifyMemoryCoverage(selected)
-	entries := buildActiveMemoryEntries(selected, current)
-
-	output := &memoryRecallOutput{
-		Task:      task,
-		Trigger:   trigger,
-		Budget:    budget,
-		Coverage:  coverage,
-		Keep:      keep,
-		Add:       add,
-		Drop:      drop,
-		Conflicts: conflicts,
-		Memories:  entries,
-	}
-	state := &activeMemoryState{
-		Mode:         "recall",
-		Query:        task,
-		Trigger:      trigger,
-		Budget:       budget,
-		Scope:        scope,
-		Type:         memType,
-		Limit:        budget,
-		Status:       status,
-		CanonicalKey: canonicalKey,
-		AsOf:         asOf,
-		IncludeStale: includeStale,
-		History:      history,
-		SearchedAt:   time.Now(),
-		Keep:         keep,
-		Add:          add,
-		Drop:         drop,
-		Coverage:     coverage,
-		Conflicts:    conflicts,
-		Results:      entries,
-	}
-	return output, state
-}
-
-func selectRecalledMemory(results []memdomain.SearchResult, current []string, budget int) ([]memdomain.SearchResult, []string, []string, []string, []string) {
-	if budget <= 0 {
-		budget = 5
-	}
-
-	ranked := append([]memdomain.SearchResult(nil), results...)
-	sort.SliceStable(ranked, func(i, j int) bool {
-		if ranked[i].Score == ranked[j].Score {
-			return ranked[i].Title < ranked[j].Title
-		}
-		return ranked[i].Score > ranked[j].Score
-	})
-	if len(ranked) > budget {
-		ranked = ranked[:budget]
-	}
-
-	currentSet := make(map[string]bool, len(current))
-	for _, item := range current {
-		currentSet[strings.ToLower(strings.TrimSpace(item))] = true
-	}
-
-	selectedSet := make(map[string]bool, len(ranked))
-	keep := make([]string, 0, len(ranked))
-	add := make([]string, 0, len(ranked))
-	conflicts := make([]string, 0)
-	for _, result := range ranked {
-		identity := memoryIdentity(memdomain.CanonicalKeyForKnowledge(result.Knowledge), result.ID)
-		selectedSet[identity] = true
-		label := memoryLabel(result)
-		if currentSet[identity] {
-			keep = append(keep, label)
-		} else {
-			add = append(add, label)
-		}
-		if memdomain.MetadataBool(result.Metadata, memdomain.MetadataKeyConflictDetected) {
-			conflicts = append(conflicts, label)
-		}
-	}
-
-	drop := make([]string, 0)
-	for _, item := range current {
-		if !selectedSet[item] {
-			drop = append(drop, item)
-		}
-	}
-
-	return ranked, keep, add, drop, conflicts
-}
-
-func buildActiveMemoryEntries(results []memdomain.SearchResult, current []string) []activeMemoryEntry {
-	currentSet := make(map[string]bool, len(current))
-	for _, item := range current {
-		currentSet[strings.ToLower(strings.TrimSpace(item))] = true
-	}
-
-	entries := make([]activeMemoryEntry, 0, len(results))
-	for _, res := range results {
-		entry := activeMemoryEntry{
-			ID:               res.ID,
-			Title:            res.Title,
-			Type:             string(res.Type),
-			Scope:            res.Scope,
-			Status:           string(memdomain.StatusForKnowledge(res.Knowledge)),
-			CanonicalKey:     memdomain.CanonicalKeyForKnowledge(res.Knowledge),
-			Score:            res.Score,
-			Tags:             append([]string(nil), res.Tags...),
-			ConflictDetected: memdomain.MetadataBool(res.Metadata, memdomain.MetadataKeyConflictDetected),
-			Content:          res.Content,
-			Reason:           resolveMemoryReason(res, currentSet[memoryIdentity(memdomain.CanonicalKeyForKnowledge(res.Knowledge), res.ID)]),
-		}
-		if entry.ConflictDetected {
-			entry.ConflictCount = metadataInt(res.Metadata[memdomain.MetadataKeyConflictCount])
-		}
-		if verifiedAt, ok := memdomain.LastVerifiedAtForKnowledge(res.Knowledge); ok {
-			entry.LastVerifiedAt = verifiedAt.Format(time.RFC3339)
-		}
-		entries = append(entries, entry)
-	}
-	return entries
-}
-
-func classifyMemoryCoverage(results []memdomain.SearchResult) string {
-	if len(results) == 0 {
-		return "none"
-	}
-	best := results[0].Score
-	switch {
-	case best >= 0.80:
-		return "strong"
-	case best >= 0.55:
-		return "adequate"
-	default:
-		return "weak"
-	}
-}
-
-func resolveMemoryReason(result memdomain.SearchResult, alreadyActive bool) string {
-	base := "added: recalled for the current task"
-	if alreadyActive {
-		base = "kept active: still relevant to the current task"
-	}
-	if memdomain.MetadataBool(result.Metadata, memdomain.MetadataKeyConflictDetected) {
-		return base + " with conflict warning"
-	}
-	return base
-}
-
-func memoryIdentity(canonicalKey, id string) string {
-	if strings.TrimSpace(canonicalKey) != "" {
-		return strings.ToLower(strings.TrimSpace(canonicalKey))
-	}
-	return strings.ToLower(strings.TrimSpace(id))
-}
-
-func memoryLabel(result memdomain.SearchResult) string {
-	if key := memdomain.CanonicalKeyForKnowledge(result.Knowledge); key != "" {
-		return key
-	}
-	return result.ID
-}
-
-func recalledEntriesToSearchResults(entries []activeMemoryEntry, results []memdomain.SearchResult) []memdomain.SearchResult {
-	byID := make(map[string]memdomain.SearchResult, len(results))
-	for _, result := range results {
-		byID[result.ID] = result
-	}
-	selected := make([]memdomain.SearchResult, 0, len(entries))
-	for _, entry := range entries {
-		if result, ok := byID[entry.ID]; ok {
-			selected = append(selected, result)
-		}
-	}
-	return selected
 }

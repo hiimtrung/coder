@@ -21,6 +21,9 @@ coder skill resolve "memory leak <language or framework>" --trigger error-recove
 coder memory search "memory leak <component or service>"
 ```
 
+Use `coder memory recall "memory leak <component or service>"` when the leak history is broad and you need only the closest incidents pinned.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before forming a hypothesis.
+
 ## Step 2 — Symptom Collection
 
 Gather diagnostic data before forming a hypothesis:
@@ -44,6 +47,7 @@ docker stats <container>
 ```
 
 Document:
+
 - Resource type: memory | file descriptors | goroutines | DB connections | event listeners
 - Growth pattern: linear, step-function, or event-triggered
 - First observed: after which deployment or traffic change
@@ -51,23 +55,25 @@ Document:
 
 ## Step 3 — Classify the Leak Type
 
-| Leak Type | Symptoms | Common Causes |
-|-----------|----------|---------------|
-| Memory (heap) | RSS grows, GC doesn't recover it | Unbounded caches, circular refs, large buffers not released |
-| Goroutine / thread | goroutine/thread count grows | Missing channel close, blocking call without timeout, leaked worker |
-| DB connection | connection pool saturation | Missing `defer rows.Close()`, unclosed transactions, no connection timeout |
-| File descriptor | "too many open files" error | Missing `defer file.Close()`, socket not closed on error path |
-| Event listener | memory grows after repeated subscribe calls | Listener not removed on component unmount / object destruction |
+| Leak Type          | Symptoms                                    | Common Causes                                                              |
+| ------------------ | ------------------------------------------- | -------------------------------------------------------------------------- |
+| Memory (heap)      | RSS grows, GC doesn't recover it            | Unbounded caches, circular refs, large buffers not released                |
+| Goroutine / thread | goroutine/thread count grows                | Missing channel close, blocking call without timeout, leaked worker        |
+| DB connection      | connection pool saturation                  | Missing `defer rows.Close()`, unclosed transactions, no connection timeout |
+| File descriptor    | "too many open files" error                 | Missing `defer file.Close()`, socket not closed on error path              |
+| Event listener     | memory grows after repeated subscribe calls | Listener not removed on component unmount / object destruction             |
 
 ## Step 4 — Isolate the Source
 
 For memory leaks — compare heap snapshots:
+
 1. Take snapshot at startup (T+0)
 2. Run the suspected operation N times
 3. Take snapshot (T+N)
 4. Diff: what objects grew and were not garbage collected?
 
 For connection/goroutine leaks:
+
 ```bash
 # Go goroutines:
 curl localhost:6060/debug/pprof/goroutine?debug=1
@@ -80,6 +86,7 @@ SELECT count(*), state FROM pg_stat_activity GROUP BY state;
 ```
 
 Read the code path that runs during the growth period. Look for:
+
 - Objects added to a collection but never removed
 - `defer` or `finally` blocks missing on the error path
 - Callbacks registered without a corresponding unregister
@@ -93,7 +100,7 @@ Apply the minimum change to close the resource leak:
 // BEFORE: DB connection not closed on error path
 async function getUser(id: string) {
   const conn = await pool.connect();
-  const result = await conn.query('SELECT * FROM users WHERE id = $1', [id]);
+  const result = await conn.query("SELECT * FROM users WHERE id = $1", [id]);
   conn.release(); // not called if query throws
   return result.rows[0];
 }
@@ -102,7 +109,7 @@ async function getUser(id: string) {
 async function getUser(id: string) {
   const conn = await pool.connect();
   try {
-    const result = await conn.query('SELECT * FROM users WHERE id = $1', [id]);
+    const result = await conn.query("SELECT * FROM users WHERE id = $1", [id]);
     return result.rows[0];
   } finally {
     conn.release(); // always called
@@ -123,12 +130,14 @@ for rows.Next() { ... }
 ```
 
 Run the full test suite after fixing:
+
 ```bash
 yarn test && yarn build
 # or: go test ./... && go build ./...
 ```
 
 Commit:
+
 ```bash
 git commit -m "fix(<scope>): close resource in all code paths to prevent <resource> leak
 
@@ -149,17 +158,21 @@ Regression test: <test name>"
 **Status**: Resolved
 
 ## Summary
+
 <2-3 sentences: what leaked, what the impact was, how it was fixed>
 
 ## Root Cause
+
 <Exact mechanism. Which resource, which code path, why it wasn't released.>
 
 **Location**: `path/to/file`, line N
 
 ## Fix
+
 <What was changed and why it prevents the leak>
 
 ## Prevention Measures
+
 - <coding practice to prevent recurrence>
 - <linter rule or review checklist item to add>
 - <monitoring alert to add>

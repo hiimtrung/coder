@@ -19,9 +19,13 @@ coder skill resolve "<language or module being reviewed>" --trigger review --bud
 coder memory search "<feature or module name>"
 ```
 
+Use `coder memory recall "<feature or module name>"` when the review spans many prior changes and you want only the most relevant history active.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before starting findings.
+
 ## Step 2 — Gather Context
 
 If not already provided, collect:
+
 - Feature description and requirements doc path
 - List of modified files (`git diff --name-only main...HEAD`)
 - Design doc path (if applicable)
@@ -36,6 +40,7 @@ git diff --stat main...HEAD
 ## Step 3 — Systematic Review by Category
 
 Work through each category below. Mark findings as:
+
 - **BLOCKING** — must fix before merge (security, correctness, architecture violation)
 - **RECOMMENDED** — should fix, but merge can proceed (readability, performance, style)
 - **SUGGESTION** — optional improvement for future iteration

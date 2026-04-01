@@ -19,7 +19,11 @@ coder skill resolve "<language> <feature domain>" --trigger initial --budget 3
 coder memory search "<feature name>"
 ```
 
+Use `coder memory recall "<feature name>"` when the implementation wave needs a narrower active memory working set.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before resuming the next wave.
+
 Then read:
+
 - `docs/requirements/<feature>.md` — what to build and acceptance criteria
 - `docs/design/<feature>.md` — how to build it
 - Existing source files for the target module — understand current patterns
@@ -29,6 +33,7 @@ Use `coder skill resolve ... --format raw` if the current wave needs markdown-pr
 ## Step 2 — Plan Implementation Waves
 
 Decompose the implementation into independent, committable waves. Each wave must:
+
 - Compile and pass all tests
 - Be independently revertable
 - Represent one logical slice of functionality
@@ -79,16 +84,17 @@ Write the test(s) that describe the expected behavior. They must fail at this po
 
 ```typescript
 // Example: entity unit test (Wave 1)
-describe('FeatureEntity', () => {
-  it('should create with valid data', () => {
-    const entity = FeatureEntity.create({ name: 'test', companyId: 'co-1' });
-    expect(entity.name).toBe('test');
-    expect(entity.companyId).toBe('co-1');
+describe("FeatureEntity", () => {
+  it("should create with valid data", () => {
+    const entity = FeatureEntity.create({ name: "test", companyId: "co-1" });
+    expect(entity.name).toBe("test");
+    expect(entity.companyId).toBe("co-1");
   });
 
-  it('should throw VAL_INVALID_NAME when name is empty', () => {
-    expect(() => FeatureEntity.create({ name: '', companyId: 'co-1' }))
-      .toThrow('VAL_INVALID_NAME');
+  it("should throw VAL_INVALID_NAME when name is empty", () => {
+    expect(() => FeatureEntity.create({ name: "", companyId: "co-1" })).toThrow(
+      "VAL_INVALID_NAME",
+    );
   });
 });
 ```
@@ -98,6 +104,7 @@ describe('FeatureEntity', () => {
 Write the minimum code to make the tests pass. Follow Clean Architecture strictly:
 
 **Domain Layer** (no framework imports):
+
 ```typescript
 // entities/feature.entity.ts
 export class FeatureEntity {
@@ -110,7 +117,7 @@ export class FeatureEntity {
 
   static create(props: CreateFeatureProps): FeatureEntity {
     if (!props.name || props.name.trim().length === 0) {
-      throw new DomainException('VAL_INVALID_NAME', 'Name cannot be empty');
+      throw new DomainException("VAL_INVALID_NAME", "Name cannot be empty");
     }
     return new FeatureEntity(
       generateId(),
@@ -123,6 +130,7 @@ export class FeatureEntity {
 ```
 
 **Application Layer** (use case, no DB imports):
+
 ```typescript
 // use-cases/create-feature.use-case.ts
 export class CreateFeatureUseCase {
@@ -139,6 +147,7 @@ export class CreateFeatureUseCase {
 ```
 
 **Infrastructure Layer** (implements domain interfaces):
+
 ```typescript
 // repositories/feature.repository.ts — implements IFeatureRepository
 ```
@@ -215,12 +224,14 @@ Repository  → implements domain interface, all DB code here
 ```
 
 Error escalation:
+
 - DTO validation → `VAL_*` (400)
 - Use case business rule → `BIZ_*` (400/404/409)
 - Repository failure → `INF_*` (500/502/503)
 - System/config → `SYS_*` (500)
 
 Multi-tenancy (non-negotiable):
+
 - `company_id` comes from JWT, never from request body
 - Every repository query includes `company_id` filter
 - Validated in use case before any DB operation

@@ -79,7 +79,10 @@ func saveActiveMemoryState(state *activeMemoryState) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(activeMemoryPath(), data, 0644)
+	if err := os.WriteFile(activeMemoryPath(), data, 0644); err != nil {
+		return err
+	}
+	return syncContextState(nil, state)
 }
 
 func buildActiveMemoryState(query, scope, memType string, limit int, status, canonicalKey, asOf string, includeStale, history bool, results []memdomain.SearchResult) *activeMemoryState {

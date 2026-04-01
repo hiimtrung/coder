@@ -20,9 +20,13 @@ coder skill resolve "technical writing documentation" --trigger review --budget 
 coder memory search "<document topic or component>"
 ```
 
+Use `coder memory recall "<document topic or component>"` when prior documentation context is broad and you need the active set focused on one surface.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before starting the review.
+
 ## Step 2 — Identify Target Documents
 
 Confirm which documents are being reviewed:
+
 - API reference (`docs/api/`)
 - Runbook (`docs/runbooks/`)
 - Requirements or design doc (`docs/requirements/`, `docs/design/`)
@@ -41,7 +45,7 @@ Read each document from start to finish as its target audience would — as a de
 
 ### 2. Completeness
 
-- Does it explain *what* something is before explaining *how* to use it?
+- Does it explain _what_ something is before explaining _how_ to use it?
 - Are prerequisites explicitly stated?
 - Are there quick start examples for common tasks?
 - Are edge cases and error scenarios addressed?
@@ -67,31 +71,35 @@ Read each document from start to finish as its target audience would — as a de
 
 For each document:
 
-```markdown
+````markdown
 ## [Document Name]
 
 **Audience**: <developer | operator | API consumer>
 **Current State**: Good | Needs Work | Major Revision Required
 
-| Aspect | Rating (1-5) | Notes |
-|--------|--------------|-------|
-| Clarity | N/5 | <specific observations> |
-| Completeness | N/5 | <what is missing> |
-| Actionability | N/5 | <what blocks a reader from acting> |
-| Structure | N/5 | <organizational issues> |
+| Aspect        | Rating (1-5) | Notes                              |
+| ------------- | ------------ | ---------------------------------- |
+| Clarity       | N/5          | <specific observations>            |
+| Completeness  | N/5          | <what is missing>                  |
+| Actionability | N/5          | <what blocks a reader from acting> |
+| Structure     | N/5          | <organizational issues>            |
 
 **Issues by Priority**:
 
 **High** (blocks the reader from succeeding):
+
 1. <issue> — Line <N>: <specific fix>
 
 **Medium** (causes confusion but reader can work through it):
+
 1. <issue> — Section <X>: <suggestion>
 
 **Low** (polish):
+
 1. <observation> — <suggestion>
 
 **Suggested Fixes**:
+
 ```markdown
 [Before]
 <original text>
@@ -99,7 +107,9 @@ For each document:
 [After]
 <improved text>
 ```
-```
+````
+
+````
 
 ## Step 5 — Common Patterns to Fix
 
@@ -119,7 +129,7 @@ For each document:
 
 ```bash
 coder memory store "Doc Review: <Document Name>" "Audience: <audience>. Overall quality: <N/5>. Critical issues: <count and summary>. Key terminology decisions: <terms standardized>. Structural changes made: <if applied>." --tags "documentation,technical-writing,<component>"
-```
+````
 
 ---
 

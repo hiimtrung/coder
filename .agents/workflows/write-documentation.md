@@ -20,7 +20,11 @@ coder skill resolve "technical writing documentation" --trigger execution --budg
 coder memory search "<feature or component name>"
 ```
 
+Use `coder memory recall "<feature or component name>"` when you need the active documentation context narrowed to one artifact or surface.
+Use `coder memory active` or `.coder/context-state.json` to inspect the current local context before drafting updates.
+
 Then read:
+
 - `docs/requirements/<feature>.md` — user stories for documentation framing
 - `docs/design/<feature>.md` — technical details, API contracts, data flows
 - `CHANGELOG.md` — existing format and conventions
@@ -31,7 +35,7 @@ For each new or changed endpoint, write or update the API reference.
 
 **Output path**: `docs/api/<resource>.md` (or update existing Swagger/OpenAPI annotations in source)
 
-```markdown
+````markdown
 # API Reference: <Resource Name>
 
 ## POST /api/v1/<resource>
@@ -42,18 +46,21 @@ Creates a new <resource>.
 
 **Request Body**:
 
-| Field | Type | Required | Validation | Description |
-|-------|------|----------|------------|-------------|
-| `name` | string | Yes | max 255 chars | Display name of the resource |
+| Field  | Type   | Required | Validation    | Description                  |
+| ------ | ------ | -------- | ------------- | ---------------------------- |
+| `name` | string | Yes      | max 255 chars | Display name of the resource |
 
 **Request Example**:
+
 ```json
 {
   "name": "Example Resource"
 }
 ```
+````
 
 **Response** `201 Created`:
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -64,12 +71,12 @@ Creates a new <resource>.
 
 **Error Responses**:
 
-| Code | HTTP Status | Trigger |
-|------|-------------|---------|
-| `VAL_INVALID_NAME` | 400 | Name is empty or too long |
-| `AUTH_UNAUTHORIZED` | 401 | Token missing or expired |
-| `AUTH_FORBIDDEN` | 403 | Token valid but insufficient permissions |
-| `INF_DATABASE_ERROR` | 500 | Persistence failure |
+| Code                 | HTTP Status | Trigger                                  |
+| -------------------- | ----------- | ---------------------------------------- |
+| `VAL_INVALID_NAME`   | 400         | Name is empty or too long                |
+| `AUTH_UNAUTHORIZED`  | 401         | Token missing or expired                 |
+| `AUTH_FORBIDDEN`     | 403         | Token valid but insufficient permissions |
+| `INF_DATABASE_ERROR` | 500         | Persistence failure                      |
 
 ---
 
@@ -78,7 +85,8 @@ Creates a new <resource>.
 Returns a single <resource> by ID.
 
 ... (follow same format)
-```
+
+````
 
 ## Step 3 — Runbook
 
@@ -116,7 +124,7 @@ Brief description of what this feature does operationally and which systems it i
 curl -H "Authorization: Bearer $TOKEN" https://api.example.com/api/v1/<resource>?limit=1
 
 # Expected: 200 OK with empty or populated array
-```
+````
 
 ---
 
@@ -129,6 +137,7 @@ curl -H "Authorization: Bearer $TOKEN" https://api.example.com/api/v1/<resource>
 **Likely Cause**: <technical explanation>
 
 **Remediation**:
+
 1. Check <log location> for error pattern `<pattern>`
 2. Verify <service or config>
 3. If persists: <escalation step>
@@ -152,11 +161,12 @@ If this feature must be disabled:
 
 ## Monitoring and Alerts
 
-| Metric | Alert Threshold | Dashboard Link |
-|--------|-----------------|----------------|
-| Error rate | > 1% over 5 min | <link> |
-| P99 latency | > 500ms | <link> |
-```
+| Metric      | Alert Threshold | Dashboard Link |
+| ----------- | --------------- | -------------- |
+| Error rate  | > 1% over 5 min | <link>         |
+| P99 latency | > 500ms         | <link>         |
+
+````
 
 ## Step 4 — CHANGELOG Entry
 
@@ -177,9 +187,10 @@ Append to `CHANGELOG.md` using Keep a Changelog format:
 
 ### Deprecated
 - <What is now deprecated and what to use instead>
-```
+````
 
 Rules:
+
 - Use present tense, active voice: "Add X", not "Added X" or "X was added"
 - Write for the user, not the implementer: focus on impact, not implementation detail
 - Group by type: Added, Changed, Fixed, Deprecated, Removed, Security

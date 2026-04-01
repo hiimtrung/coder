@@ -37,9 +37,12 @@ coder memory search "<topic of the task>"
 Run immediately after Gate 1. Retrieves project-specific decisions, past patterns, and lessons learned.
 
 Dynamic retrieval rules:
+
 - Re-run `coder skill resolve` after clarification, before implementation, when the task shifts domains, after repeated errors, and before review/release.
 - Use `coder skill resolve "<topic>" --trigger execution --budget 3 --format raw` when injecting skill content into an LLM context.
 - Check `.coder/active-skills.json` through `coder skill active --format json` before assuming a previous skill set is still valid.
+- Use `coder memory recall "<topic>"` when the task needs a tighter working set, and `coder memory active` to inspect the currently pinned memory context.
+- Treat `.coder/context-state.json` as the combined local snapshot of active skills and active memory.
 
 ### Gate 3 — Knowledge Capture
 
@@ -146,6 +149,7 @@ Repository           ← Infrastructure: implements domain interfaces, all DB co
 ```
 
 Rules:
+
 - Dependencies point inward only
 - Cross-module communication via events only — no direct repository imports
 - `company_id` from JWT on every query, never from request body
@@ -155,13 +159,13 @@ Rules:
 
 ## Error Codes
 
-| Prefix | HTTP | Layer |
-|--------|------|-------|
-| `AUTH_*` | 401, 403 | Auth guards / middleware |
-| `VAL_*` | 400 | DTO validation |
-| `BIZ_*` | 400, 404, 409 | Use cases |
-| `INF_*` | 500, 502, 503 | Repositories / external clients |
-| `SYS_*` | 500 | Configuration / startup |
+| Prefix   | HTTP          | Layer                           |
+| -------- | ------------- | ------------------------------- |
+| `AUTH_*` | 401, 403      | Auth guards / middleware        |
+| `VAL_*`  | 400           | DTO validation                  |
+| `BIZ_*`  | 400, 404, 409 | Use cases                       |
+| `INF_*`  | 500, 502, 503 | Repositories / external clients |
+| `SYS_*`  | 500           | Configuration / startup         |
 
 ---
 
@@ -191,6 +195,8 @@ Rules:
 ```bash
 # Memory
 coder memory search "<query>"
+coder memory recall "<query>"
+coder memory active
 coder memory store "<title>" "<content>" --tags "<tags>"
 coder memory list
 coder memory compact --revector
@@ -233,10 +239,10 @@ If a subagent owns part of the task, it must resolve skills for its own subtask 
 
 ## Multi-Language Support
 
-| Stack | Primary Projects |
-|-------|-----------------|
+| Stack               | Primary Projects                               |
+| ------------------- | ---------------------------------------------- |
 | TypeScript / NestJS | omi-channel-be, findtourgoUI, packageTourAdmin |
-| Java / Spring Boot | crm_be, packageTourApi |
-| React / Next.js | Web frontends (App Router, SSR/SSG) |
-| React Native / Expo | Mobile applications |
-| Go / Python / Rust | Reference services, scripts, utilities |
+| Java / Spring Boot  | crm_be, packageTourApi                         |
+| React / Next.js     | Web frontends (App Router, SSR/SSG)            |
+| React Native / Expo | Mobile applications                            |
+| Go / Python / Rust  | Reference services, scripts, utilities         |
