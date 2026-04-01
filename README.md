@@ -45,38 +45,38 @@ It gives every AI agent in your team access to the same centralized brain: a vec
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Hybrid RAG Search** | pgvector cosine similarity fused with full-text search via Reciprocal Rank Fusion |
-| **Semantic Memory** | Store and retrieve cross-project decisions, patterns, and post-mortems |
-| **20+ Built-in Skills** | NestJS, Go, Java, Rust, Python, React, architecture, testing, and more |
-| **Dual Transport** | gRPC (performance) + HTTP (compatibility) — both support Bearer token auth |
-| **Secure Mode** | Bootstrap token registration, SHA-256 hashed storage, per-client access tokens |
-| **Activity Tracking** | Fire-and-forget telemetry: command + repo + branch, logged per developer |
-| **Web Dashboard** | Embedded HTMX dashboard for monitoring clients, memory, and activity |
-| **Self-Hosted** | One Docker command — Postgres + pgvector + coder-node |
-| **Single Binary** | ~7MB CLI, zero runtime dependencies, cross-platform |
+| Feature                 | Description                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| **Hybrid RAG Search**   | pgvector cosine similarity fused with full-text search via Reciprocal Rank Fusion |
+| **Semantic Memory**     | Store and retrieve cross-project decisions, patterns, and post-mortems            |
+| **20+ Built-in Skills** | NestJS, Go, Java, Rust, Python, React, architecture, testing, and more            |
+| **Dual Transport**      | gRPC (performance) + HTTP (compatibility) — both support Bearer token auth        |
+| **Secure Mode**         | Bootstrap token registration, SHA-256 hashed storage, per-client access tokens    |
+| **Activity Tracking**   | Fire-and-forget telemetry: command + repo + branch, logged per developer          |
+| **Web Dashboard**       | Embedded HTMX dashboard for monitoring clients, memory, and activity              |
+| **Self-Hosted**         | One Docker command — Postgres + pgvector + coder-node                             |
+| **Single Binary**       | ~7MB CLI, zero runtime dependencies, cross-platform                               |
 
 ---
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [**Usage Guide**](docs/GUIDE.md) | Quick guide for the current working CLI |
-| [**CLI Reference**](docs/cli.md) | Current implemented commands and examples |
-| [**Installation**](docs/installation.md) | CLI + coder-node setup, secure mode, env vars |
-| [**Architecture**](docs/architecture.md) | System design, data flows, layer structure |
-| [**Skill System**](docs/skill_system.md) | How the vector RAG works |
-| [**Memory System**](docs/memory_system.md) | Semantic memory internals |
-| [**Memory Lifecycle Plan**](docs/memory_lifecycle_plan.md) | Freshness, validity, and superseded memory handling |
+| Document                                                                 | Description                                                       |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| [**Usage Guide**](docs/GUIDE.md)                                         | Quick guide for the current working CLI                           |
+| [**CLI Reference**](docs/cli.md)                                         | Current implemented commands and examples                         |
+| [**Installation**](docs/installation.md)                                 | CLI + coder-node setup, secure mode, env vars                     |
+| [**Architecture**](docs/architecture.md)                                 | System design, data flows, layer structure                        |
+| [**Skill System**](docs/skill_system.md)                                 | How the vector RAG works                                          |
+| [**Memory System**](docs/memory_system.md)                               | Semantic memory internals                                         |
+| [**Memory Lifecycle Plan**](docs/memory_lifecycle_plan.md)               | Freshness, validity, and superseded memory handling               |
 | [**Dynamic Skill Retrieval Plan**](docs/dynamic_skill_retrieval_plan.md) | Proposed upgrade for mid-task skill loading and context budgeting |
-| [**Skill Files**](docs/skill_files.md) | Bundling and executing binary assets |
-| [**Secure Mode**](docs/secure_mode.md) | Node-level security and client registration |
-| [**Web Dashboard**](docs/dashboard.md) | HTMX-powered visual management console |
-| [**Development**](docs/development.md) | Building from source, release process |
-| [**Intelligence Roadmap**](docs/roadmap-intelligence-flows.md) | Future design ideas; not the current command surface |
-| [**Changelog**](CHANGELOG.md) | Release history |
+| [**Skill Files**](docs/skill_files.md)                                   | Bundling and executing binary assets                              |
+| [**Secure Mode**](docs/secure_mode.md)                                   | Node-level security and client registration                       |
+| [**Web Dashboard**](docs/dashboard.md)                                   | HTMX-powered visual management console                            |
+| [**Development**](docs/development.md)                                   | Building from source, release process                             |
+| [**Intelligence Roadmap**](docs/roadmap-intelligence-flows.md)           | Future design ideas; not the current command surface              |
+| [**Changelog**](CHANGELOG.md)                                            | Release history                                                   |
 
 ---
 
@@ -123,7 +123,7 @@ coder skill ingest --source local   # load 20+ built-in skills into the vector D
 
 ### 5 — Use it with your AI agent
 
-Open Claude Code, GitHub Copilot, or any MCP-compatible AI agent and instruct it to use `coder memory` and `coder skill` commands as part of its workflow.
+Open Claude Code, GitHub Copilot, or any MCP-compatible AI agent and instruct it to use `coder skill resolve`, `coder memory search`, `coder memory recall`, and `coder memory store` as part of its workflow.
 
 The current binary is centered on knowledge retrieval and storage. Roadmap commands documented elsewhere are not automatically available unless they are wired in `cmd/coder/main.go`.
 
@@ -139,8 +139,8 @@ coder does not run language models. Your AI agent (Claude, Copilot, etc.) is the
 │                                                              │
 │  AI Agent (Claude Code / GitHub Copilot / any MCP client)   │
 │       │                                                      │
-│       │  1. coder skill search "NestJS error handling"       │
-│       │     → Returns: architecture rules, error patterns    │
+│       │  1. coder skill resolve "implement auth middleware"  │
+│       │     → Returns: active skill set for the task         │
 │       │                                                      │
 │       │  2. coder memory search "auth middleware"            │
 │       │     → Returns: past decisions, known issues          │
@@ -165,7 +165,7 @@ coder does not run language models. Your AI agent (Claude, Copilot, etc.) is the
                               │
               ┌───────────────┴───────────────┐
               │    PostgreSQL + pgvector       │
-              │    (no Ollama dependency)      │
+              │    Ollama / OpenAI / FTS-only  │
               └───────────────────────────────┘
 ```
 
@@ -173,25 +173,27 @@ coder does not run language models. Your AI agent (Claude, Copilot, etc.) is the
 
 Agent workflows enforce a consistent knowledge gate pattern:
 
-1. **Gate 1 — Skill retrieval**: `coder skill search "<topic>"` — retrieves architecture rules and best practices before any coding
+1. **Gate 1 — Active skill retrieval**: `coder skill resolve "<topic>" --trigger initial --budget 3` — selects the active skill set for the current task
 2. **Gate 2 — Memory retrieval**: `coder memory search "<topic>"` — loads project-specific history and past decisions
 3. **Gate 3 — Knowledge capture**: `coder memory store "<title>" "<content>"` — persists new patterns so every future agent benefits
+
+Use `coder skill search` for ad hoc discovery and `coder memory recall` when a long-running task needs to refresh the active memory set without restarting the workflow.
 
 ### Specialized Sub-Agents
 
 The agent system simulates a professional delivery team with specialized roles:
 
-| Agent | Role | When to Use |
-|-------|------|-------------|
-| `coder` | Fullstack orchestrator | End-to-end delivery, coordinates all phases |
-| `coder-ba` | Business Analyst | Elicit and document requirements before design |
-| `coder-architect` | System Architect | Design system, write ADRs, define API contracts |
-| `coder-be` | Backend Developer | Implement APIs, services, repositories |
-| `coder-fe` | Frontend Developer | Build components, pages, design system |
-| `coder-reviewer` | Code Reviewer | Enforce quality before merge |
-| `coder-qa` | QA Engineer | Acceptance testing, regression, QA report |
-| `coder-tech-writer` | Technical Writer | API docs, runbooks, CHANGELOG |
-| `coder-debugger` | Debugger | Root cause analysis, post-mortems |
+| Agent               | Role                   | When to Use                                     |
+| ------------------- | ---------------------- | ----------------------------------------------- |
+| `coder`             | Fullstack orchestrator | End-to-end delivery, coordinates all phases     |
+| `coder-ba`          | Business Analyst       | Elicit and document requirements before design  |
+| `coder-architect`   | System Architect       | Design system, write ADRs, define API contracts |
+| `coder-be`          | Backend Developer      | Implement APIs, services, repositories          |
+| `coder-fe`          | Frontend Developer     | Build components, pages, design system          |
+| `coder-reviewer`    | Code Reviewer          | Enforce quality before merge                    |
+| `coder-qa`          | QA Engineer            | Acceptance testing, regression, QA report       |
+| `coder-tech-writer` | Technical Writer       | API docs, runbooks, CHANGELOG                   |
+| `coder-debugger`    | Debugger               | Root cause analysis, post-mortems               |
 
 ---
 
@@ -200,27 +202,35 @@ The agent system simulates a professional delivery team with specialized roles:
 ### Intelligence Gates (always run these)
 
 ```bash
-coder skill search "NestJS error handling"       # Gate 1 — retrieve best practices
-coder memory search "auth pattern"               # Gate 2 — retrieve project decisions
-coder memory store "Auth decision" "content..."  # Gate 3 — capture new knowledge
+coder skill resolve "implement grpc auth flow" --trigger initial --budget 3
+coder memory search "auth pattern"
+coder memory store "Auth decision" "content..."
 ```
 
 ### Memory Management
 
 ```bash
 coder memory search "<query>"                    # Search semantic memory
+coder memory recall "<task>"                     # Refresh active memory for a running task
+coder memory active --format json                # Inspect the local active memory snapshot
 coder memory store "<title>" "<content>"         # Store new knowledge
-coder memory list                                # List all stored entries
+coder memory verify <id>                         # Refresh verification metadata
+coder memory supersede <old-id> <new-id>         # Mark one version as replaced
+coder memory audit                               # Report lifecycle conflicts or stale truths
+coder memory list                                # List recent entries
 coder memory compact --revector                  # Clean and re-embed memory
 ```
 
 ### Skill Management
 
 ```bash
-coder skill search "<topic>"                     # Search skills (RAG)
+coder skill resolve "<task>" --trigger execution --budget 3
+coder skill active --format json
+coder skill search "<topic>"                     # Ad hoc skill search
 coder skill list                                 # List all ingested skills
 coder skill info <name>                          # Detailed skill info
 coder skill ingest --source local                # Load built-in skills
+coder skill ingest --source github --repo hiimtrung/coder
 ```
 
 ### Session and Progress
@@ -273,6 +283,7 @@ Server admin                        Developer
 ```
 
 Token lifecycle:
+
 - Raw token generated with `crypto/rand`, never stored
 - Only the SHA-256 hash lives in the database
 - Bootstrap token shown once in server logs
@@ -282,7 +293,7 @@ Token lifecycle:
 
 ## Infrastructure
 
-coder-node requires only PostgreSQL with the pgvector extension. No Ollama, no LLM dependency.
+coder-node requires PostgreSQL with the pgvector extension plus an embedding provider. The default local setup uses Ollama for embeddings, but the system can also run with OpenAI embeddings or FTS-only mode depending on configuration. coder itself still does not run chat LLMs.
 
 ```yaml
 # docker-compose.yml
@@ -299,8 +310,8 @@ services:
   coder-node:
     image: ghcr.io/hiimtrung/coder-node:latest
     ports:
-      - "8080:8080"   # HTTP
-      - "9090:9090"   # gRPC
+      - "8080:8080" # HTTP
+      - "9090:9090" # gRPC
     environment:
       DATABASE_URL: postgres://coder:coder@postgres:5432/coder
     depends_on:
